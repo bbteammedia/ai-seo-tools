@@ -19,9 +19,41 @@ class Storage
         $base = self::projectDir($slug);
         $dirs = [
             $base,
+            $base . '/runs',
+        ];
+        foreach ($dirs as $d) {
+            if (!is_dir($d)) {
+                wp_mkdir_p($d);
+            }
+        }
+        return [
+            'base' => $base,
+            'runs' => $base . '/runs',
+        ];
+    }
+
+    public static function historyDir(string $slug): string
+    {
+        return self::projectDir($slug) . '/history';
+    }
+
+    public static function runsDir(string $project): string
+    {
+        return self::ensureProject($project)['runs'];
+    }
+
+    public static function runDir(string $project, string $runId): string
+    {
+        return self::runsDir($project) . '/' . self::normalizeRunId($runId);
+    }
+
+    public static function ensureRun(string $project, string $runId): array
+    {
+        $base = self::runDir($project, $runId);
+        $dirs = [
+            $base,
             $base . '/queue',
             $base . '/pages',
-            $base . '/history',
         ];
         foreach ($dirs as $d) {
             if (!is_dir($d)) {
@@ -32,13 +64,33 @@ class Storage
             'base' => $base,
             'queue' => $base . '/queue',
             'pages' => $base . '/pages',
-            'history' => $base . '/history',
         ];
     }
 
-    public static function historyDir(string $slug): string
+    public static function latestRunPath(string $project): string
     {
-        return self::projectDir($slug) . '/history';
+        return self::projectDir($project) . '/latest_run.txt';
+    }
+
+    public static function setLatestRun(string $project, string $runId): void
+    {
+        $path = self::latestRunPath($project);
+        file_put_contents($path, self::normalizeRunId($runId));
+    }
+
+    public static function getLatestRun(string $project): ?string
+    {
+        $path = self::latestRunPath($project);
+        if (!file_exists($path)) {
+            return null;
+        }
+        $run = trim(file_get_contents($path));
+        return $run !== '' ? $run : null;
+    }
+
+    private static function normalizeRunId(string $runId): string
+    {
+        return preg_replace('/[^A-Za-z0-9_\-]/', '', $runId);
     }
 
     public static function writeJson(string $path, $data): bool

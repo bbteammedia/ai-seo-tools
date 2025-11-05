@@ -5,9 +5,10 @@ use AISEO\Helpers\Storage;
 
 class Runner
 {
-    public static function run(string $project): array
+    public static function run(string $project, string $runId): array
     {
-        $pdir = Storage::projectDir($project) . '/pages';
+        $dirs = Storage::ensureRun($project, $runId);
+        $pdir = $dirs['pages'];
         $audits = [];
         $issueCounts = [];
         $statusBuckets = [
@@ -44,6 +45,8 @@ class Runner
         }
 
         $out = [
+            'run_id' => $runId,
+            'project' => $project,
             'generated_at' => gmdate('c'),
             'summary' => [
                 'total_pages' => count($audits),
@@ -52,7 +55,7 @@ class Runner
             ],
             'items' => $audits,
         ];
-        Storage::writeJson(Storage::projectDir($project) . '/audit.json', $out);
+        Storage::writeJson($dirs['base'] . '/audit.json', $out);
         return $out;
     }
 

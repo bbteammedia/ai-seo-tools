@@ -1,4 +1,6 @@
 <?php
+use AISEO\Helpers\Storage;
+
 /** Basic HTML report (will improve later / add PDF export) */
 $projectParam = get_query_var('aiseo_report');
 if (!$projectParam) {
@@ -6,22 +8,27 @@ if (!$projectParam) {
 }
 $project = sanitize_text_field($projectParam);
 $projectSlug = sanitize_title($project);
+$runParam = isset($_GET['run']) ? sanitize_key($_GET['run']) : '';
+if (!$runParam && $projectSlug) {
+    $runParam = Storage::getLatestRun($projectSlug) ?: '';
+}
+
 $base = getenv('AISEO_STORAGE_DIR') ?: get_theme_file_path('storage/projects');
-$report = $base . '/' . $projectSlug . '/report.json';
-$data = file_exists($report) ? json_decode(file_get_contents($report), true) : null;
+$reportPath = $runParam ? Storage::runDir($projectSlug, $runParam) . '/report.json' : '';
+$data = ($reportPath && file_exists($reportPath)) ? json_decode(file_get_contents($reportPath), true) : null;
 ?><!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>AI SEO Report – <?php echo esc_html($project); ?></title>
+  <title>AI SEO Report – <?php echo esc_html($project); ?><?php if ($runParam): ?> (<?php echo esc_html($runParam); ?>)<?php endif; ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 </head>
 <body class="p-4">
   <div class="container">
-    <h1 class="mb-3">AI SEO Report – <?php echo esc_html($project); ?></h1>
+    <h1 class="mb-3">AI SEO Report – <?php echo esc_html($project); ?><?php if ($runParam): ?> <small class="text-muted"><?php echo esc_html($runParam); ?></small><?php endif; ?></h1>
     <?php if (!$data): ?>
-      <div class="alert alert-warning">No report.json found.</div>
+      <div class="alert alert-warning">No report found for this run.</div>
     <?php else: ?>
       <?php if (!empty($data['base_url'])): ?>
         <p><strong>Primary URL:</strong> <a href="<?php echo esc_url($data['base_url']); ?>" target="_blank" rel="noopener"><?php echo esc_html($data['base_url']); ?></a></p>

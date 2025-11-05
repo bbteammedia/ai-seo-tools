@@ -5,39 +5,51 @@ use AISEO\Helpers\Storage;
 
 class Queue
 {
-    public static function init(string $project, array $urls): array
+    public static function init(string $project, array $urls, string $runId): array
     {
-        $dirs = Storage::ensureProject($project);
+        $dirs = Storage::ensureRun($project, $runId);
         $qdir = $dirs['queue'];
         $urls = array_values(array_unique(array_filter(array_map('trim', $urls))));
-        // Clean old queue
+
         foreach (glob($qdir . '/*.todo') as $f) {
             @unlink($f);
         }
         foreach (glob($qdir . '/*.done') as $f) {
             @unlink($f);
         }
-        // Seed queue
-        $added = self::enqueue($project, $urls);
-        return ['queued' => $added];
+
+        Storage::setLatestRun($project, $runId);
+
+        $metaPath = $dirs['base'] . '/meta.json';
+        $meta = [
+            'run_id' => $runId,
+            'project' => $project,
+            'started_at' => gmdate('c'),
+            'seed_urls' => $urls,
+            'completed_at' => null,
+        ];
+        Storage::writeJson($metaPath, $meta);
+
+        $added = self::enqueue($project, $urls, $runId);
+        return ['queued' => $added, 'run_id' => $runId];
     }
 
-    public static function next(string $project): ?string
+    public static function next(string $project, string $runId): ?string
     {
-        $qdir = Storage::projectDir($project) . '/queue';
+        $qdir = Storage::runDir($project, $runId) . '/queue';
         $todos = glob($qdir . '/*.todo');
         return $todos ? $todos[0] : null;
     }
 
-    public static function enqueue(string $project, array $urls): int
+    public static function enqueue(string $project, array $urls, string $runId): int
     {
-        $dirs = Storage::ensureProject($project);
+        $dirs = Storage::ensureRun($project, $runId);
         $qdir = $dirs['queue'];
         $pdir = $dirs['pages'];
         $added = 0;
         foreach ($urls as $url) {
             $url = trim((string) $url);
-            if (!$url) {
+            if ($url === '') {
                 continue;
             }
             $hash = md5($url);

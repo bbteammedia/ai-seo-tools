@@ -3,6 +3,7 @@ namespace AISEO\Rest;
 
 use WP_REST_Request;
 use AISEO\Helpers\Http;
+use AISEO\Helpers\RunId;
 use AISEO\Helpers\Storage;
 use AISEO\Crawl\Queue;
 use AISEO\Crawl\Worker;
@@ -55,8 +56,9 @@ class Routes
         $urls = [];
         if (is_array($urlsParam)) {
             foreach ($urlsParam as $u) {
-                if ($u) {
-                    $urls[] = $u;
+                $clean = esc_url_raw((string) $u);
+                if ($clean) {
+                    $urls[] = $clean;
                 }
             }
         }
@@ -66,12 +68,22 @@ class Routes
             $urls[] = $baseUrl;
         }
 
-        $urls = array_values(array_filter(array_map('esc_url_raw', array_unique($urls))));
+        $urls = array_values(array_unique(array_filter($urls)));
         if (!$project || empty($urls)) {
-            return Http::fail('project requires at least one valid URL (use Primary Site URL field or pass urls[])', 422);
+            return Http::fail('project requires at least one valid URL', 422);
         }
-        $res = Queue::init($project, $urls);
-        return Http::ok($res);
+
+        $runId = $req->get_param('run_id');
+        $runId = $runId ? self::normalizeRunId($runId) : RunId::new();
+
+        $result = Queue::init($project, $urls, $runId);
+        Storage::setLatestRun($project, $runId);
+
+        return Http::ok([
+            'project' => $project,
+            'run_id' => $runId,
+            'queued' => $result['queued'] ?? 0,
+        ]);
     }
 
     public static function crawlStep(WP_REST_Request $req)
@@ -83,16 +95,26 @@ class Routes
         if (!$project) {
             return Http::fail('project required', 422);
         }
-        $out = Worker::process($project);
-
-        // Auto trigger audit+report when queue is empty
-        $qdir = Storage::projectDir($project) . '/queue';
-        $remaining = glob($qdir . '/*.todo');
-        if (!$remaining) {
-            AuditRunner::run($project);
-            ReportBuilder::build($project);
+        $runId = $req->get_param('run');
+        $runId = $runId ? self::normalizeRunId($runId) : (Storage::getLatestRun($project) ?? '');
+        if (!$runId) {
+            return Http::fail('run not found', 404);
         }
-        return Http::ok(['processed' => $out]);
+
+        $result = Worker::process($project, $runId);
+
+        if (!Queue::next($project, $runId)) {
+            $audit = AuditRunner::run($project, $runId);
+            $report = ReportBuilder::build($project, $runId);
+            $result['audit'] = $audit['summary'] ?? [];
+            $result['report'] = $report['crawl'] ?? [];
+        }
+
+        return Http::ok([
+            'project' => $project,
+            'run_id' => $runId,
+            'processed' => $result,
+        ]);
     }
 
     public static function audit(WP_REST_Request $req)
@@ -101,7 +123,16 @@ class Routes
             return Http::fail('invalid key', 401);
         }
         $project = sanitize_text_field($req->get_param('project'));
-        return $project ? Http::ok(AuditRunner::run($project)) : Http::fail('project required', 422);
+        if (!$project) {
+            return Http::fail('project required', 422);
+        }
+        $runId = $req->get_param('run');
+        $runId = $runId ? self::normalizeRunId($runId) : (Storage::getLatestRun($project) ?? '');
+        if (!$runId) {
+            return Http::fail('run not found', 404);
+        }
+
+        return Http::ok(AuditRunner::run($project, $runId));
     }
 
     public static function report(WP_REST_Request $req)
@@ -110,7 +141,16 @@ class Routes
             return Http::fail('invalid key', 401);
         }
         $project = sanitize_text_field($req->get_param('project'));
-        return $project ? Http::ok(ReportBuilder::build($project)) : Http::fail('project required', 422);
+        if (!$project) {
+            return Http::fail('project required', 422);
+        }
+        $runId = $req->get_param('run');
+        $runId = $runId ? self::normalizeRunId($runId) : (Storage::getLatestRun($project) ?? '');
+        if (!$runId) {
+            return Http::fail('run not found', 404);
+        }
+
+        return Http::ok(ReportBuilder::build($project, $runId));
     }
 
     public static function status(WP_REST_Request $req)
@@ -122,16 +162,36 @@ class Routes
         if (!$project) {
             return Http::fail('project required', 422);
         }
-        $base = Storage::projectDir($project);
-        $todos = glob($base . '/queue/*.todo');
-        $done = glob($base . '/queue/*.done');
-        $pages = glob($base . '/pages/*.json');
+        $runId = $req->get_param('run');
+        $runId = $runId ? self::normalizeRunId($runId) : Storage::getLatestRun($project);
+        if (!$runId) {
+            return Http::ok([
+                'project' => $project,
+                'message' => 'no runs yet',
+            ]);
+        }
+
+        $runDir = Storage::runDir($project, $runId);
+        $queueDir = $runDir . '/queue';
+        $pagesDir = $runDir . '/pages';
+        $todos = glob($queueDir . '/*.todo');
+        $done = glob($queueDir . '/*.done');
+        $pages = glob($pagesDir . '/*.json');
+
         return Http::ok([
             'project' => $project,
-            'base_url' => Project::getBaseUrl($project),
+            'run_id' => $runId,
             'queue_remaining' => count($todos),
             'queue_done' => count($done),
             'pages' => count($pages),
+            'base_url' => Project::getBaseUrl($project),
         ]);
     }
+
+    private static function normalizeRunId(?string $runId): string
+    {
+        $runId = (string) $runId;
+        return preg_replace('/[^A-Za-z0-9_\-]/', '', $runId);
+    }
+
 }

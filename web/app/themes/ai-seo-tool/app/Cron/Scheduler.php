@@ -1,170 +1,163 @@
 <?php
 namespace AISEO\Cron;
 
-use AISEO\PostTypes\Project;
+use AISEO\Helpers\RunId;
+use AISEO\Helpers\Storage;
 use AISEO\Crawl\Queue;
 use AISEO\Crawl\Worker;
 use AISEO\Audit\Runner as AuditRunner;
 use AISEO\Report\Builder as ReportBuilder;
-use AISEO\Helpers\Storage;
 
 class Scheduler
 {
-    public const CRON_HOOK = 'aiseo_cron_tick';
-    public const OPTION_ENABLED = 'aiseo_scheduler_enabled';
+    public const EVENT = 'aiseo_minutely_drain';
+
+    public static function registerSchedules($schedules)
+    {
+        $schedules['every_minute'] = [
+            'interval' => 60,
+            'display' => __('Every Minute', 'ai-seo-tool'),
+        ];
+        return $schedules;
+    }
 
     public static function init(): void
     {
-        if (!self::isEnabled()) {
-            self::deactivate();
-            return;
+        if (!wp_next_scheduled(self::EVENT)) {
+            wp_schedule_event(time() + 60, 'every_minute', self::EVENT);
         }
 
-        add_action(self::CRON_HOOK, [self::class, 'process']);
-
-        if (!wp_next_scheduled(self::CRON_HOOK)) {
-            wp_schedule_event(time() + MINUTE_IN_SECONDS, 'hourly', self::CRON_HOOK);
-        }
+        add_action(self::EVENT, [self::class, 'drain']);
     }
 
     public static function deactivate(): void
     {
-        $timestamp = wp_next_scheduled(self::CRON_HOOK);
+        $timestamp = wp_next_scheduled(self::EVENT);
         if ($timestamp) {
-            wp_unschedule_event($timestamp, self::CRON_HOOK);
+            wp_unschedule_event($timestamp, self::EVENT);
         }
     }
 
-    public static function process(): void
+    public static function drain(): void
     {
-        $projects = get_posts([
-            'post_type' => Project::POST_TYPE,
-            'post_status' => 'publish',
-            'posts_per_page' => -1,
-            'fields' => 'ids',
-        ]);
+        $envDisabled = getenv('AISEO_DISABLE_CRON');
+        if (is_string($envDisabled) && strtolower(trim($envDisabled)) === 'true') {
+            return;
+        }
 
-        foreach ($projects as $postId) {
-            $slug = get_post_field('post_name', $postId);
-            Storage::ensureProject($slug);
+        $projects = self::collectProjects();
+        if (!$projects) {
+            return;
+        }
 
-            $schedule = get_post_meta($postId, Project::META_SCHEDULE, true) ?: 'manual';
-            $schedule = Project::sanitizeSchedule($schedule);
-            $lastRun = (int) get_post_meta($postId, Project::META_LAST_RUN, true);
+        $stepsPerTick = (int) (getenv('AISEO_STEPS_PER_TICK') ?: 50);
+        if ($stepsPerTick <= 0) {
+            $stepsPerTick = 50;
+        }
 
-            $dueCycle = ($schedule !== 'manual') && self::isDue($schedule, $lastRun);
-            if ($dueCycle) {
-                self::runProject($slug);
+        foreach ($projects as $project => $cfg) {
+            Storage::ensureProject($project);
+
+            $enabled = $cfg === null ? true : ($cfg['enabled'] ?? true);
+            if (!$enabled) {
+                continue;
             }
 
-            if (self::hasPending($slug)) {
-                self::processQueue($slug);
+            $latestRun = Storage::getLatestRun($project);
+            if ($cfg !== null && self::shouldStartNewRun($project, $cfg, $latestRun)) {
+                $seed = $cfg['seed_urls'] ?? [];
+                if (!empty($seed)) {
+                    $runId = RunId::new();
+                    Queue::init($project, $seed, $runId);
+                    Storage::setLatestRun($project, $runId);
+                    $latestRun = $runId;
+                }
+            }
+
+            if (!$latestRun) {
+                continue;
+            }
+
+            $processed = false;
+            for ($i = 0; $i < $stepsPerTick; $i++) {
+                $next = Queue::next($project, $latestRun);
+                if (!$next) {
+                    break;
+                }
+                $processed = true;
+                Worker::process($project, $latestRun);
+            }
+
+            $runDir = Storage::runDir($project, $latestRun);
+            $metaPath = $runDir . '/meta.json';
+            $meta = file_exists($metaPath) ? json_decode(file_get_contents($metaPath), true) : [];
+
+            $queueEmpty = !Queue::next($project, $latestRun);
+            if ($queueEmpty && empty($meta['completed_at'])) {
+                $audit = AuditRunner::run($project, $latestRun);
+                $report = ReportBuilder::build($project, $latestRun);
+                $meta['completed_at'] = gmdate('c');
+                $meta['summary'] = [
+                    'pages' => $report['crawl']['pages_count'] ?? 0,
+                    'issues' => $audit['summary']['issue_counts'] ?? [],
+                ];
+                Storage::writeJson($metaPath, $meta);
+            } elseif ($processed) {
+                $meta['last_tick_at'] = gmdate('c');
+                Storage::writeJson($metaPath, $meta);
             }
         }
     }
 
-    public static function runProject(string $slug): bool
+    private static function collectProjects(): array
     {
-        $baseUrl = Project::getBaseUrl($slug);
-        if (!$baseUrl) {
+        $baseDir = Storage::baseDir();
+        if (!is_dir($baseDir)) {
+            return [];
+        }
+        $projects = [];
+
+        foreach (glob($baseDir . '/*/config.json') as $configPath) {
+            $project = basename(dirname($configPath));
+            $projects[$project] = json_decode(file_get_contents($configPath), true) ?: [];
+        }
+
+        foreach (glob($baseDir . '/*', GLOB_ONLYDIR) as $dir) {
+            $project = basename($dir);
+            if (!isset($projects[$project])) {
+                $projects[$project] = null;
+            }
+        }
+
+        return $projects;
+    }
+
+    private static function shouldStartNewRun(string $project, array $cfg, ?string $latestRun): bool
+    {
+        $frequency = $cfg['frequency'] ?? 'manual';
+        if ($frequency === 'manual') {
             return false;
         }
 
-        Queue::init($slug, [$baseUrl]);
-
-        return true;
-    }
-
-    public static function processQueue(string $slug, int $maxSteps = 50): bool
-    {
-        $steps = 0;
-        $processed = false;
-        while ($steps < $maxSteps) {
-            $result = Worker::process($slug);
-            $steps++;
-            if (($result['message'] ?? '') === 'queue-empty') {
-                break;
-            }
-            $processed = true;
+        if (!$latestRun) {
+            return true;
         }
 
-        if (!Queue::next($slug)) {
-            AuditRunner::run($slug);
-            ReportBuilder::build($slug);
-            self::snapshot($slug);
-            Project::updateLastRun($slug, time());
+        $metaPath = Storage::runDir($project, $latestRun) . '/meta.json';
+        $meta = file_exists($metaPath) ? json_decode(file_get_contents($metaPath), true) : [];
+        $started = isset($meta['started_at']) ? strtotime($meta['started_at']) : 0;
+        if (!$started) {
+            return true;
         }
 
-        return $processed;
-    }
-
-    public static function isEnabled(): bool
-    {
-        $env = getenv('AISEO_DISABLE_CRON');
-        if (is_string($env) && $env !== '') {
-            $value = strtolower(trim($env));
-            if (in_array($value, ['1', 'true', 'on', 'yes'], true)) {
-                return false;
-            }
+        if ($frequency === 'weekly') {
+            return (time() - $started) >= 7 * 86400;
         }
 
-        $option = get_option(self::OPTION_ENABLED, '1');
-        return $option !== '0';
-    }
-
-    public static function setEnabled(bool $enabled): void
-    {
-        update_option(self::OPTION_ENABLED, $enabled ? '1' : '0');
-        if (!$enabled) {
-            self::deactivate();
+        if ($frequency === 'monthly') {
+            return date('Ym', $started) !== date('Ym');
         }
-    }
 
-    private static function hasPending(string $slug): bool
-    {
-        $dirs = Storage::ensureProject($slug);
-        $todos = glob($dirs['queue'] . '/*.todo');
-        return !empty($todos);
-    }
-
-    private static function isDue(string $schedule, int $lastRun): bool
-    {
-        if ($schedule === 'weekly') {
-            return $lastRun <= 0 || (time() - $lastRun) >= WEEK_IN_SECONDS;
-        }
-        if ($schedule === 'monthly') {
-            return $lastRun <= 0 || (time() - $lastRun) >= 30 * DAY_IN_SECONDS;
-        }
         return false;
-    }
-
-    private static function snapshot(string $slug): void
-    {
-        $dirs = Storage::ensureProject($slug);
-        $historyBase = $dirs['history'] ?? Storage::historyDir($slug);
-        if (!is_dir($historyBase)) {
-            wp_mkdir_p($historyBase);
-        }
-        $timestamp = gmdate('Ymd-His');
-        $target = $historyBase . '/' . $timestamp;
-        wp_mkdir_p($target);
-
-        $files = ['audit.json', 'report.json'];
-        foreach ($files as $file) {
-            $source = $dirs['base'] . '/' . $file;
-            if (file_exists($source)) {
-                copy($source, $target . '/' . $file);
-            }
-        }
-
-        $report = Storage::readJson($dirs['base'] . '/report.json', []);
-        $summary = [
-            'run_at' => gmdate('c'),
-            'project' => $slug,
-            'pages' => $report['crawl']['pages_count'] ?? 0,
-            'status_buckets' => $report['crawl']['status_buckets'] ?? [],
-            'top_issues' => $report['top_issues'] ?? [],
-        ];
-        Storage::writeJson($target . '/summary.json', $summary);
     }
 }

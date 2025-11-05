@@ -10,15 +10,15 @@ use Symfony\Component\DomCrawler\Crawler as DomCrawler;
 
 class Worker
 {
-    public static function process(string $project): array
+    public static function process(string $project, string $runId): array
     {
-        $qfile = Queue::next($project);
+        $qfile = Queue::next($project, $runId);
         if (!$qfile) {
             return ['message' => 'queue-empty'];
         }
 
         $url = trim(file_get_contents($qfile));
-        $observer = new Observer($project, $url);
+        $observer = new Observer($project, $runId, $url);
 
         $crawler = Crawler::create(self::clientOptions())
             ->setCrawlObserver($observer)
@@ -40,17 +40,18 @@ class Worker
         }
 
         $result = $observer->getLastResult();
-
         return $result ?: ['message' => 'queued', 'url' => $url];
     }
 
     public static function handleResponse(
         string $project,
+        string $runId,
         UriInterface $uri,
         ResponseInterface $response,
         ?UriInterface $foundOn = null,
         ?string $linkText = null
     ): array {
+        $dirs = Storage::ensureRun($project, $runId);
         $url = (string) $uri;
         $status = $response->getStatusCode();
         $body = (string) $response->getBody();
@@ -59,6 +60,8 @@ class Worker
         $contentLength = self::resolveContentLength($headers, $body);
 
         $page = [
+            'run_id' => $runId,
+            'project' => $project,
             'url' => $url,
             'status' => $status,
             'found_on' => $foundOn ? (string) $foundOn : null,
@@ -83,30 +86,35 @@ class Worker
             $discovered = $parsed['internal_urls'];
         }
 
-        $pdir = Storage::projectDir($project) . '/pages';
-        $pfile = $pdir . '/' . md5($url) . '.json';
+        $pfile = $dirs['pages'] . '/' . md5($url) . '.json';
         Storage::writeJson($pfile, $page);
 
         if (!empty($discovered)) {
-            Queue::enqueue($project, $discovered);
+            Queue::enqueue($project, $discovered, $runId);
         }
+
+        self::touchMeta($dirs['base'], ['last_processed_at' => gmdate('c')]);
 
         return $page;
     }
 
     public static function handleFailure(
         string $project,
+        string $runId,
         UriInterface $uri,
         ?ResponseInterface $response = null,
         ?\Throwable $exception = null,
         ?UriInterface $foundOn = null,
         ?string $linkText = null
     ): array {
+        $dirs = Storage::ensureRun($project, $runId);
         $status = $response ? $response->getStatusCode() : 0;
         $body = $response ? (string) $response->getBody() : '';
         $headers = $response ? array_change_key_case($response->getHeaders(), CASE_LOWER) : [];
 
         $page = [
+            'run_id' => $runId,
+            'project' => $project,
             'url' => (string) $uri,
             'status' => $status,
             'found_on' => $foundOn ? (string) $foundOn : null,
@@ -118,9 +126,10 @@ class Worker
             'error' => $exception ? $exception->getMessage() : 'request failed',
         ];
 
-        $pdir = Storage::projectDir($project) . '/pages';
-        $pfile = $pdir . '/' . md5($page['url']) . '.json';
+        $pfile = $dirs['pages'] . '/' . md5($page['url']) . '.json';
         Storage::writeJson($pfile, $page);
+
+        self::touchMeta($dirs['base'], ['last_processed_at' => gmdate('c')]);
 
         return $page;
     }
@@ -317,7 +326,6 @@ class Worker
     private static function extractStructuredData(DomCrawler $crawler): array
     {
         $schemas = [];
-
         $nodes = $crawler->filter('script[type="application/ld+json"]');
         foreach ($nodes as $node) {
             $raw = trim($node->textContent ?? '');
@@ -331,7 +339,6 @@ class Worker
                 $schemas[] = $raw;
             }
         }
-
         return $schemas;
     }
 
@@ -351,7 +358,17 @@ class Worker
             }
             $og[$property] = trim($content);
         }
-
         return $og;
+    }
+
+    private static function touchMeta(string $runBase, array $extra): void
+    {
+        $metaPath = $runBase . '/meta.json';
+        $meta = file_exists($metaPath) ? json_decode(file_get_contents($metaPath), true) : [];
+        if (!is_array($meta)) {
+            $meta = [];
+        }
+        $meta = array_merge($meta, $extra);
+        Storage::writeJson($metaPath, $meta);
     }
 }

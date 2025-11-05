@@ -1,9 +1,10 @@
 <?php
 namespace AISEO\Admin;
 
-use AISEO\PostTypes\Project;
+use AISEO\Helpers\RunId;
 use AISEO\Helpers\Storage;
-use AISEO\Cron\Scheduler;
+use AISEO\Crawl\Queue;
+use AISEO\PostTypes\Project;
 
 class Dashboard
 {
@@ -23,7 +24,6 @@ class Dashboard
     public static function registerActions(): void
     {
         add_action('admin_post_aiseo_run_crawl', [self::class, 'handleManualRun']);
-        add_action('admin_post_aiseo_toggle_scheduler', [self::class, 'handleToggleScheduler']);
     }
 
     public static function render(): void
@@ -38,31 +38,11 @@ class Dashboard
             <h1><?php esc_html_e('AI SEO Projects', 'ai-seo-tool'); ?></h1>
             <?php if (isset($_GET['aiseo_notice'])): $notice = sanitize_text_field($_GET['aiseo_notice']); ?>
                 <?php if ($notice === 'run'): ?>
-                    <div class="notice notice-success is-dismissible"><p><?php esc_html_e('Crawl has been queued. WP-Cron will process it shortly.', 'ai-seo-tool'); ?></p></div>
+                    <div class="notice notice-success is-dismissible"><p><?php esc_html_e('Crawl queued. Cron will begin shortly.', 'ai-seo-tool'); ?></p></div>
                 <?php elseif ($notice === 'run_fail'): ?>
-                    <div class="notice notice-error is-dismissible"><p><?php esc_html_e('Unable to queue crawl. Ensure the project has a primary URL set.', 'ai-seo-tool'); ?></p></div>
-                <?php elseif ($notice === 'scheduler_on'): ?>
-                    <div class="notice notice-success is-dismissible"><p><?php esc_html_e('Scheduler enabled.', 'ai-seo-tool'); ?></p></div>
-                <?php elseif ($notice === 'scheduler_off'): ?>
-                    <div class="notice notice-warning is-dismissible"><p><?php esc_html_e('Scheduler disabled.', 'ai-seo-tool'); ?></p></div>
+                    <div class="notice notice-error is-dismissible"><p><?php esc_html_e('Unable to queue crawl. Ensure a primary URL or seed_urls are configured.', 'ai-seo-tool'); ?></p></div>
                 <?php endif; ?>
             <?php endif; ?>
-            <div class="notice-inline">
-                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-bottom:20px;">
-                    <?php wp_nonce_field('aiseo_toggle_scheduler'); ?>
-                    <input type="hidden" name="action" value="aiseo_toggle_scheduler" />
-                    <p>
-                        <strong><?php esc_html_e('Scheduler status:', 'ai-seo-tool'); ?></strong>
-                        <?php if (Scheduler::isEnabled()): ?>
-                            <span class="status-enabled"><?php esc_html_e('Active', 'ai-seo-tool'); ?></span>
-                            <button type="submit" name="enabled" value="0" class="button"><?php esc_html_e('Disable Scheduler', 'ai-seo-tool'); ?></button>
-                        <?php else: ?>
-                            <span class="status-disabled"><?php esc_html_e('Disabled', 'ai-seo-tool'); ?></span>
-                            <button type="submit" name="enabled" value="1" class="button button-primary"><?php esc_html_e('Enable Scheduler', 'ai-seo-tool'); ?></button>
-                        <?php endif; ?>
-                    </p>
-                </form>
-            </div>
             <?php if (!$projects): ?>
                 <p><?php esc_html_e('No AI SEO projects found. Create one under AI SEO Projects → Add New.', 'ai-seo-tool'); ?></p>
                 <?php return; ?>
@@ -72,60 +52,41 @@ class Dashboard
                     <tr>
                         <th><?php esc_html_e('Project', 'ai-seo-tool'); ?></th>
                         <th><?php esc_html_e('Primary URL', 'ai-seo-tool'); ?></th>
-                        <th><?php esc_html_e('Schedule', 'ai-seo-tool'); ?></th>
-                        <th><?php esc_html_e('Pages', 'ai-seo-tool'); ?></th>
-                        <th><?php esc_html_e('Last Crawl', 'ai-seo-tool'); ?></th>
-                        <th><?php esc_html_e('Top Issues', 'ai-seo-tool'); ?></th>
+                        <th><?php esc_html_e('Latest Run', 'ai-seo-tool'); ?></th>
+                        <th><?php esc_html_e('Queue', 'ai-seo-tool'); ?></th>
                         <th><?php esc_html_e('Actions', 'ai-seo-tool'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach ($projects as $project): ?>
-                        <?php $summary = self::loadSummary($project); ?>
+                        <?php $summary = self::loadSummary($project['slug']); ?>
                         <tr>
                             <td><?php echo esc_html($project['title']); ?></td>
                             <td>
                                 <?php if ($project['base_url']): ?>
-                                    <a href="<?php echo esc_url($project['base_url']); ?>" target="_blank" rel="noopener">
-                                        <?php echo esc_html($project['base_url']); ?>
-                                    </a>
+                                    <a href="<?php echo esc_url($project['base_url']); ?>" target="_blank" rel="noopener"><?php echo esc_html($project['base_url']); ?></a>
                                 <?php else: ?>
                                     <em><?php esc_html_e('Not set', 'ai-seo-tool'); ?></em>
                                 <?php endif; ?>
                             </td>
-                            <td><?php echo esc_html($project['schedule_label']); ?></td>
-                            <td><?php echo (int) ($summary['pages'] ?? 0); ?></td>
                             <td>
-                                <?php
-                                if (!empty($summary['last_run'])) {
-                                    $relative = human_time_diff($summary['last_run'], current_time('timestamp'));
-                                    printf('%s<br /><span class="description">%s %s</span>', esc_html(gmdate('Y-m-d H:i', $summary['last_run'])), esc_html($relative), esc_html__('ago', 'ai-seo-tool'));
-                                } else {
-                                    echo '<em>' . esc_html__('Never', 'ai-seo-tool') . '</em>';
-                                }
-                                ?>
-                            </td>
-                            <td>
-                                <?php if (!empty($summary['top_issues'])): ?>
-                                    <ul class="small">
-                                        <?php foreach ($summary['top_issues'] as $issue => $count): ?>
-                                            <li><?php echo esc_html($issue); ?> <span class="count">(<?php echo (int) $count; ?>)</span></li>
-                                        <?php endforeach; ?>
-                                    </ul>
+                                <?php if ($summary['run_id']): ?>
+                                    <strong><?php echo esc_html($summary['run_id']); ?></strong><br />
+                                    <span class="description"><?php echo esc_html($summary['status']); ?></span>
                                 <?php else: ?>
-                                    <em><?php esc_html_e('No issues', 'ai-seo-tool'); ?></em>
+                                    <em><?php esc_html_e('No runs yet', 'ai-seo-tool'); ?></em>
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <a class="button button-primary" href="<?php echo esc_url(self::reportLink($project['slug'])); ?>" target="_blank">
-                                    <?php esc_html_e('View Report', 'ai-seo-tool'); ?>
-                                </a>
-                                <a class="button" href="<?php echo esc_url(self::manualCrawlUrl($project['slug'])); ?>">
-                                    <?php esc_html_e('Run Crawl Now', 'ai-seo-tool'); ?>
-                                </a>
-                                <a class="button" href="<?php echo esc_url(self::apiStatusLink($project['slug'])); ?>" target="_blank" rel="noopener">
-                                    <?php esc_html_e('REST Status', 'ai-seo-tool'); ?>
-                                </a>
+                                <?php if ($summary['run_id']): ?>
+                                    <?php printf(__('Todo: %d, Done: %d, Pages: %d', 'ai-seo-tool'), $summary['queue_remaining'], $summary['queue_done'], $summary['pages']); ?>
+                                <?php else: ?>
+                                    —
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <a class="button button-primary" href="<?php echo esc_url(self::reportLink($project['slug'], $summary['run_id'])); ?>" target="_blank" rel="noopener"><?php esc_html_e('View Report', 'ai-seo-tool'); ?></a>
+                                <a class="button" href="<?php echo esc_url(self::manualCrawlUrl($project['slug'])); ?>"><?php esc_html_e('Run Crawl Now', 'ai-seo-tool'); ?></a>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -143,49 +104,55 @@ class Dashboard
             'posts_per_page' => -1,
         ]);
 
-        $options = Project::scheduleOptions();
-
-        return array_map(function ($post) use ($options) {
-            $base = Project::getBaseUrl($post->post_name);
-            $schedule = Project::getSchedule($post->post_name);
+        return array_map(function ($post) {
             return [
                 'ID' => $post->ID,
                 'slug' => $post->post_name,
                 'title' => $post->post_title,
-                'base_url' => $base,
-                'schedule' => $schedule,
-                'schedule_label' => $options[$schedule] ?? ucfirst($schedule),
+                'base_url' => Project::getBaseUrl($post->post_name),
             ];
         }, $posts);
     }
 
-    private static function loadSummary(array $project): array
+    private static function loadSummary(string $project): array
     {
-        $reportPath = Storage::projectDir($project['slug']) . '/report.json';
-        $report = file_exists($reportPath) ? json_decode(file_get_contents($reportPath), true) : [];
-
-        $audit = $report['audit'] ?? [];
-        $summary = [
-            'generated_at' => $report['generated_at'] ?? null,
-            'pages' => $report['crawl']['pages_count'] ?? null,
-            'status_buckets' => $report['crawl']['status_buckets'] ?? [],
-            'top_issues' => $report['top_issues'] ?? [],
-            'last_run' => Project::getLastRun($project['slug']),
-        ];
-
-        if (empty($summary['top_issues']) && !empty($audit['summary']['issue_counts'])) {
-            $counts = $audit['summary']['issue_counts'];
-            arsort($counts);
-            $summary['top_issues'] = array_slice($counts, 0, 5, true);
+        $runId = Storage::getLatestRun($project);
+        if (!$runId) {
+            return [
+                'run_id' => null,
+                'status' => __('Pending', 'ai-seo-tool'),
+                'queue_remaining' => 0,
+                'queue_done' => 0,
+                'pages' => 0,
+            ];
         }
-
-        return $summary;
+        $runDir = Storage::runDir($project, $runId);
+        $queueDir = $runDir . '/queue';
+        $pagesDir = $runDir . '/pages';
+        $todos = glob($queueDir . '/*.todo');
+        $done = glob($queueDir . '/*.done');
+        $pages = glob($pagesDir . '/*.json');
+        $status = __('Processing', 'ai-seo-tool');
+        if (empty($todos)) {
+            $status = __('Completed', 'ai-seo-tool');
+        }
+        return [
+            'run_id' => $runId,
+            'status' => $status,
+            'queue_remaining' => count($todos),
+            'queue_done' => count($done),
+            'pages' => count($pages),
+        ];
     }
 
-    private static function reportLink(string $slug): string
+    private static function reportLink(string $slug, ?string $runId): string
     {
         $home = trailingslashit(home_url());
-        return $home . 'ai-seo-report/' . $slug;
+        $url = $home . 'ai-seo-report/' . $slug;
+        if ($runId) {
+            $url = add_query_arg('run', $runId, $url);
+        }
+        return $url;
     }
 
     private static function manualCrawlUrl(string $slug): string
@@ -198,15 +165,6 @@ class Dashboard
         return wp_nonce_url($url, 'aiseo_run_crawl_' . $slug);
     }
 
-    private static function apiStatusLink(string $slug): string
-    {
-        $key = getenv('AISEO_SECURE_TOKEN') ?: 'AISEO_TOKEN';
-        return add_query_arg([
-            'project' => $slug,
-            'key' => $key,
-        ], rest_url('ai-seo-tool/v1/status'));
-    }
-
     public static function handleManualRun(): void
     {
         if (!current_user_can('manage_options')) {
@@ -216,30 +174,33 @@ class Dashboard
         $slug = isset($_GET['project']) ? sanitize_title($_GET['project']) : '';
         check_admin_referer('aiseo_run_crawl_' . $slug);
 
-        $result = $slug ? Scheduler::runProject($slug) : false;
+        $urls = [];
+        $config = self::readConfig($slug);
+        if (!empty($config['seed_urls']) && is_array($config['seed_urls'])) {
+            $urls = array_merge($urls, $config['seed_urls']);
+        }
+        $base = Project::getBaseUrl($slug);
+        if ($base) {
+            $urls[] = $base;
+        }
+        $urls = array_values(array_unique(array_filter(array_map('esc_url_raw', $urls))));
 
-        $notice = $result ? 'run' : 'run_fail';
-        wp_safe_redirect(add_query_arg('aiseo_notice', $notice, admin_url('admin.php?page=ai-seo-dashboard')));
+        if (empty($urls)) {
+            wp_safe_redirect(add_query_arg('aiseo_notice', 'run_fail', admin_url('admin.php?page=ai-seo-dashboard')));
+            exit;
+        }
+
+        $runId = RunId::new();
+        Queue::init($slug, $urls, $runId);
+        Storage::setLatestRun($slug, $runId);
+
+        wp_safe_redirect(add_query_arg('aiseo_notice', 'run', admin_url('admin.php?page=ai-seo-dashboard')));
         exit;
     }
 
-    public static function handleToggleScheduler(): void
+    private static function readConfig(string $project): array
     {
-        if (!current_user_can('manage_options')) {
-            wp_die(__('You do not have permission to perform this action.', 'ai-seo-tool'));
-        }
-
-        check_admin_referer('aiseo_toggle_scheduler');
-
-        $enabled = isset($_POST['enabled']) && $_POST['enabled'] === '1';
-        Scheduler::setEnabled($enabled);
-        if ($enabled) {
-            Scheduler::init();
-        } else {
-            Scheduler::deactivate();
-        }
-
-        wp_safe_redirect(add_query_arg('aiseo_notice', $enabled ? 'scheduler_on' : 'scheduler_off', admin_url('admin.php?page=ai-seo-dashboard')));
-        exit;
+        $path = Storage::projectDir($project) . '/config.json';
+        return file_exists($path) ? (json_decode(file_get_contents($path), true) ?: []) : [];
     }
 }

@@ -89,6 +89,7 @@ ai-seo-tool/
 │   ├── Rest/Routes.php
 │   ├── Helpers/Storage.php
 │   ├── Helpers/Http.php
+│   ├── Helpers/RunId.php
 │   ├── Crawl/Queue.php
 │   ├── Crawl/Worker.php
 │   ├── Crawl/Observer.php
@@ -294,40 +295,60 @@ use AISEO\Helpers\Storage;
 
 class Queue
 {
-    public static function init(string $project, array $urls): array
+    public static function init(string $project, array $urls, string $runId): array
     {
-        $dirs = Storage::ensureProject($project);
+        $dirs = Storage::ensureRun($project, $runId);
         $qdir = $dirs['queue'];
         $urls = array_values(array_unique(array_filter(array_map('trim', $urls))));
-        // Clean old queue
-        foreach (glob($qdir.'/*.todo') as $f) @unlink($f);
-        foreach (glob($qdir.'/*.done') as $f) @unlink($f);
-        // Seed queue
-        $added = self::enqueue($project, $urls);
-        return ['queued' => $added];
+
+        foreach (glob($qdir . '/*.todo') as $f) {
+            @unlink($f);
+        }
+        foreach (glob($qdir . '/*.done') as $f) {
+            @unlink($f);
+        }
+
+        Storage::setLatestRun($project, $runId);
+
+        $metaPath = $dirs['base'] . '/meta.json';
+        $meta = [
+            'run_id' => $runId,
+            'project' => $project,
+            'started_at' => gmdate('c'),
+            'seed_urls' => $urls,
+            'completed_at' => null,
+        ];
+        Storage::writeJson($metaPath, $meta);
+
+        $added = self::enqueue($project, $urls, $runId);
+        return ['queued' => $added, 'run_id' => $runId];
     }
 
-    public static function next(string $project): ?string
+    public static function next(string $project, string $runId): ?string
     {
-        $qdir = Storage::projectDir($project) . '/queue';
-        $todos = glob($qdir.'/*.todo');
+        $qdir = Storage::runDir($project, $runId) . '/queue';
+        $todos = glob($qdir . '/*.todo');
         return $todos ? $todos[0] : null;
     }
 
-    public static function enqueue(string $project, array $urls): int
+    public static function enqueue(string $project, array $urls, string $runId): int
     {
-        $dirs = Storage::ensureProject($project);
+        $dirs = Storage::ensureRun($project, $runId);
         $qdir = $dirs['queue'];
         $pdir = $dirs['pages'];
         $added = 0;
         foreach ($urls as $url) {
             $url = trim((string) $url);
-            if (!$url) continue;
+            if ($url === '') {
+                continue;
+            }
             $hash = md5($url);
-            $todo = $qdir.'/'.$hash.'.todo';
-            $done = $qdir.'/'.$hash.'.done';
-            $page = $pdir.'/'.$hash.'.json';
-            if (file_exists($todo) || file_exists($done) || file_exists($page)) continue;
+            $todo = $qdir . '/' . $hash . '.todo';
+            $done = $qdir . '/' . $hash . '.done';
+            $page = $pdir . '/' . $hash . '.json';
+            if (file_exists($todo) || file_exists($done) || file_exists($page)) {
+                continue;
+            }
             file_put_contents($todo, $url);
             $added++;
         }
@@ -336,6 +357,7 @@ class Queue
 }
 ```
 
+
 ### `app/Admin/Dashboard.php`
 ### `app/Cron/Scheduler.php`
 
@@ -343,183 +365,175 @@ class Queue
 <?php
 namespace AISEO\Cron;
 
-use AISEO\PostTypes\Project;
+use AISEO\Helpers\RunId;
+use AISEO\Helpers\Storage;
 use AISEO\Crawl\Queue;
 use AISEO\Crawl\Worker;
 use AISEO\Audit\Runner as AuditRunner;
 use AISEO\Report\Builder as ReportBuilder;
-use AISEO\Helpers\Storage;
 
 class Scheduler
 {
-    public const CRON_HOOK = 'aiseo_cron_tick';
-    public const OPTION_ENABLED = 'aiseo_scheduler_enabled';
+    public const EVENT = 'aiseo_minutely_drain';
+
+    public static function registerSchedules($schedules)
+    {
+        $schedules['every_minute'] = [
+            'interval' => 60,
+            'display' => __('Every Minute', 'ai-seo-tool'),
+        ];
+        return $schedules;
+    }
 
     public static function init(): void
     {
-        if (!self::isEnabled()) {
-            self::deactivate();
-            return;
+        if (!wp_next_scheduled(self::EVENT)) {
+            wp_schedule_event(time() + 60, 'every_minute', self::EVENT);
         }
 
-        add_action(self::CRON_HOOK, [self::class, 'process']);
-
-        if (!wp_next_scheduled(self::CRON_HOOK)) {
-            wp_schedule_event(time() + MINUTE_IN_SECONDS, 'hourly', self::CRON_HOOK);
-        }
+        add_action(self::EVENT, [self::class, 'drain']);
     }
 
     public static function deactivate(): void
     {
-        $timestamp = wp_next_scheduled(self::CRON_HOOK);
+        $timestamp = wp_next_scheduled(self::EVENT);
         if ($timestamp) {
-            wp_unschedule_event($timestamp, self::CRON_HOOK);
+            wp_unschedule_event($timestamp, self::EVENT);
         }
     }
 
-    public static function process(): void
+    public static function drain(): void
     {
-        $projects = get_posts([
-            'post_type' => Project::POST_TYPE,
-            'post_status' => 'publish',
-            'posts_per_page' => -1,
-            'fields' => 'ids',
-        ]);
+        $envDisabled = getenv('AISEO_DISABLE_CRON');
+        if (is_string($envDisabled) && strtolower(trim($envDisabled)) === 'true') {
+            return;
+        }
 
-        foreach ($projects as $postId) {
-            $slug = get_post_field('post_name', $postId);
-            Storage::ensureProject($slug);
+        $projects = self::collectProjects();
+        if (!$projects) {
+            return;
+        }
 
-            $schedule = get_post_meta($postId, Project::META_SCHEDULE, true) ?: 'manual';
-            $schedule = Project::sanitizeSchedule($schedule);
-            $lastRun = (int) get_post_meta($postId, Project::META_LAST_RUN, true);
+        $stepsPerTick = (int) (getenv('AISEO_STEPS_PER_TICK') ?: 50);
+        if ($stepsPerTick <= 0) {
+            $stepsPerTick = 50;
+        }
 
-            $dueCycle = ($schedule !== 'manual') && self::isDue($schedule, $lastRun);
-            if ($dueCycle) {
-                self::runProject($slug);
+        foreach ($projects as $project => $cfg) {
+            Storage::ensureProject($project);
+
+            $enabled = $cfg === null ? true : ($cfg['enabled'] ?? true);
+            if (!$enabled) {
+                continue;
             }
 
-            if (self::hasPending($slug)) {
-                self::processQueue($slug);
+            $latestRun = Storage::getLatestRun($project);
+            if ($cfg !== null && self::shouldStartNewRun($project, $cfg, $latestRun)) {
+                $seed = $cfg['seed_urls'] ?? [];
+                if (!empty($seed)) {
+                    $runId = RunId::new();
+                    Queue::init($project, $seed, $runId);
+                    Storage::setLatestRun($project, $runId);
+                    $latestRun = $runId;
+                }
+            }
+
+            if (!$latestRun) {
+                continue;
+            }
+
+            $processed = false;
+            for ($i = 0; $i < $stepsPerTick; $i++) {
+                $next = Queue::next($project, $latestRun);
+                if (!$next) {
+                    break;
+                }
+                $processed = true;
+                Worker::process($project, $latestRun);
+            }
+
+            $runDir = Storage::runDir($project, $latestRun);
+            $metaPath = $runDir . '/meta.json';
+            $meta = file_exists($metaPath) ? json_decode(file_get_contents($metaPath), true) : [];
+
+            $queueEmpty = !Queue::next($project, $latestRun);
+            if ($queueEmpty && empty($meta['completed_at'])) {
+                $audit = AuditRunner::run($project, $latestRun);
+                $report = ReportBuilder::build($project, $latestRun);
+                $meta['completed_at'] = gmdate('c');
+                $meta['summary'] = [
+                    'pages' => $report['crawl']['pages_count'] ?? 0,
+                    'issues' => $audit['summary']['issue_counts'] ?? [],
+                ];
+                Storage::writeJson($metaPath, $meta);
+            } elseif ($processed) {
+                $meta['last_tick_at'] = gmdate('c');
+                Storage::writeJson($metaPath, $meta);
             }
         }
     }
 
-    public static function runProject(string $slug): bool
+    private static function collectProjects(): array
     {
-        $baseUrl = Project::getBaseUrl($slug);
-        if (!$baseUrl) {
+        $baseDir = Storage::baseDir();
+        $projects = [];
+
+        foreach (glob($baseDir . '/*/config.json') as $configPath) {
+            $project = basename(dirname($configPath));
+            $projects[$project] = json_decode(file_get_contents($configPath), true) ?: [];
+        }
+
+        foreach (glob($baseDir . '/*', GLOB_ONLYDIR) as $dir) {
+            $project = basename($dir);
+            if (!isset($projects[$project])) {
+                $projects[$project] = null;
+            }
+        }
+
+        return $projects;
+    }
+
+    private static function shouldStartNewRun(string $project, array $cfg, ?string $latestRun): bool
+    {
+        $frequency = $cfg['frequency'] ?? 'manual';
+        if ($frequency === 'manual') {
             return false;
         }
 
-        Queue::init($slug, [$baseUrl]);
-
-        return true;
-    }
-
-    public static function processQueue(string $slug, int $maxSteps = 50): bool
-    {
-        $steps = 0;
-        $processed = false;
-        while ($steps < $maxSteps) {
-            $result = Worker::process($slug);
-            $steps++;
-            if (($result['message'] ?? '') === 'queue-empty') {
-                break;
-            }
-            $processed = true;
+        if (!$latestRun) {
+            return true;
         }
 
-        if (!Queue::next($slug)) {
-            AuditRunner::run($slug);
-            ReportBuilder::build($slug);
-            self::snapshot($slug);
-            Project::updateLastRun($slug, time());
+        $metaPath = Storage::runDir($project, $latestRun) . '/meta.json';
+        $meta = file_exists($metaPath) ? json_decode(file_get_contents($metaPath), true) : [];
+        $started = isset($meta['started_at']) ? strtotime($meta['started_at']) : 0;
+        if (!$started) {
+            return true;
         }
 
-        return $processed;
-    }
-
-    public static function isEnabled(): bool
-    {
-        $env = getenv('AISEO_DISABLE_CRON');
-        if (is_string($env) && $env !== '') {
-            $value = strtolower(trim($env));
-            if (in_array($value, ['1', 'true', 'on', 'yes'], true)) {
-                return false;
-            }
+        if ($frequency === 'weekly') {
+            return (time() - $started) >= 7 * 86400;
         }
 
-        $option = get_option(self::OPTION_ENABLED, '1');
-        return $option !== '0';
-    }
-
-    public static function setEnabled(bool $enabled): void
-    {
-        update_option(self::OPTION_ENABLED, $enabled ? '1' : '0');
-        if (!$enabled) {
-            self::deactivate();
+        if ($frequency === 'monthly') {
+            return date('Ym', $started) !== date('Ym');
         }
-    }
 
-    private static function hasPending(string $slug): bool
-    {
-        $dirs = Storage::ensureProject($slug);
-        $todos = glob($dirs['queue'] . '/*.todo');
-        return !empty($todos);
-    }
-
-    private static function isDue(string $schedule, int $lastRun): bool
-    {
-        if ($schedule === 'weekly') {
-            return $lastRun <= 0 || (time() - $lastRun) >= WEEK_IN_SECONDS;
-        }
-        if ($schedule === 'monthly') {
-            return $lastRun <= 0 || (time() - $lastRun) >= 30 * DAY_IN_SECONDS;
-        }
         return false;
     }
-
-    private static function snapshot(string $slug): void
-    {
-        $dirs = Storage::ensureProject($slug);
-        $historyBase = $dirs['history'] ?? Storage::historyDir($slug);
-        if (!is_dir($historyBase)) {
-            wp_mkdir_p($historyBase);
-        }
-        $timestamp = gmdate('Ymd-His');
-        $target = $historyBase . '/' . $timestamp;
-        wp_mkdir_p($target);
-
-        $files = ['audit.json', 'report.json'];
-        foreach ($files as $file) {
-            $source = $dirs['base'] . '/' . $file;
-            if (file_exists($source)) {
-                copy($source, $target . '/' . $file);
-            }
-        }
-
-        $report = Storage::readJson($dirs['base'] . '/report.json', []);
-        $summary = [
-            'run_at' => gmdate('c'),
-            'project' => $slug,
-            'pages' => $report['crawl']['pages_count'] ?? 0,
-            'status_buckets' => $report['crawl']['status_buckets'] ?? [],
-            'top_issues' => $report['top_issues'] ?? [],
-        ];
-        Storage::writeJson($target . '/summary.json', $summary);
-    }
 }
-````
+```
+`
 
 
 ```php
 <?php
 namespace AISEO\Admin;
 
-use AISEO\PostTypes\Project;
+use AISEO\Helpers\RunId;
 use AISEO\Helpers\Storage;
-use AISEO\Cron\Scheduler;
+use AISEO\Crawl\Queue;
+use AISEO\PostTypes\Project;
 
 class Dashboard
 {
@@ -539,7 +553,6 @@ class Dashboard
     public static function registerActions(): void
     {
         add_action('admin_post_aiseo_run_crawl', [self::class, 'handleManualRun']);
-        add_action('admin_post_aiseo_toggle_scheduler', [self::class, 'handleToggleScheduler']);
     }
 
     public static function render(): void
@@ -554,31 +567,11 @@ class Dashboard
             <h1><?php esc_html_e('AI SEO Projects', 'ai-seo-tool'); ?></h1>
             <?php if (isset($_GET['aiseo_notice'])): $notice = sanitize_text_field($_GET['aiseo_notice']); ?>
                 <?php if ($notice === 'run'): ?>
-                    <div class="notice notice-success is-dismissible"><p><?php esc_html_e('Crawl has been queued. WP-Cron will process it shortly.', 'ai-seo-tool'); ?></p></div>
+                    <div class="notice notice-success is-dismissible"><p><?php esc_html_e('Crawl queued. Cron will begin shortly.', 'ai-seo-tool'); ?></p></div>
                 <?php elseif ($notice === 'run_fail'): ?>
-                    <div class="notice notice-error is-dismissible"><p><?php esc_html_e('Unable to queue crawl. Ensure the project has a primary URL set.', 'ai-seo-tool'); ?></p></div>
-                <?php elseif ($notice === 'scheduler_on'): ?>
-                    <div class="notice notice-success is-dismissible"><p><?php esc_html_e('Scheduler enabled.', 'ai-seo-tool'); ?></p></div>
-                <?php elseif ($notice === 'scheduler_off'): ?>
-                    <div class="notice notice-warning is-dismissible"><p><?php esc_html_e('Scheduler disabled.', 'ai-seo-tool'); ?></p></div>
+                    <div class="notice notice-error is-dismissible"><p><?php esc_html_e('Unable to queue crawl. Ensure a primary URL or seed_urls are configured.', 'ai-seo-tool'); ?></p></div>
                 <?php endif; ?>
             <?php endif; ?>
-            <div class="notice-inline">
-                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-bottom:20px;">
-                    <?php wp_nonce_field('aiseo_toggle_scheduler'); ?>
-                    <input type="hidden" name="action" value="aiseo_toggle_scheduler" />
-                    <p>
-                        <strong><?php esc_html_e('Scheduler status:', 'ai-seo-tool'); ?></strong>
-                        <?php if (Scheduler::isEnabled()): ?>
-                            <span class="status-enabled"><?php esc_html_e('Active', 'ai-seo-tool'); ?></span>
-                            <button type="submit" name="enabled" value="0" class="button"><?php esc_html_e('Disable Scheduler', 'ai-seo-tool'); ?></button>
-                        <?php else: ?>
-                            <span class="status-disabled"><?php esc_html_e('Disabled', 'ai-seo-tool'); ?></span>
-                            <button type="submit" name="enabled" value="1" class="button button-primary"><?php esc_html_e('Enable Scheduler', 'ai-seo-tool'); ?></button>
-                        <?php endif; ?>
-                    </p>
-                </form>
-            </div>
             <?php if (!$projects): ?>
                 <p><?php esc_html_e('No AI SEO projects found. Create one under AI SEO Projects → Add New.', 'ai-seo-tool'); ?></p>
                 <?php return; ?>
@@ -588,60 +581,41 @@ class Dashboard
                     <tr>
                         <th><?php esc_html_e('Project', 'ai-seo-tool'); ?></th>
                         <th><?php esc_html_e('Primary URL', 'ai-seo-tool'); ?></th>
-                        <th><?php esc_html_e('Schedule', 'ai-seo-tool'); ?></th>
-                        <th><?php esc_html_e('Pages', 'ai-seo-tool'); ?></th>
-                        <th><?php esc_html_e('Last Crawl', 'ai-seo-tool'); ?></th>
-                        <th><?php esc_html_e('Top Issues', 'ai-seo-tool'); ?></th>
+                        <th><?php esc_html_e('Latest Run', 'ai-seo-tool'); ?></th>
+                        <th><?php esc_html_e('Queue', 'ai-seo-tool'); ?></th>
                         <th><?php esc_html_e('Actions', 'ai-seo-tool'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach ($projects as $project): ?>
-                        <?php $summary = self::loadSummary($project); ?>
+                        <?php $summary = self::loadSummary($project['slug']); ?>
                         <tr>
                             <td><?php echo esc_html($project['title']); ?></td>
                             <td>
                                 <?php if ($project['base_url']): ?>
-                                    <a href="<?php echo esc_url($project['base_url']); ?>" target="_blank" rel="noopener">
-                                        <?php echo esc_html($project['base_url']); ?>
-                                    </a>
+                                    <a href="<?php echo esc_url($project['base_url']); ?>" target="_blank" rel="noopener"><?php echo esc_html($project['base_url']); ?></a>
                                 <?php else: ?>
                                     <em><?php esc_html_e('Not set', 'ai-seo-tool'); ?></em>
                                 <?php endif; ?>
                             </td>
-                            <td><?php echo esc_html($project['schedule_label']); ?></td>
-                            <td><?php echo (int) ($summary['pages'] ?? 0); ?></td>
                             <td>
-                                <?php
-                                if (!empty($summary['last_run'])) {
-                                    $relative = human_time_diff($summary['last_run'], current_time('timestamp'));
-                                    printf('%s<br /><span class="description">%s %s</span>', esc_html(gmdate('Y-m-d H:i', $summary['last_run'])), esc_html($relative), esc_html__('ago', 'ai-seo-tool'));
-                                } else {
-                                    echo '<em>' . esc_html__('Never', 'ai-seo-tool') . '</em>';
-                                }
-                                ?>
-                            </td>
-                            <td>
-                                <?php if (!empty($summary['top_issues'])): ?>
-                                    <ul class="small">
-                                        <?php foreach ($summary['top_issues'] as $issue => $count): ?>
-                                            <li><?php echo esc_html($issue); ?> <span class="count">(<?php echo (int) $count; ?>)</span></li>
-                                        <?php endforeach; ?>
-                                    </ul>
+                                <?php if ($summary['run_id']): ?>
+                                    <strong><?php echo esc_html($summary['run_id']); ?></strong><br />
+                                    <span class="description"><?php echo esc_html($summary['status']); ?></span>
                                 <?php else: ?>
-                                    <em><?php esc_html_e('No issues', 'ai-seo-tool'); ?></em>
+                                    <em><?php esc_html_e('No runs yet', 'ai-seo-tool'); ?></em>
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <a class="button button-primary" href="<?php echo esc_url(self::reportLink($project['slug'])); ?>" target="_blank">
-                                    <?php esc_html_e('View Report', 'ai-seo-tool'); ?>
-                                </a>
-                                <a class="button" href="<?php echo esc_url(self::manualCrawlUrl($project['slug'])); ?>">
-                                    <?php esc_html_e('Run Crawl Now', 'ai-seo-tool'); ?>
-                                </a>
-                                <a class="button" href="<?php echo esc_url(self::apiStatusLink($project['slug'])); ?>" target="_blank" rel="noopener">
-                                    <?php esc_html_e('REST Status', 'ai-seo-tool'); ?>
-                                </a>
+                                <?php if ($summary['run_id']): ?>
+                                    <?php printf(__('Todo: %d, Done: %d, Pages: %d', 'ai-seo-tool'), $summary['queue_remaining'], $summary['queue_done'], $summary['pages']); ?>
+                                <?php else: ?>
+                                    —
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <a class="button button-primary" href="<?php echo esc_url(self::reportLink($project['slug'], $summary['run_id'])); ?>" target="_blank" rel="noopener"><?php esc_html_e('View Report', 'ai-seo-tool'); ?></a>
+                                <a class="button" href="<?php echo esc_url(self::manualCrawlUrl($project['slug'])); ?>"><?php esc_html_e('Run Crawl Now', 'ai-seo-tool'); ?></a>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -659,49 +633,55 @@ class Dashboard
             'posts_per_page' => -1,
         ]);
 
-        $options = Project::scheduleOptions();
-
-        return array_map(function ($post) use ($options) {
-            $base = Project::getBaseUrl($post->post_name);
-            $schedule = Project::getSchedule($post->post_name);
+        return array_map(function ($post) {
             return [
                 'ID' => $post->ID,
                 'slug' => $post->post_name,
                 'title' => $post->post_title,
-                'base_url' => $base,
-                'schedule' => $schedule,
-                'schedule_label' => $options[$schedule] ?? ucfirst($schedule),
+                'base_url' => Project::getBaseUrl($post->post_name),
             ];
         }, $posts);
     }
 
-    private static function loadSummary(array $project): array
+    private static function loadSummary(string $project): array
     {
-        $reportPath = Storage::projectDir($project['slug']) . '/report.json';
-        $report = file_exists($reportPath) ? json_decode(file_get_contents($reportPath), true) : [];
-
-        $audit = $report['audit'] ?? [];
-        $summary = [
-            'generated_at' => $report['generated_at'] ?? null,
-            'pages' => $report['crawl']['pages_count'] ?? null,
-            'status_buckets' => $report['crawl']['status_buckets'] ?? [],
-            'top_issues' => $report['top_issues'] ?? [],
-            'last_run' => Project::getLastRun($project['slug']),
-        ];
-
-        if (empty($summary['top_issues']) && !empty($audit['summary']['issue_counts'])) {
-            $counts = $audit['summary']['issue_counts'];
-            arsort($counts);
-            $summary['top_issues'] = array_slice($counts, 0, 5, true);
+        $runId = Storage::getLatestRun($project);
+        if (!$runId) {
+            return [
+                'run_id' => null,
+                'status' => __('Pending', 'ai-seo-tool'),
+                'queue_remaining' => 0,
+                'queue_done' => 0,
+                'pages' => 0,
+            ];
         }
-
-        return $summary;
+        $runDir = Storage::runDir($project, $runId);
+        $queueDir = $runDir . '/queue';
+        $pagesDir = $runDir . '/pages';
+        $todos = glob($queueDir . '/*.todo');
+        $done = glob($queueDir . '/*.done');
+        $pages = glob($pagesDir . '/*.json');
+        $status = __('Processing', 'ai-seo-tool');
+        if (empty($todos)) {
+            $status = __('Completed', 'ai-seo-tool');
+        }
+        return [
+            'run_id' => $runId,
+            'status' => $status,
+            'queue_remaining' => count($todos),
+            'queue_done' => count($done),
+            'pages' => count($pages),
+        ];
     }
 
-    private static function reportLink(string $slug): string
+    private static function reportLink(string $slug, ?string $runId): string
     {
         $home = trailingslashit(home_url());
-        return $home . 'ai-seo-report/' . $slug;
+        $url = $home . 'ai-seo-report/' . $slug;
+        if ($runId) {
+            $url = add_query_arg('run', $runId, $url);
+        }
+        return $url;
     }
 
     private static function manualCrawlUrl(string $slug): string
@@ -714,15 +694,6 @@ class Dashboard
         return wp_nonce_url($url, 'aiseo_run_crawl_' . $slug);
     }
 
-    private static function apiStatusLink(string $slug): string
-    {
-        $key = getenv('AISEO_SECURE_TOKEN') ?: 'AISEO_TOKEN';
-        return add_query_arg([
-            'project' => $slug,
-            'key' => $key,
-        ], rest_url('ai-seo-tool/v1/status'));
-    }
-
     public static function handleManualRun(): void
     {
         if (!current_user_can('manage_options')) {
@@ -732,34 +703,37 @@ class Dashboard
         $slug = isset($_GET['project']) ? sanitize_title($_GET['project']) : '';
         check_admin_referer('aiseo_run_crawl_' . $slug);
 
-        $result = $slug ? Scheduler::runProject($slug) : false;
+        $urls = [];
+        $config = self::readConfig($slug);
+        if (!empty($config['seed_urls']) && is_array($config['seed_urls'])) {
+            $urls = array_merge($urls, $config['seed_urls']);
+        }
+        $base = Project::getBaseUrl($slug);
+        if ($base) {
+            $urls[] = $base;
+        }
+        $urls = array_values(array_unique(array_filter(array_map('esc_url_raw', $urls))));
 
-        $notice = $result ? 'run' : 'run_fail';
-        wp_safe_redirect(add_query_arg('aiseo_notice', $notice, admin_url('admin.php?page=ai-seo-dashboard')));
+        if (empty($urls)) {
+            wp_safe_redirect(add_query_arg('aiseo_notice', 'run_fail', admin_url('admin.php?page=ai-seo-dashboard')));
+            exit;
+        }
+
+        $runId = RunId::new();
+        Queue::init($slug, $urls, $runId);
+        Storage::setLatestRun($slug, $runId);
+
+        wp_safe_redirect(add_query_arg('aiseo_notice', 'run', admin_url('admin.php?page=ai-seo-dashboard')));
         exit;
     }
 
-    public static function handleToggleScheduler(): void
+    private static function readConfig(string $project): array
     {
-        if (!current_user_can('manage_options')) {
-            wp_die(__('You do not have permission to perform this action.', 'ai-seo-tool'));
-        }
-
-        check_admin_referer('aiseo_toggle_scheduler');
-
-        $enabled = isset($_POST['enabled']) && $_POST['enabled'] === '1';
-        Scheduler::setEnabled($enabled);
-        if ($enabled) {
-            Scheduler::init();
-        } else {
-            Scheduler::deactivate();
-        }
-
-        wp_safe_redirect(add_query_arg('aiseo_notice', $enabled ? 'scheduler_on' : 'scheduler_off', admin_url('admin.php?page=ai-seo-dashboard')));
-        exit;
+        $path = Storage::projectDir($project) . '/config.json';
+        return file_exists($path) ? (json_decode(file_get_contents($path), true) ?: []) : [];
     }
 }
-`````
+``````
 
 ### `app/Crawl/Observer.php`
 
@@ -889,15 +863,15 @@ use Symfony\Component\DomCrawler\Crawler as DomCrawler;
 
 class Worker
 {
-    public static function process(string $project): array
+    public static function process(string $project, string $runId): array
     {
-        $qfile = Queue::next($project);
+        $qfile = Queue::next($project, $runId);
         if (!$qfile) {
             return ['message' => 'queue-empty'];
         }
 
         $url = trim(file_get_contents($qfile));
-        $observer = new Observer($project, $url);
+        $observer = new Observer($project, $runId, $url);
 
         $crawler = Crawler::create(self::clientOptions())
             ->setCrawlObserver($observer)
@@ -919,17 +893,18 @@ class Worker
         }
 
         $result = $observer->getLastResult();
-
         return $result ?: ['message' => 'queued', 'url' => $url];
     }
 
     public static function handleResponse(
         string $project,
+        string $runId,
         UriInterface $uri,
         ResponseInterface $response,
         ?UriInterface $foundOn = null,
         ?string $linkText = null
     ): array {
+        $dirs = Storage::ensureRun($project, $runId);
         $url = (string) $uri;
         $status = $response->getStatusCode();
         $body = (string) $response->getBody();
@@ -938,6 +913,8 @@ class Worker
         $contentLength = self::resolveContentLength($headers, $body);
 
         $page = [
+            'run_id' => $runId,
+            'project' => $project,
             'url' => $url,
             'status' => $status,
             'found_on' => $foundOn ? (string) $foundOn : null,
@@ -962,30 +939,35 @@ class Worker
             $discovered = $parsed['internal_urls'];
         }
 
-        $pdir = Storage::projectDir($project) . '/pages';
-        $pfile = $pdir . '/' . md5($url) . '.json';
+        $pfile = $dirs['pages'] . '/' . md5($url) . '.json';
         Storage::writeJson($pfile, $page);
 
         if (!empty($discovered)) {
-            Queue::enqueue($project, $discovered);
+            Queue::enqueue($project, $discovered, $runId);
         }
+
+        self::touchMeta($dirs['base'], ['last_processed_at' => gmdate('c')]);
 
         return $page;
     }
 
     public static function handleFailure(
         string $project,
+        string $runId,
         UriInterface $uri,
         ?ResponseInterface $response = null,
         ?\Throwable $exception = null,
         ?UriInterface $foundOn = null,
         ?string $linkText = null
     ): array {
+        $dirs = Storage::ensureRun($project, $runId);
         $status = $response ? $response->getStatusCode() : 0;
         $body = $response ? (string) $response->getBody() : '';
         $headers = $response ? array_change_key_case($response->getHeaders(), CASE_LOWER) : [];
 
         $page = [
+            'run_id' => $runId,
+            'project' => $project,
             'url' => (string) $uri,
             'status' => $status,
             'found_on' => $foundOn ? (string) $foundOn : null,
@@ -997,9 +979,10 @@ class Worker
             'error' => $exception ? $exception->getMessage() : 'request failed',
         ];
 
-        $pdir = Storage::projectDir($project) . '/pages';
-        $pfile = $pdir . '/' . md5($page['url']) . '.json';
+        $pfile = $dirs['pages'] . '/' . md5($page['url']) . '.json';
         Storage::writeJson($pfile, $page);
+
+        self::touchMeta($dirs['base'], ['last_processed_at' => gmdate('c')]);
 
         return $page;
     }
@@ -1196,7 +1179,6 @@ class Worker
     private static function extractStructuredData(DomCrawler $crawler): array
     {
         $schemas = [];
-
         $nodes = $crawler->filter('script[type="application/ld+json"]');
         foreach ($nodes as $node) {
             $raw = trim($node->textContent ?? '');
@@ -1210,7 +1192,6 @@ class Worker
                 $schemas[] = $raw;
             }
         }
-
         return $schemas;
     }
 
@@ -1230,11 +1211,22 @@ class Worker
             }
             $og[$property] = trim($content);
         }
-
         return $og;
+    }
+
+    private static function touchMeta(string $runBase, array $extra): void
+    {
+        $metaPath = $runBase . '/meta.json';
+        $meta = file_exists($metaPath) ? json_decode(file_get_contents($metaPath), true) : [];
+        if (!is_array($meta)) {
+            $meta = [];
+        }
+        $meta = array_merge($meta, $extra);
+        Storage::writeJson($metaPath, $meta);
     }
 }
 ```
+
 ---
 
 ## 6) Audit and Report stubs
@@ -1249,9 +1241,10 @@ use AISEO\Helpers\Storage;
 
 class Runner
 {
-    public static function run(string $project): array
+    public static function run(string $project, string $runId): array
     {
-        $pdir = Storage::projectDir($project) . '/pages';
+        $dirs = Storage::ensureRun($project, $runId);
+        $pdir = $dirs['pages'];
         $audits = [];
         $issueCounts = [];
         $statusBuckets = [
@@ -1288,6 +1281,8 @@ class Runner
         }
 
         $out = [
+            'run_id' => $runId,
+            'project' => $project,
             'generated_at' => gmdate('c'),
             'summary' => [
                 'total_pages' => count($audits),
@@ -1296,7 +1291,7 @@ class Runner
             ],
             'items' => $audits,
         ];
-        Storage::writeJson(Storage::projectDir($project) . '/audit.json', $out);
+        Storage::writeJson($dirs['base'] . '/audit.json', $out);
         return $out;
     }
 
@@ -1408,6 +1403,7 @@ class Runner
 
 
 
+
 ### `app/Report/Builder.php`
 
 ```php
@@ -1419,20 +1415,22 @@ use AISEO\PostTypes\Project;
 
 class Builder
 {
-    public static function build(string $project): array
+    public static function build(string $project, string $runId): array
     {
-        $base = Storage::projectDir($project);
-        $audit = Storage::readJson($base . '/audit.json', []);
+        $dirs = Storage::ensureRun($project, $runId);
+        $audit = Storage::readJson($dirs['base'] . '/audit.json', []);
         $crawl = [
-            'pages_count' => count(glob($base . '/pages/*.json')),
+            'pages_count' => count(glob($dirs['pages'] . '/*.json')),
             'status_buckets' => $audit['summary']['status_buckets'] ?? [],
         ];
         $topIssues = [];
         if (!empty($audit['summary']['issue_counts'])) {
-            arsort($audit['summary']['issue_counts']);
-            $topIssues = array_slice($audit['summary']['issue_counts'], 0, 10, true);
+            $counts = $audit['summary']['issue_counts'];
+            arsort($counts);
+            $topIssues = array_slice($counts, 0, 10, true);
         }
         $data = [
+            'run_id' => $runId,
             'project' => $project,
             'base_url' => Project::getBaseUrl($project),
             'generated_at' => gmdate('c'),
@@ -1440,7 +1438,7 @@ class Builder
             'audit' => $audit,
             'top_issues' => $topIssues,
         ];
-        Storage::writeJson($base . '/report.json', $data);
+        Storage::writeJson($dirs['base'] . '/report.json', $data);
         return $data;
     }
 }
@@ -1448,10 +1446,13 @@ class Builder
 
 
 
+
 ### `templates/report.php`
 
 ```php
 <?php
+use AISEO\Helpers\Storage;
+
 /** Basic HTML report (will improve later / add PDF export) */
 $projectParam = get_query_var('aiseo_report');
 if (!$projectParam) {
@@ -1459,22 +1460,27 @@ if (!$projectParam) {
 }
 $project = sanitize_text_field($projectParam);
 $projectSlug = sanitize_title($project);
+$runParam = isset($_GET['run']) ? sanitize_key($_GET['run']) : '';
+if (!$runParam && $projectSlug) {
+    $runParam = Storage::getLatestRun($projectSlug) ?: '';
+}
+
 $base = getenv('AISEO_STORAGE_DIR') ?: get_theme_file_path('storage/projects');
-$report = $base . '/' . $projectSlug . '/report.json';
-$data = file_exists($report) ? json_decode(file_get_contents($report), true) : null;
+$reportPath = $runParam ? Storage::runDir($projectSlug, $runParam) . '/report.json' : '';
+$data = ($reportPath && file_exists($reportPath)) ? json_decode(file_get_contents($reportPath), true) : null;
 ?><!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>AI SEO Report – <?php echo esc_html($project); ?></title>
+  <title>AI SEO Report – <?php echo esc_html($project); ?><?php if ($runParam): ?> (<?php echo esc_html($runParam); ?>)<?php endif; ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 </head>
 <body class="p-4">
   <div class="container">
-    <h1 class="mb-3">AI SEO Report – <?php echo esc_html($project); ?></h1>
+    <h1 class="mb-3">AI SEO Report – <?php echo esc_html($project); ?><?php if ($runParam): ?> <small class="text-muted"><?php echo esc_html($runParam); ?></small><?php endif; ?></h1>
     <?php if (!$data): ?>
-      <div class="alert alert-warning">No report.json found.</div>
+      <div class="alert alert-warning">No report found for this run.</div>
     <?php else: ?>
       <?php if (!empty($data['base_url'])): ?>
         <p><strong>Primary URL:</strong> <a href="<?php echo esc_url($data['base_url']); ?>" target="_blank" rel="noopener"><?php echo esc_html($data['base_url']); ?></a></p>
@@ -1547,6 +1553,7 @@ $data = file_exists($report) ? json_decode(file_get_contents($report), true) : n
 
 
 
+
 ---
 
 ## 7) REST API routes
@@ -1559,6 +1566,7 @@ namespace AISEO\Rest;
 
 use WP_REST_Request;
 use AISEO\Helpers\Http;
+use AISEO\Helpers\RunId;
 use AISEO\Helpers\Storage;
 use AISEO\Crawl\Queue;
 use AISEO\Crawl\Worker;
@@ -1603,75 +1611,155 @@ class Routes
 
     public static function startCrawl(WP_REST_Request $req)
     {
-        if (!Http::validate_token($req)) return Http::fail('invalid key', 401);
+        if (!Http::validate_token($req)) {
+            return Http::fail('invalid key', 401);
+        }
         $project = sanitize_text_field($req->get_param('project'));
         $urlsParam = $req->get_param('urls');
         $urls = [];
         if (is_array($urlsParam)) {
             foreach ($urlsParam as $u) {
-                if ($u) $urls[] = $u;
+                $clean = esc_url_raw((string) $u);
+                if ($clean) {
+                    $urls[] = $clean;
+                }
             }
         }
+
         $baseUrl = Project::getBaseUrl($project);
         if ($baseUrl) {
             $urls[] = $baseUrl;
         }
-        $urls = array_values(array_filter(array_map('esc_url_raw', array_unique($urls))));
-        if (!$project || empty($urls)) return Http::fail('project requires at least one valid URL (use Primary Site URL field or pass urls[])', 422);
-        $res = Queue::init($project, $urls);
-        return Http::ok($res);
+
+        $urls = array_values(array_unique(array_filter($urls)));
+        if (!$project || empty($urls)) {
+            return Http::fail('project requires at least one valid URL', 422);
+        }
+
+        $runId = $req->get_param('run_id');
+        $runId = $runId ? self::normalizeRunId($runId) : RunId::new();
+
+        $result = Queue::init($project, $urls, $runId);
+        Storage::setLatestRun($project, $runId);
+
+        return Http::ok([
+            'project' => $project,
+            'run_id' => $runId,
+            'queued' => $result['queued'] ?? 0,
+        ]);
     }
 
     public static function crawlStep(WP_REST_Request $req)
     {
-        if (!Http::validate_token($req)) return Http::fail('invalid key', 401);
-        $project = sanitize_text_field($req->get_param('project'));
-        if (!$project) return Http::fail('project required', 422);
-        $out = Worker::process($project);
-
-        // Auto trigger audit+report when queue is empty
-        $qdir = Storage::projectDir($project).'/queue';
-        $remaining = glob($qdir.'/*.todo');
-        if (!$remaining) {
-            AuditRunner::run($project);
-            ReportBuilder::build($project);
+        if (!Http::validate_token($req)) {
+            return Http::fail('invalid key', 401);
         }
-        return Http::ok(['processed' => $out]);
+        $project = sanitize_text_field($req->get_param('project'));
+        if (!$project) {
+            return Http::fail('project required', 422);
+        }
+        $runId = $req->get_param('run');
+        $runId = $runId ? self::normalizeRunId($runId) : (Storage::getLatestRun($project) ?? '');
+        if (!$runId) {
+            return Http::fail('run not found', 404);
+        }
+
+        $result = Worker::process($project, $runId);
+
+        if (!Queue::next($project, $runId)) {
+            $audit = AuditRunner::run($project, $runId);
+            $report = ReportBuilder::build($project, $runId);
+            $result['audit'] = $audit['summary'] ?? [];
+            $result['report'] = $report['crawl'] ?? [];
+        }
+
+        return Http::ok([
+            'project' => $project,
+            'run_id' => $runId,
+            'processed' => $result,
+        ]);
     }
 
     public static function audit(WP_REST_Request $req)
     {
-        if (!Http::validate_token($req)) return Http::fail('invalid key', 401);
+        if (!Http::validate_token($req)) {
+            return Http::fail('invalid key', 401);
+        }
         $project = sanitize_text_field($req->get_param('project'));
-        return $project ? Http::ok(AuditRunner::run($project)) : Http::fail('project required', 422);
+        if (!$project) {
+            return Http::fail('project required', 422);
+        }
+        $runId = $req->get_param('run');
+        $runId = $runId ? self::normalizeRunId($runId) : (Storage::getLatestRun($project) ?? '');
+        if (!$runId) {
+            return Http::fail('run not found', 404);
+        }
+
+        return Http::ok(AuditRunner::run($project, $runId));
     }
 
     public static function report(WP_REST_Request $req)
     {
-        if (!Http::validate_token($req)) return Http::fail('invalid key', 401);
+        if (!Http::validate_token($req)) {
+            return Http::fail('invalid key', 401);
+        }
         $project = sanitize_text_field($req->get_param('project'));
-        return $project ? Http::ok(ReportBuilder::build($project)) : Http::fail('project required', 422);
+        if (!$project) {
+            return Http::fail('project required', 422);
+        }
+        $runId = $req->get_param('run');
+        $runId = $runId ? self::normalizeRunId($runId) : (Storage::getLatestRun($project) ?? '');
+        if (!$runId) {
+            return Http::fail('run not found', 404);
+        }
+
+        return Http::ok(ReportBuilder::build($project, $runId));
     }
 
     public static function status(WP_REST_Request $req)
     {
-        if (!Http::validate_token($req)) return Http::fail('invalid key', 401);
+        if (!Http::validate_token($req)) {
+            return Http::fail('invalid key', 401);
+        }
         $project = sanitize_text_field($req->get_param('project'));
-        if (!$project) return Http::fail('project required', 422);
-        $base = Storage::projectDir($project);
-        $todos = glob($base.'/queue/*.todo');
-        $done = glob($base+'/queue/*.done');
-        $pages = glob($base.'/pages/*.json');
+        if (!$project) {
+            return Http::fail('project required', 422);
+        }
+        $runId = $req->get_param('run');
+        $runId = $runId ? self::normalizeRunId($runId) : Storage::getLatestRun($project);
+        if (!$runId) {
+            return Http::ok([
+                'project' => $project,
+                'message' => 'no runs yet',
+            ]);
+        }
+
+        $runDir = Storage::runDir($project, $runId);
+        $queueDir = $runDir . '/queue';
+        $pagesDir = $runDir . '/pages';
+        $todos = glob($queueDir . '/*.todo');
+        $done = glob($queueDir . '/*.done');
+        $pages = glob($pagesDir . '/*.json');
+
         return Http::ok([
             'project' => $project,
-            'base_url' => Project::getBaseUrl($project),
+            'run_id' => $runId,
             'queue_remaining' => count($todos),
             'queue_done' => count($done),
             'pages' => count($pages),
+            'base_url' => Project::getBaseUrl($project),
         ]);
     }
 }
+
+
+    private static function normalizeRunId(?string $runId): string
+    {
+        $runId = (string) $runId;
+        return preg_replace('/[^A-Za-z0-9_\-]/', '', $runId);
+    }
 ```
+
 
 ---
 

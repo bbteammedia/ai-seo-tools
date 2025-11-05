@@ -9,12 +9,14 @@ use Spatie\Crawler\CrawlObservers\CrawlObserver;
 class Observer extends CrawlObserver
 {
     private string $project;
+    private string $runId;
     private ?string $originUrl;
     private ?array $lastResult = null;
 
-    public function __construct(string $project, ?string $originUrl = null)
+    public function __construct(string $project, string $runId, ?string $originUrl = null)
     {
         $this->project = $project;
+        $this->runId = $runId;
         $this->originUrl = $originUrl;
     }
 
@@ -26,6 +28,7 @@ class Observer extends CrawlObserver
     ): void {
         $this->lastResult = Worker::handleResponse(
             $this->project,
+            $this->runId,
             $url,
             $response,
             $foundOnUrl,
@@ -42,6 +45,7 @@ class Observer extends CrawlObserver
         $response = $requestException->getResponse();
         $this->lastResult = Worker::handleFailure(
             $this->project,
+            $this->runId,
             $url,
             $response,
             $requestException,
@@ -55,6 +59,7 @@ class Observer extends CrawlObserver
         $uri = new \GuzzleHttp\Psr7\Uri($url);
         $this->lastResult = Worker::handleFailure(
             $this->project,
+            $this->runId,
             $uri,
             null,
             $exception,

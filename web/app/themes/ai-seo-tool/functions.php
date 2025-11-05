@@ -20,6 +20,7 @@ add_action('admin_menu', [\AISEO\Admin\Dashboard::class, 'register']);
 add_action('admin_init', [\AISEO\Admin\Dashboard::class, 'registerActions']);
 
 // Cron scheduler
+add_filter('cron_schedules', [\AISEO\Cron\Scheduler::class, 'registerSchedules']);
 add_action('init', [\AISEO\Cron\Scheduler::class, 'init']);
 add_action('switch_theme', [\AISEO\Cron\Scheduler::class, 'deactivate']);
 

@@ -19,21 +19,21 @@ The stack is **WordPress Bedrock** with a custom theme `ai-seo-tool`. All busine
 ```
 web/app/themes/ai-seo-tool/
 ├── app/
-│   ├── Admin/Dashboard.php      # wp-admin dashboard (AI SEO menu)
-│   ├── Audit/Runner.php         # Aggregates issues & summaries
+│   ├── Admin/Dashboard.php      # wp-admin dashboard (manual run trigger + status)
+│   ├── Audit/Runner.php         # Aggregates issues & summaries per run
 │   ├── Crawl/
-│   │   ├── Queue.php            # Queue management helpers
+│   │   ├── Queue.php            # Run-scoped queue helpers
 │   │   ├── Worker.php           # Spatie crawler integration
 │   │   ├── Observer.php         # Spatie callbacks → Worker handlers
 │   │   └── Profile.php          # Domain-restricted crawl profile
-│   ├── Cron/Scheduler.php       # WP-Cron orchestration
-│   ├── Helpers/{Storage,Http}.php
-│   ├── PostTypes/Project.php    # CPT + scheduling meta
-│   ├── Report/Builder.php       # Builds report.json (summary + top issues)
+│   ├── Cron/Scheduler.php       # 1-minute WP-Cron drain + auto-run logic
+│   ├── Helpers/{Storage,Http,RunId}.php
+│   ├── PostTypes/Project.php    # CPT (still leveraged for base URLs)
+│   ├── Report/Builder.php       # Builds run-scoped report.json
 │   ├── Rest/Routes.php          # `/start-crawl`, `/crawl-step`, etc.
 │   └── AI/Gemini.php            # Placeholder for future AI summaries
 ├── templates/report.php         # Front-end report viewer
-├── storage/projects/            # Per-project data (queue/pages/report/history)
+├── storage/projects/            # Per-project runs, config, latest pointer
 └── composer.json                # Theme-level dependencies
 ```
 
@@ -48,35 +48,36 @@ web/app/themes/ai-seo-tool/
 
 ```
 storage/projects/{slug}/
-├── queue/    # *.todo / *.done files
-├── pages/    # {md5(url)}.json per crawled page
-├── audit.json
-├── report.json
-└── history/
-    └── {YYYYmmdd-HHMMSS}/
-        ├── audit.json
-        ├── report.json
-        └── summary.json
+├── runs/
+│   └── {run_id}/
+│       ├── queue/       # *.todo / *.done per run
+│       ├── pages/       # {md5(url)}.json per run
+│       ├── audit.json
+│       ├── report.json
+│       ├── meta.json    # started_at, completed_at, summary
+├── config.json           # Scheduler configuration (enabled, frequency, seed_urls)
+├── latest_run.txt        # Pointer to most recent run id
+└── history/              # Optional legacy backups
 ```
 
-`summary.json` captures run timestamp, page counts, status buckets, and top issues for quick comparisons.
+`meta.json` records lifecycle timestamps while `report.json`/`audit.json` capture run-level results. `latest_run.txt` makes it easy to default to the most recent run.
 
 ## Current Workflow
 
-### 1. Seeding crawls (Manual & Scheduled)
+### 1. Starting a run
 
-- **Manual**: wp-admin → **AI SEO** → *Run Crawl Now*. This mirrors `POST /start-crawl`, simply seeding the queue from the project’s Primary URL. If the project lacks a base URL, the action aborts with an error notice.
-- **REST**: `POST /wp-json/ai-seo-tool/v1/start-crawl?project={slug}&key={token}` accepts optional `urls[]`.
-- **Scheduler**: Projects set to *Weekly* or *Monthly* automatically seed when the cadence threshold is met.
+- **Manual**: wp-admin → **AI SEO** → *Run Crawl Now*. Generates a new `run_id`, seeds `runs/{run}/queue` with the configured URLs, and updates `latest_run.txt`.
+- **REST**: `POST /wp-json/ai-seo-tool/v1/start-crawl?project={slug}&key={token}` optionally accepts `urls[]` or a pre-supplied `run_id`; the response includes `{ run_id, queued }`.
+- **Scheduler**: Reads per-project `config.json` (`frequency`, `seed_urls`). When the cadence threshold is met, `Queue::init` is invoked automatically to spawn a new run folder.
 
 ### 2. Processing queue (`/crawl-step`)
 
-- **WP-Cron**: Hourly hook `aiseo_cron_tick`:
-  1. Ensures directory structure exists (`Storage::ensureProject`).
-  2. Seeds weekly/monthly projects when due.
-  3. If any TODO files exist, runs `Scheduler::processQueue($slug)` (max 50 steps per tick).
-  4. When a queue empties, runs `AuditRunner`, `ReportBuilder`, snapshots to `history/`, and updates last-run meta.
-- **Manual REST**: `GET /wp-json/ai-seo-tool/v1/crawl-step?project=...` processes a single step. REST endpoints also trigger audit/report automatically when the queue drains.
+- **WP-Cron**: Custom schedule `every_minute` triggers `aiseo_minutely_drain`.
+  1. Enumerates all projects (config-driven and manual-only) under `storage/projects/`.
+  2. Seeds a fresh run when `config.json` frequency rules demand it.
+  3. Drains up to `AISEO_STEPS_PER_TICK` items per tick via `Worker::process($project, $runId)`.
+  4. Once a run’s queue empties, `AuditRunner::run` + `ReportBuilder::build` generate results and update `meta.json` with completion data.
+- **Manual REST**: `GET /wp-json/ai-seo-tool/v1/crawl-step?project=...&run=...` processes a single item and automatically builds audit/report when the queue empties.
 
 ### 3. Page extraction pipeline
 
@@ -105,9 +106,9 @@ For each processed URL:
 
 ### 5. Admin dashboard (wp-admin → AI SEO)
 
-- Lists projects with primary URL, schedule, page counts, last crawl (relative timestamp), and top issues.
-- Actions: View report, Run Crawl Now (seed), REST Status link, Scheduler enable/disable toggle.
-- Scheduler status persists via `aiseo_scheduler_enabled` option and `.env` flag `AISEO_DISABLE_CRON`.
+- Lists projects with primary URL, latest `run_id`, queue counts, and quick actions (view report / seed new run).
+- Shows notices when manual runs succeed or when configuration is missing.
+- Reads `config.json` for seed URLs; global cron disable still controlled via `.env` (`AISEO_DISABLE_CRON=true`).
 
 ### 6. Environment configuration
 
@@ -118,43 +119,41 @@ AISEO_SECURE_TOKEN=...                 # Shared secret for REST endpoints
 AISEO_STORAGE_DIR=${WP_CONTENT_DIR}/themes/ai-seo-tool/storage/projects
 AISEO_HTTP_VERIFY_TLS=false            # Optional (skip TLS verify for local/self-signed)
 AISEO_DISABLE_CRON=true                # Optional global cron kill-switch
+AISEO_STEPS_PER_TICK=50               # Optional limit for minutely drain
 ```
 
 Bedrock `.env` still handles WP_HOME, DB credentials, salts, etc.
 
 ## REST Endpoints (all require `key={AISEO_SECURE_TOKEN}`)
 
-- `POST /ai-seo-tool/v1/start-crawl` — seeds queue (`urls[]` optional).
-- `GET /ai-seo-tool/v1/crawl-step` — processes one queue item.
-- `POST /ai-seo-tool/v1/audit` — force audit rebuild.
-- `POST /ai-seo-tool/v1/report` — force report rebuild.
-- `GET /ai-seo-tool/v1/status` — queue counts, page totals, base URL.
+- `POST /ai-seo-tool/v1/start-crawl` — creates a run directory and seeds `queue/`. Accepts optional `urls[]` and `run_id`; responds with `{ run_id, queued }`.
+- `GET /ai-seo-tool/v1/crawl-step` — processes one item in `runs/{run}/queue`. When the queue empties, audit/report are generated automatically.
+- `POST /ai-seo-tool/v1/audit` — rebuilds `runs/{run}/audit.json` (defaults to latest run).
+- `POST /ai-seo-tool/v1/report` — rebuilds `runs/{run}/report.json`.
+- `GET /ai-seo-tool/v1/status` — returns queue counts for the requested run (defaults to `latest_run.txt`).
 
 ## Scheduler Controls & Behavior
 
-- Enabled by default; toggle via wp-admin or `.env`.
-- Uses `wp_schedule_event(... 'hourly', ...)`.
-- Manual runs only seed; actual crawling happens when cron next fires.
-- `processQueue` batches up to 50 steps per tick. Remaining items are processed on subsequent ticks.
-- Upon queue completion:
-  - Audit/report rebuilt.
-  - Snapshot saved to `history/{timestamp}`.
-  - Project’s `_aiseo_project_last_run` meta updated.
+- Global disable via `.env` (`AISEO_DISABLE_CRON=true`).
+- Registers an `every_minute` interval that fires `aiseo_minutely_drain`.
+- Reads `config.json` per project (`enabled`, `frequency`, `seed_urls`). Projects without config can still run manually; cron continues draining any pending queue.
+- `AISEO_STEPS_PER_TICK` (env) controls max steps per tick (default 50).
+- When a run completes, its `meta.json` is updated with `completed_at` and summary metrics.
 
 ## Current Situation / Next Opportunities
 
 - **Implemented**:
-  - End-to-end crawl/audit/report pipeline with history snapshots.
-  - REST API for queue operations.
-  - wp-admin dashboard + scheduler toggle.
-  - Per-project scheduling metadata (manual/weekly/monthly).
-  - HTML report template (Bootstrap) summarizing key metrics + issues.
+  - Run-scoped crawl pipeline (isolated queue/pages/audit/report per run).
+  - REST + wp-admin entry points that return `run_id` and operate on explicit runs.
+  - 1-minute scheduler with config-driven auto runs and fast queue draining.
+  - Run metadata (`meta.json`) capturing lifecycle timestamps and summary metrics.
+  - Bootstrap report template capable of switching runs via `?run=` parameter.
 
 - **Known gaps / backlog**:
-  - Compare history snapshots over time (visual diffs, trend charts).
-  - Notification or alerting when new issues appear.
-  - Bulk CLI tooling (`wp ai-seo ...`) for manual queue draining.
-  - AI summaries (placeholder `AI/Gemini.php`).
-  - Export CSV/PDF (dompdf already in root composer).
+  - UI to edit `config.json` (frequency, seed URLs) from wp-admin.
+  - Comparison/visualization of multiple runs over time.
+  - Notifications when new critical issues appear.
+  - CLI helpers for bulk draining/testing.
+  - AI summaries + PDF/CSV export still pending.
 
 This document reflects the codebase as of **5 Nov 2025**. Use it as the baseline when syncing with additional agents or planning subsequent milestones.
