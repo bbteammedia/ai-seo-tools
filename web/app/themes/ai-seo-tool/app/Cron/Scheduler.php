@@ -112,20 +112,37 @@ class Scheduler
     private static function collectProjects(): array
     {
         $baseDir = Storage::baseDir();
-        if (!is_dir($baseDir)) {
-            return [];
-        }
         $projects = [];
 
+        // 1) From existing config.json files
         foreach (glob($baseDir . '/*/config.json') as $configPath) {
             $project = basename(dirname($configPath));
             $projects[$project] = json_decode(file_get_contents($configPath), true) ?: [];
         }
 
-        foreach (glob($baseDir . '/*', GLOB_ONLYDIR) as $dir) {
-            $project = basename($dir);
-            if (!isset($projects[$project])) {
-                $projects[$project] = null;
+        // 2) Ensure all CPT slugs are present (even if config.json absent yet)
+        $posts = get_posts([
+            'post_type' => \AISEO\PostTypes\Project::POST_TYPE,
+            'post_status' => 'publish',
+            'posts_per_page' => -1,
+            'fields' => 'ids',
+        ]);
+        foreach ($posts as $pid) {
+            $slug = get_post_field('post_name', $pid);
+            if (!isset($projects[$slug])) {
+                Storage::ensureProject($slug);
+                $cfgPath = Storage::projectDir($slug) . '/config.json';
+                if (!is_file($cfgPath)) {
+                    $schedule = \AISEO\PostTypes\Project::getSchedule($slug);
+                    $baseUrl  = \AISEO\PostTypes\Project::getBaseUrl($slug);
+                    $config = [
+                        'enabled' => true,
+                        'frequency' => $schedule ?: 'manual',
+                        'seed_urls' => $baseUrl ? [$baseUrl] : [],
+                    ];
+                    Storage::writeJson($cfgPath, $config);
+                }
+                $projects[$slug] = json_decode(file_get_contents($cfgPath), true) ?: [];
             }
         }
 

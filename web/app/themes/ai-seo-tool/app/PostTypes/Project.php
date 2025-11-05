@@ -1,6 +1,8 @@
 <?php
 namespace AISEO\PostTypes;
 
+use AISEO\Helpers\Storage;
+
 class Project
 {
     public const META_BASE_URL = '_aiseo_project_base_url';
@@ -139,6 +141,27 @@ class Project
 
         $schedule = isset($_POST['aiseo_project_schedule']) ? self::sanitizeSchedule($_POST['aiseo_project_schedule']) : 'manual';
         update_post_meta($postId, self::META_SCHEDULE, $schedule);
+
+        // After saving META_BASE_URL and META_SCHEDULE:
+        $slug = $post->post_name;
+        $baseUrl  = get_post_meta($postId, self::META_BASE_URL, true) ?: '';
+        $schedule = self::sanitizeSchedule(get_post_meta($postId, self::META_SCHEDULE, true) ?: 'manual');
+
+        // Ensure project folder & write config.json
+        Storage::ensureProject($slug);
+        
+
+        $cfgPath = Storage::projectDir($slug) . '/config.json';
+        $config = is_file($cfgPath) ? json_decode(file_get_contents($cfgPath), true) : [];
+
+        $config['enabled']   = $config['enabled']   ?? true;
+        $config['frequency'] = $schedule;                 // 'manual'|'weekly'|'monthly'
+        // Keep any custom seed_urls, but always include baseUrl (if present)
+        $seed = is_array($config['seed_urls'] ?? null) ? $config['seed_urls'] : [];
+        if ($baseUrl) { $seed[] = $baseUrl; }
+        $config['seed_urls'] = array_values(array_unique(array_filter($seed)));
+
+        Storage::writeJson($cfgPath, $config);
     }
 
     public static function getBySlug(string $slug): ?\WP_Post

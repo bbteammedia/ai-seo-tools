@@ -174,15 +174,20 @@ class Dashboard
         $slug = isset($_GET['project']) ? sanitize_title($_GET['project']) : '';
         check_admin_referer('aiseo_run_crawl_' . $slug);
 
-        $urls = [];
-        $config = self::readConfig($slug);
-        if (!empty($config['seed_urls']) && is_array($config['seed_urls'])) {
-            $urls = array_merge($urls, $config['seed_urls']);
+        // Ensure project folder & config
+        Storage::ensureProject($slug);
+        $cfgPath = Storage::projectDir($slug) . '/config.json';
+        if (!is_file($cfgPath)) {
+            // Minimal fallback config when user never saved post meta
+            $config = ['enabled' => true, 'frequency' => 'manual', 'seed_urls' => []];
+            Storage::writeJson($cfgPath, $config);
         }
-        $base = Project::getBaseUrl($slug);
-        if ($base) {
-            $urls[] = $base;
-        }
+        $config = json_decode(file_get_contents($cfgPath), true) ?: [];
+
+        // Build seed list: config seed_urls + Base URL meta
+        $urls = is_array($config['seed_urls'] ?? null) ? $config['seed_urls'] : [];
+        $base = \AISEO\PostTypes\Project::getBaseUrl($slug);
+        if ($base) { $urls[] = $base; }
         $urls = array_values(array_unique(array_filter(array_map('esc_url_raw', $urls))));
 
         if (empty($urls)) {
@@ -191,7 +196,7 @@ class Dashboard
         }
 
         $runId = RunId::new();
-        Queue::init($slug, $urls, $runId);
+        Queue::init($slug, $urls, $runId);          // creates runs/{runId}/queue + meta.json
         Storage::setLatestRun($slug, $runId);
 
         wp_safe_redirect(add_query_arg('aiseo_notice', 'run', admin_url('admin.php?page=ai-seo-dashboard')));
