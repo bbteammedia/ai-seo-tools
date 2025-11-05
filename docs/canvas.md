@@ -353,9 +353,15 @@ use AISEO\Helpers\Storage;
 class Scheduler
 {
     public const CRON_HOOK = 'aiseo_cron_tick';
+    public const OPTION_ENABLED = 'aiseo_scheduler_enabled';
 
     public static function init(): void
     {
+        if (!self::isEnabled()) {
+            self::deactivate();
+            return;
+        }
+
         add_action(self::CRON_HOOK, [self::class, 'process']);
 
         if (!wp_next_scheduled(self::CRON_HOOK)) {
@@ -382,24 +388,24 @@ class Scheduler
 
         foreach ($projects as $postId) {
             $slug = get_post_field('post_name', $postId);
+            Storage::ensureProject($slug);
+
             $schedule = get_post_meta($postId, Project::META_SCHEDULE, true) ?: 'manual';
             $schedule = Project::sanitizeSchedule($schedule);
-            if ($schedule === 'manual') {
-                continue;
-            }
-
             $lastRun = (int) get_post_meta($postId, Project::META_LAST_RUN, true);
-            if (!self::isDue($schedule, $lastRun)) {
-                continue;
+
+            $dueCycle = ($schedule !== 'manual') && self::isDue($schedule, $lastRun);
+            if ($dueCycle) {
+                self::runProject($slug);
             }
 
-            if (self::runProject($slug)) {
-                update_post_meta($postId, Project::META_LAST_RUN, time());
+            if (self::hasPending($slug)) {
+                self::processQueue($slug);
             }
         }
     }
 
-    public static function runProject(string $slug, int $maxSteps = 50): bool
+    public static function runProject(string $slug): bool
     {
         $baseUrl = Project::getBaseUrl($slug);
         if (!$baseUrl) {
@@ -408,22 +414,59 @@ class Scheduler
 
         Queue::init($slug, [$baseUrl]);
 
+        return true;
+    }
+
+    public static function processQueue(string $slug, int $maxSteps = 50): bool
+    {
         $steps = 0;
+        $processed = false;
         while ($steps < $maxSteps) {
             $result = Worker::process($slug);
             $steps++;
             if (($result['message'] ?? '') === 'queue-empty') {
                 break;
             }
+            $processed = true;
         }
 
-        AuditRunner::run($slug);
-        ReportBuilder::build($slug);
-        self::snapshot($slug);
+        if (!Queue::next($slug)) {
+            AuditRunner::run($slug);
+            ReportBuilder::build($slug);
+            self::snapshot($slug);
+            Project::updateLastRun($slug, time());
+        }
 
-        Project::updateLastRun($slug, time());
+        return $processed;
+    }
 
-        return true;
+    public static function isEnabled(): bool
+    {
+        $env = getenv('AISEO_DISABLE_CRON');
+        if (is_string($env) && $env !== '') {
+            $value = strtolower(trim($env));
+            if (in_array($value, ['1', 'true', 'on', 'yes'], true)) {
+                return false;
+            }
+        }
+
+        $option = get_option(self::OPTION_ENABLED, '1');
+        return $option !== '0';
+    }
+
+    public static function setEnabled(bool $enabled): void
+    {
+        update_option(self::OPTION_ENABLED, $enabled ? '1' : '0');
+        if (!$enabled) {
+            self::deactivate();
+        }
+    }
+
+    private static function hasPending(string $slug): bool
+    {
+        $dirs = Storage::ensureProject($slug);
+        $todos = glob($dirs['queue'] . '/*.todo');
+        return !empty($todos);
     }
 
     private static function isDue(string $schedule, int $lastRun): bool
@@ -467,7 +510,7 @@ class Scheduler
         Storage::writeJson($target . '/summary.json', $summary);
     }
 }
-```
+````
 
 
 ```php
@@ -476,6 +519,7 @@ namespace AISEO\Admin;
 
 use AISEO\PostTypes\Project;
 use AISEO\Helpers\Storage;
+use AISEO\Cron\Scheduler;
 
 class Dashboard
 {
@@ -492,6 +536,12 @@ class Dashboard
         );
     }
 
+    public static function registerActions(): void
+    {
+        add_action('admin_post_aiseo_run_crawl', [self::class, 'handleManualRun']);
+        add_action('admin_post_aiseo_toggle_scheduler', [self::class, 'handleToggleScheduler']);
+    }
+
     public static function render(): void
     {
         if (!current_user_can('manage_options')) {
@@ -502,6 +552,33 @@ class Dashboard
         ?>
         <div class="wrap">
             <h1><?php esc_html_e('AI SEO Projects', 'ai-seo-tool'); ?></h1>
+            <?php if (isset($_GET['aiseo_notice'])): $notice = sanitize_text_field($_GET['aiseo_notice']); ?>
+                <?php if ($notice === 'run'): ?>
+                    <div class="notice notice-success is-dismissible"><p><?php esc_html_e('Crawl has been queued. WP-Cron will process it shortly.', 'ai-seo-tool'); ?></p></div>
+                <?php elseif ($notice === 'run_fail'): ?>
+                    <div class="notice notice-error is-dismissible"><p><?php esc_html_e('Unable to queue crawl. Ensure the project has a primary URL set.', 'ai-seo-tool'); ?></p></div>
+                <?php elseif ($notice === 'scheduler_on'): ?>
+                    <div class="notice notice-success is-dismissible"><p><?php esc_html_e('Scheduler enabled.', 'ai-seo-tool'); ?></p></div>
+                <?php elseif ($notice === 'scheduler_off'): ?>
+                    <div class="notice notice-warning is-dismissible"><p><?php esc_html_e('Scheduler disabled.', 'ai-seo-tool'); ?></p></div>
+                <?php endif; ?>
+            <?php endif; ?>
+            <div class="notice-inline">
+                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-bottom:20px;">
+                    <?php wp_nonce_field('aiseo_toggle_scheduler'); ?>
+                    <input type="hidden" name="action" value="aiseo_toggle_scheduler" />
+                    <p>
+                        <strong><?php esc_html_e('Scheduler status:', 'ai-seo-tool'); ?></strong>
+                        <?php if (Scheduler::isEnabled()): ?>
+                            <span class="status-enabled"><?php esc_html_e('Active', 'ai-seo-tool'); ?></span>
+                            <button type="submit" name="enabled" value="0" class="button"><?php esc_html_e('Disable Scheduler', 'ai-seo-tool'); ?></button>
+                        <?php else: ?>
+                            <span class="status-disabled"><?php esc_html_e('Disabled', 'ai-seo-tool'); ?></span>
+                            <button type="submit" name="enabled" value="1" class="button button-primary"><?php esc_html_e('Enable Scheduler', 'ai-seo-tool'); ?></button>
+                        <?php endif; ?>
+                    </p>
+                </form>
+            </div>
             <?php if (!$projects): ?>
                 <p><?php esc_html_e('No AI SEO projects found. Create one under AI SEO Projects → Add New.', 'ai-seo-tool'); ?></p>
                 <?php return; ?>
@@ -511,8 +588,9 @@ class Dashboard
                     <tr>
                         <th><?php esc_html_e('Project', 'ai-seo-tool'); ?></th>
                         <th><?php esc_html_e('Primary URL', 'ai-seo-tool'); ?></th>
+                        <th><?php esc_html_e('Schedule', 'ai-seo-tool'); ?></th>
                         <th><?php esc_html_e('Pages', 'ai-seo-tool'); ?></th>
-                        <th><?php esc_html_e('Last Audit', 'ai-seo-tool'); ?></th>
+                        <th><?php esc_html_e('Last Crawl', 'ai-seo-tool'); ?></th>
                         <th><?php esc_html_e('Top Issues', 'ai-seo-tool'); ?></th>
                         <th><?php esc_html_e('Actions', 'ai-seo-tool'); ?></th>
                     </tr>
@@ -531,11 +609,21 @@ class Dashboard
                                     <em><?php esc_html_e('Not set', 'ai-seo-tool'); ?></em>
                                 <?php endif; ?>
                             </td>
+                            <td><?php echo esc_html($project['schedule_label']); ?></td>
                             <td><?php echo (int) ($summary['pages'] ?? 0); ?></td>
-                            <td><?php echo esc_html($summary['generated_at'] ?? '—'); ?></td>
+                            <td>
+                                <?php
+                                if (!empty($summary['last_run'])) {
+                                    $relative = human_time_diff($summary['last_run'], current_time('timestamp'));
+                                    printf('%s<br /><span class="description">%s %s</span>', esc_html(gmdate('Y-m-d H:i', $summary['last_run'])), esc_html($relative), esc_html__('ago', 'ai-seo-tool'));
+                                } else {
+                                    echo '<em>' . esc_html__('Never', 'ai-seo-tool') . '</em>';
+                                }
+                                ?>
+                            </td>
                             <td>
                                 <?php if (!empty($summary['top_issues'])): ?>
-                                    <ul>
+                                    <ul class="small">
                                         <?php foreach ($summary['top_issues'] as $issue => $count): ?>
                                             <li><?php echo esc_html($issue); ?> <span class="count">(<?php echo (int) $count; ?>)</span></li>
                                         <?php endforeach; ?>
@@ -548,14 +636,11 @@ class Dashboard
                                 <a class="button button-primary" href="<?php echo esc_url(self::reportLink($project['slug'])); ?>" target="_blank">
                                     <?php esc_html_e('View Report', 'ai-seo-tool'); ?>
                                 </a>
-                                <a class="button" href="<?php echo esc_url(self::apiLink('start-crawl', $project['slug'])); ?>">
-                                    <?php esc_html_e('Seed Crawl', 'ai-seo-tool'); ?>
+                                <a class="button" href="<?php echo esc_url(self::manualCrawlUrl($project['slug'])); ?>">
+                                    <?php esc_html_e('Run Crawl Now', 'ai-seo-tool'); ?>
                                 </a>
-                                <a class="button" href="<?php echo esc_url(self::apiLink('crawl-step', $project['slug'])); ?>">
-                                    <?php esc_html_e('Process Step', 'ai-seo-tool'); ?>
-                                </a>
-                                <a class="button" href="<?php echo esc_url(self::apiLink('status', $project['slug'], ['method' => 'GET'])); ?>">
-                                    <?php esc_html_e('Check Status', 'ai-seo-tool'); ?>
+                                <a class="button" href="<?php echo esc_url(self::apiStatusLink($project['slug'])); ?>" target="_blank" rel="noopener">
+                                    <?php esc_html_e('REST Status', 'ai-seo-tool'); ?>
                                 </a>
                             </td>
                         </tr>
@@ -574,13 +659,18 @@ class Dashboard
             'posts_per_page' => -1,
         ]);
 
-        return array_map(function ($post) {
+        $options = Project::scheduleOptions();
+
+        return array_map(function ($post) use ($options) {
             $base = Project::getBaseUrl($post->post_name);
+            $schedule = Project::getSchedule($post->post_name);
             return [
                 'ID' => $post->ID,
                 'slug' => $post->post_name,
                 'title' => $post->post_title,
                 'base_url' => $base,
+                'schedule' => $schedule,
+                'schedule_label' => $options[$schedule] ?? ucfirst($schedule),
             ];
         }, $posts);
     }
@@ -596,6 +686,7 @@ class Dashboard
             'pages' => $report['crawl']['pages_count'] ?? null,
             'status_buckets' => $report['crawl']['status_buckets'] ?? [],
             'top_issues' => $report['top_issues'] ?? [],
+            'last_run' => Project::getLastRun($project['slug']),
         ];
 
         if (empty($summary['top_issues']) && !empty($audit['summary']['issue_counts'])) {
@@ -613,22 +704,62 @@ class Dashboard
         return $home . 'ai-seo-report/' . $slug;
     }
 
-    private static function apiLink(string $action, string $slug, array $args = []): string
+    private static function manualCrawlUrl(string $slug): string
+    {
+        $url = admin_url('admin-post.php');
+        $url = add_query_arg([
+            'action' => 'aiseo_run_crawl',
+            'project' => sanitize_title($slug),
+        ], $url);
+        return wp_nonce_url($url, 'aiseo_run_crawl_' . $slug);
+    }
+
+    private static function apiStatusLink(string $slug): string
     {
         $key = getenv('AISEO_SECURE_TOKEN') ?: 'AISEO_TOKEN';
-        $url = add_query_arg([
+        return add_query_arg([
             'project' => $slug,
             'key' => $key,
-        ], rest_url('ai-seo-tool/v1/' . $action));
+        ], rest_url('ai-seo-tool/v1/status'));
+    }
 
-        if (!empty($args['method']) && strtoupper($args['method']) === 'GET') {
-            return $url;
+    public static function handleManualRun(): void
+    {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have permission to perform this action.', 'ai-seo-tool'));
         }
 
-        return $url;
+        $slug = isset($_GET['project']) ? sanitize_title($_GET['project']) : '';
+        check_admin_referer('aiseo_run_crawl_' . $slug);
+
+        $result = $slug ? Scheduler::runProject($slug) : false;
+
+        $notice = $result ? 'run' : 'run_fail';
+        wp_safe_redirect(add_query_arg('aiseo_notice', $notice, admin_url('admin.php?page=ai-seo-dashboard')));
+        exit;
+    }
+
+    public static function handleToggleScheduler(): void
+    {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have permission to perform this action.', 'ai-seo-tool'));
+        }
+
+        check_admin_referer('aiseo_toggle_scheduler');
+
+        $enabled = isset($_POST['enabled']) && $_POST['enabled'] === '1';
+        Scheduler::setEnabled($enabled);
+        if ($enabled) {
+            Scheduler::init();
+        } else {
+            Scheduler::deactivate();
+        }
+
+        wp_safe_redirect(add_query_arg('aiseo_notice', $enabled ? 'scheduler_on' : 'scheduler_off', admin_url('admin.php?page=ai-seo-dashboard')));
+        exit;
     }
 }
-```
+`````
 
 ### `app/Crawl/Observer.php`
 
@@ -1614,7 +1745,7 @@ curl "https://ai-seo-tools.local/wp-json/ai-seo-tool/v1/status?project=client-sl
 
 * Use the toggle on wp-admin → AI SEO to enable/disable the hourly scheduler globally.
 * Set per-project cadence (Manual, Weekly, Monthly) in the project meta box. Manual only seeds on demand; auto cadences seed when due.
-* Manual "Run Crawl Now" seeds the queue and processes a batch immediately (up to 200 URLs) so you get fresh files right away; the hourly worker continues the crawl as needed.
+* Manual "Run Crawl Now" behaves like `/start-crawl`: it seeds the queue immediately, and the hourly worker handles `/crawl-step` processing on the next tick.
 * The scheduler can also be disabled via `.env` by setting `AISEO_DISABLE_CRON=true`.
 * Manual "Run Crawl Now" only seeds the queue; the hourly worker will process the queue and generate reports during its next tick.
 * Set the crawl cadence per project under **AI SEO Projects → Project Details** (Manual, Weekly, Monthly).

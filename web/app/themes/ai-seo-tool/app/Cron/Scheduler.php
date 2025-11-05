@@ -46,24 +46,24 @@ class Scheduler
 
         foreach ($projects as $postId) {
             $slug = get_post_field('post_name', $postId);
+            Storage::ensureProject($slug);
+
             $schedule = get_post_meta($postId, Project::META_SCHEDULE, true) ?: 'manual';
             $schedule = Project::sanitizeSchedule($schedule);
-            if ($schedule === 'manual') {
-                continue;
-            }
-
             $lastRun = (int) get_post_meta($postId, Project::META_LAST_RUN, true);
-            if (!self::isDue($schedule, $lastRun)) {
-                continue;
+
+            $dueCycle = ($schedule !== 'manual') && self::isDue($schedule, $lastRun);
+            if ($dueCycle) {
+                self::runProject($slug);
             }
 
-            if (self::runProject($slug, true)) {
-                update_post_meta($postId, Project::META_LAST_RUN, time());
+            if (self::hasPending($slug)) {
+                self::processQueue($slug);
             }
         }
     }
 
-    public static function runProject(string $slug, bool $processQueue = false, int $maxSteps = 50): bool
+    public static function runProject(string $slug): bool
     {
         $baseUrl = Project::getBaseUrl($slug);
         if (!$baseUrl) {
@@ -72,26 +72,30 @@ class Scheduler
 
         Queue::init($slug, [$baseUrl]);
 
-        if ($processQueue) {
-            $steps = 0;
-            while ($steps < $maxSteps) {
-                $result = Worker::process($slug);
-                $steps++;
-                if (($result['message'] ?? '') === 'queue-empty') {
-                    break;
-                }
-            }
+        return true;
+    }
 
+    public static function processQueue(string $slug, int $maxSteps = 50): bool
+    {
+        $steps = 0;
+        $processed = false;
+        while ($steps < $maxSteps) {
+            $result = Worker::process($slug);
+            $steps++;
+            if (($result['message'] ?? '') === 'queue-empty') {
+                break;
+            }
+            $processed = true;
+        }
+
+        if (!Queue::next($slug)) {
             AuditRunner::run($slug);
             ReportBuilder::build($slug);
             self::snapshot($slug);
-        }
-
-        if ($processQueue) {
             Project::updateLastRun($slug, time());
         }
 
-        return true;
+        return $processed;
     }
 
     public static function isEnabled(): bool
@@ -114,6 +118,13 @@ class Scheduler
         if (!$enabled) {
             self::deactivate();
         }
+    }
+
+    private static function hasPending(string $slug): bool
+    {
+        $dirs = Storage::ensureProject($slug);
+        $todos = glob($dirs['queue'] . '/*.todo');
+        return !empty($todos);
     }
 
     private static function isDue(string $schedule, int $lastRun): bool

@@ -36,10 +36,16 @@ class Dashboard
         ?>
         <div class="wrap">
             <h1><?php esc_html_e('AI SEO Projects', 'ai-seo-tool'); ?></h1>
-            <?php if (isset($_GET['aiseo_notice'])): ?>
-                <div class="notice notice-success is-dismissible">
-                    <p><?php esc_html_e('Crawl has been queued. Check back soon for updated results.', 'ai-seo-tool'); ?></p>
-                </div>
+            <?php if (isset($_GET['aiseo_notice'])): $notice = sanitize_text_field($_GET['aiseo_notice']); ?>
+                <?php if ($notice === 'run'): ?>
+                    <div class="notice notice-success is-dismissible"><p><?php esc_html_e('Crawl has been queued. WP-Cron will process it shortly.', 'ai-seo-tool'); ?></p></div>
+                <?php elseif ($notice === 'run_fail'): ?>
+                    <div class="notice notice-error is-dismissible"><p><?php esc_html_e('Unable to queue crawl. Ensure the project has a primary URL set.', 'ai-seo-tool'); ?></p></div>
+                <?php elseif ($notice === 'scheduler_on'): ?>
+                    <div class="notice notice-success is-dismissible"><p><?php esc_html_e('Scheduler enabled.', 'ai-seo-tool'); ?></p></div>
+                <?php elseif ($notice === 'scheduler_off'): ?>
+                    <div class="notice notice-warning is-dismissible"><p><?php esc_html_e('Scheduler disabled.', 'ai-seo-tool'); ?></p></div>
+                <?php endif; ?>
             <?php endif; ?>
             <div class="notice-inline">
                 <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-bottom:20px;">
@@ -210,11 +216,10 @@ class Dashboard
         $slug = isset($_GET['project']) ? sanitize_title($_GET['project']) : '';
         check_admin_referer('aiseo_run_crawl_' . $slug);
 
-        if ($slug) {
-            Scheduler::runProject($slug, true, 200);
-        }
+        $result = $slug ? Scheduler::runProject($slug) : false;
 
-        wp_safe_redirect(add_query_arg('aiseo_notice', 'run', admin_url('admin.php?page=ai-seo-dashboard')));
+        $notice = $result ? 'run' : 'run_fail';
+        wp_safe_redirect(add_query_arg('aiseo_notice', $notice, admin_url('admin.php?page=ai-seo-dashboard')));
         exit;
     }
 
