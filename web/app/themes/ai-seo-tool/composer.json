@@ -1,0 +1,15 @@
+{
+  "name": "aiseo/tool-theme",
+  "type": "wordpress-theme",
+  "autoload": {
+    "psr-4": {
+      "AISEO\\": "app/"
+    }
+  },
+  "require": {
+    "guzzlehttp/guzzle": "^7.10",
+    "spatie/crawler": "^8.4",
+    "symfony/dom-crawler": "^7.3",
+    "symfony/css-selector": "^7.3"
+  }
+}
