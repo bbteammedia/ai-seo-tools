@@ -87,6 +87,7 @@ class Dashboard
                             <td>
                                 <a class="button button-primary" href="<?php echo esc_url(self::reportLink($project['slug'], $summary['run_id'])); ?>" target="_blank" rel="noopener"><?php esc_html_e('View Report', 'ai-seo-tool'); ?></a>
                                 <a class="button" href="<?php echo esc_url(self::manualCrawlUrl($project['slug'])); ?>"><?php esc_html_e('Run Crawl Now', 'ai-seo-tool'); ?></a>
+                                <a class="button" href="<?php echo esc_url(self::historyLink($project['slug'])); ?>"><?php esc_html_e('Run History', 'ai-seo-tool'); ?></a>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -153,6 +154,14 @@ class Dashboard
             $url = add_query_arg('run', $runId, $url);
         }
         return $url;
+    }
+
+    private static function historyLink(string $slug): string
+    {
+        return add_query_arg([
+            'page' => 'ai-seo-run-history',
+            'project' => sanitize_title($slug),
+        ], admin_url('admin.php'));
     }
 
     private static function manualCrawlUrl(string $slug): string

@@ -19,6 +19,9 @@ add_action('after_switch_theme', function () {
 add_action('admin_menu', [\AISEO\Admin\Dashboard::class, 'register']);
 add_action('admin_init', [\AISEO\Admin\Dashboard::class, 'registerActions']);
 
+// Register run history page
+add_action('admin_menu', [\AISEO\Admin\RunHistoryPage::class, 'register_menu']);
+
 // Cron scheduler
 add_filter('cron_schedules', [\AISEO\Cron\Scheduler::class, 'registerSchedules']);
 add_action('init', [\AISEO\Cron\Scheduler::class, 'init']);
