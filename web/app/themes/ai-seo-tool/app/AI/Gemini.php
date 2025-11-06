@@ -426,17 +426,29 @@ TXT;
         if (strpos($sectionId, 'overview_') === 0) {
             return 'Overview';
         }
-        if (strpos($sectionId, 'performance_') === 0) {
-            return 'Performance Issues';
+        if (strpos($sectionId, 'performance_summary_') === 0 || strpos($sectionId, 'performance_') === 0) {
+            return 'Performance Summary';
         }
-        if (strpos($sectionId, 'technical_') === 0) {
-            return 'Technical SEO';
+        if (strpos($sectionId, 'technical_seo_issues_') === 0 || strpos($sectionId, 'technical_') === 0) {
+            return 'Technical SEO Issues';
+        }
+        if (strpos($sectionId, 'onpage_seo_content_') === 0) {
+            return 'On-Page SEO & Content';
         }
         if (strpos($sectionId, 'onpage_meta_heading_') === 0) {
             return 'Meta & Heading Optimization';
         }
+        if (strpos($sectionId, 'keyword_analysis_') === 0) {
+            return 'Keyword Analysis';
+        }
+        if (strpos($sectionId, 'backlink_profile_') === 0) {
+            return 'Backlink Profile';
+        }
         if (strpos($sectionId, 'onpage_content_image_') === 0) {
             return 'Content & Image Optimization';
+        }
+        if (strpos($sectionId, 'recommendations_') === 0) {
+            return 'Recommendations';
         }
 
         return 'Section';

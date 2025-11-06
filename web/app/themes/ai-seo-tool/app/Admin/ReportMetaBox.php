@@ -37,6 +37,8 @@ class ReportMetaBox
         $page = get_post_meta($post->ID, Report::META_PAGE, true) ?: '';
         $runs = json_decode(get_post_meta($post->ID, Report::META_RUNS, true) ?: '[]', true) ?: [];
 
+        $summaryVisibleValue = get_post_meta($post->ID, Report::META_SUMMARY_VISIBLE, true);
+        $summaryVisible = $summaryVisibleValue === '' ? '1' : $summaryVisibleValue;
         $summary = get_post_meta($post->ID, Report::META_SUMMARY, true) ?: '';
         $actions = json_decode(get_post_meta($post->ID, Report::META_ACTIONS, true) ?: '[]', true) ?: [];
         $metaRec = json_decode(get_post_meta($post->ID, Report::META_META_RECO, true) ?: '[]', true) ?: [];
@@ -93,6 +95,13 @@ class ReportMetaBox
             <div class="full">
                 <button type="button" class="button button-primary" id="aiseo-generate-ai">Generate AI Summary</button>
                 <span id="aiseo-ai-status" style="margin-left:8px;"></span>
+            </div>
+
+            <div class="full">
+                <label>
+                    <input type="checkbox" name="aiseo_summary_visible" value="1" <?php checked($summaryVisible, '1'); ?>>
+                    <strong>Show Executive Summary in report</strong>
+                </label>
             </div>
 
             <div class="full">
@@ -180,6 +189,7 @@ class ReportMetaBox
         $runs = is_array($runs) ? array_values(array_map('sanitize_text_field', $runs)) : [];
         update_post_meta($postId, Report::META_RUNS, wp_json_encode($runs));
 
+        update_post_meta($postId, Report::META_SUMMARY_VISIBLE, isset($_POST['aiseo_summary_visible']) ? '1' : '0');
         update_post_meta($postId, Report::META_SUMMARY, wp_kses_post($_POST['aiseo_summary'] ?? ''));
 
         $actions = json_decode(stripslashes($_POST['aiseo_top_actions'] ?? '[]'), true);

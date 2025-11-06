@@ -18,25 +18,60 @@ class Sections
                 'enabled_for' => ['general', 'per_page', 'technical'],
                 'order' => 10,
             ],
-            'performance_issues' => [
-                'label' => 'Performance Issues',
-                'enabled_for' => ['general', 'technical'],
+            'performance_summary' => [
+                'label' => 'Performance Summary',
+                'enabled_for' => ['general', 'technical', 'per_page'],
                 'order' => 20,
             ],
-            'technical_seo' => [
-                'label' => 'Technical SEO',
-                'enabled_for' => ['general', 'technical'],
+            'technical_seo_issues' => [
+                'label' => 'Technical SEO Issues',
+                'enabled_for' => ['general', 'technical', 'per_page'],
                 'order' => 30,
             ],
-            'onpage_meta_heading' => [
-                'label' => 'On-Page SEO: Meta & Heading Optimization',
-                'enabled_for' => ['general', 'per_page'],
+            'onpage_seo_content' => [
+                'label' => 'On-Page SEO & Content',
+                'enabled_for' => ['general', 'technical', 'per_page'],
                 'order' => 40,
             ],
-            'onpage_content_image' => [
-                'label' => 'On-Page SEO: Content & Image Optimization',
-                'enabled_for' => ['general', 'per_page'],
+            'keyword_analysis' => [
+                'label' => 'Keyword Analysis',
+                'enabled_for' => ['general', 'technical', 'per_page'],
                 'order' => 50,
+            ],
+            'backlink_profile' => [
+                'label' => 'Backlink Profile',
+                'enabled_for' => ['general', 'technical', 'per_page'],
+                'order' => 60,
+            ],
+            'recommendations' => [
+                'label' => 'Recommendations',
+                'enabled_for' => ['general', 'technical', 'per_page'],
+                'order' => 70,
+            ],
+            // Legacy definitions kept for backward compatibility with saved data.
+            'performance_issues' => [
+                'label' => 'Performance Issues (legacy)',
+                'enabled_for' => [],
+                'order' => 820,
+                'legacy' => true,
+            ],
+            'technical_seo' => [
+                'label' => 'Technical SEO (legacy)',
+                'enabled_for' => [],
+                'order' => 830,
+                'legacy' => true,
+            ],
+            'onpage_meta_heading' => [
+                'label' => 'Meta & Heading Optimization (legacy)',
+                'enabled_for' => [],
+                'order' => 840,
+                'legacy' => true,
+            ],
+            'onpage_content_image' => [
+                'label' => 'Content & Image Optimization (legacy)',
+                'enabled_for' => [],
+                'order' => 850,
+                'legacy' => true,
             ],
         ];
     }
@@ -49,7 +84,7 @@ class Sections
         $items = [];
 
         foreach (self::registry() as $key => $def) {
-            if (!in_array($type, $def['enabled_for'], true)) {
+            if (($def['legacy'] ?? false) || !in_array($type, $def['enabled_for'], true)) {
                 continue;
             }
 
@@ -61,6 +96,7 @@ class Sections
                 'ai_notes' => '',
                 'reco_list' => [],
                 'order' => $def['order'],
+                'visible' => true,
             ];
         }
 

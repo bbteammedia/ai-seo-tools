@@ -4,13 +4,14 @@ namespace AISEO\Admin;
 use AISEO\PostTypes\Report;
 use AISEO\Helpers\Sections;
 use AISEO\Helpers\DataLoader;
+use AISEO\Helpers\ReportMetrics;
 use AISEO\AI\Gemini;
 
 class ReportSectionsUI
 {
     public static function boot(): void
     {
-        add_action('edit_form_after_editor', [self::class, 'render']);
+        add_action('add_meta_boxes', [self::class, 'registerMetaBox']);
         add_action('save_post_' . Report::POST_TYPE, [self::class, 'save'], 10, 3);
         add_action('wp_ajax_aiseo_sections_generate', [self::class, 'generateAiForSection']);
         add_action('admin_enqueue_scripts', [self::class, 'assets']);
@@ -27,7 +28,21 @@ class ReportSectionsUI
             return;
         }
 
-        wp_enqueue_script('jquery-ui-sortable');
+        if (function_exists('wp_enqueue_editor')) {
+            wp_enqueue_editor();
+        }
+    }
+
+    public static function registerMetaBox(): void
+    {
+        add_meta_box(
+            'aiseo_report_sections',
+            'Report Sections',
+            [self::class, 'render'],
+            Report::POST_TYPE,
+            'normal',
+            'high'
+        );
     }
 
     public static function render(\WP_Post $post): void
@@ -39,157 +54,163 @@ class ReportSectionsUI
         wp_nonce_field('aiseo_sections_nonce', 'aiseo_sections_nonce');
 
         $type = get_post_meta($post->ID, Report::META_TYPE, true) ?: 'general';
+        $project = get_post_meta($post->ID, Report::META_PROJECT, true) ?: '';
+        $pageUrl = get_post_meta($post->ID, Report::META_PAGE, true) ?: '';
+        $runsMeta = get_post_meta($post->ID, Report::META_RUNS, true) ?: '[]';
+        $runs = json_decode($runsMeta, true);
+        $runs = is_array($runs) ? $runs : [];
+
         $stored = get_post_meta($post->ID, Sections::META_SECTIONS, true) ?: '';
-        $sections = json_decode($stored, true);
+        $sectionsRaw = json_decode($stored, true);
+        $sectionsRaw = is_array($sectionsRaw) ? $sectionsRaw : [];
 
-        if (!is_array($sections) || empty($sections)) {
-            $sections = Sections::defaultsFor($type);
-        }
-
+        $sections = self::prepareSections($sectionsRaw, $type);
         $registry = Sections::registry();
         $nonce = wp_create_nonce('aiseo_ai_sections_' . $post->ID);
+
+        $snapshot = DataLoader::forReport($type, (string) $project, $runs, (string) $pageUrl);
+        $metricsBySection = ReportMetrics::build($type, $snapshot);
+        $hasData = !empty($snapshot['runs']);
+
         ?>
         <style>
             .aiseo-sections { margin-top: 16px; }
-            .aiseo-sections .section { border:1px solid #dcdcdc; border-radius:6px; padding:12px; margin-bottom:10px; background:#fff; }
-            .aiseo-sections .section .head { display:flex; align-items:center; justify-content:space-between; }
-            .aiseo-sections .section .type { font-weight:600; display:flex; align-items:center; gap:6px; }
-            .aiseo-sections .section .controls button { margin-left:6px; }
-            .aiseo-sections .section textarea,
-            .aiseo-sections .section input[type=text] { width:100%; }
-            .aiseo-sections .add-row { margin:12px 0; display:flex; gap:8px; align-items:center; }
-            .aiseo-sections .drag { cursor:move; color:#666; }
-            .aiseo-sections .reco small { color:#666; display:block; margin-top:4px; }
+            .aiseo-sections .section { border:1px solid #dcdcdc; border-radius:6px; padding:16px; margin-bottom:12px; background:#fff; transition:opacity 0.2s; }
+            .aiseo-sections .section.loading { opacity:0.65; }
+            .aiseo-sections .section .head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+            .aiseo-sections .section .type { font-weight:600; display:flex; align-items:center; gap:8px; }
+            .aiseo-sections .section .controls { display:flex; align-items:center; gap:12px; }
+            .aiseo-sections .section .controls label { display:flex; align-items:center; gap:6px; font-weight:500; }
+            .aiseo-sections .section .metrics { margin-top:12px; }
+            .aiseo-sections .section .metrics-table { width:100%; border-collapse:collapse; margin:0; font-size:13px; }
+            .aiseo-sections .section .metrics-table th,
+            .aiseo-sections .section .metrics-table td { padding:8px 10px; border-bottom:1px solid #e5e7eb; text-align:left; }
+            .aiseo-sections .section .metrics-table th { background:#f8fafc; text-transform:uppercase; font-size:12px; letter-spacing:0.04em; color:#475569; }
+            .aiseo-sections .section .metrics-empty { font-style:italic; color:#64748b; margin:8px 0 0; }
+            .aiseo-sections .section .metrics-note { font-size:12px; color:#64748b; margin-top:6px; }
+            .aiseo-sections .section .editor { margin-top:12px; }
+            .aiseo-sections .section .reco { margin-top:12px; }
+            .aiseo-sections .section .reco textarea { width:100%; min-height:90px; }
+            .aiseo-sections .toolbar { display:flex; justify-content:flex-end; margin-bottom:12px; }
+            .aiseo-sections .no-data { margin-bottom:12px; font-style:italic; color:#64748b; }
         </style>
-        <div class="postbox aiseo-sections">
-            <h2 class="hndle"><span>Report Sections</span></h2>
-            <div class="inside">
-                <div id="aiseo-sections-list">
-                    <?php foreach ($sections as $idx => $sec): ?>
-                        <div class="section" data-id="<?php echo esc_attr($sec['id']); ?>">
-                            <div class="head">
-                                <div class="type">
-                                    <span class="dashicons dashicons-move drag"></span>
-                                    <?php echo esc_html($registry[$sec['type']]['label'] ?? ucfirst(str_replace('_', ' ', $sec['type']))); ?>
-                                </div>
-                                <div class="controls">
-                                    <button type="button" class="button aiseo-ai-one" data-id="<?php echo esc_attr($sec['id']); ?>">AI</button>
-                                    <button type="button" class="button button-link-delete aiseo-del" data-id="<?php echo esc_attr($sec['id']); ?>">Remove</button>
-                                </div>
+        <div class="aiseo-sections">
+            <?php if (!$hasData): ?>
+                <p class="no-data">Connect a project and run a crawl to populate the metric tables. Sections remain editable while data is loading.</p>
+            <?php endif; ?>
+            <div class="toolbar">
+                <button type="button" class="button button-secondary" id="aiseo-ai-all">Generate AI for All Sections</button>
+            </div>
+            <div id="aiseo-sections-list">
+                <?php foreach ($sections as $idx => $sec): ?>
+                    <?php
+                        $label = $registry[$sec['type']]['label'] ?? ($sec['title'] ?: ucfirst(str_replace('_', ' ', (string) $sec['type'])));
+                        $editorId = 'aiseo_section_' . $idx . '_body';
+                        $visible = $sec['visible'] ?? true;
+                        $metrics = $metricsBySection[$sec['type']] ?? [];
+                        $hasMetricsContent = !empty($metrics['rows']) || !empty($metrics['empty']) || !empty($metrics['note']);
+                        $recoList = is_array($sec['reco_list'] ?? null) ? $sec['reco_list'] : [];
+                    ?>
+                    <div class="section" data-id="<?php echo esc_attr($sec['id']); ?>" data-editor="<?php echo esc_attr($editorId); ?>">
+                        <div class="head">
+                            <div class="type">
+                                <?php echo esc_html($label); ?>
                             </div>
-                            <div class="body">
-                                <label>Custom Title</label>
-                                <input type="text" name="aiseo_sections[<?php echo esc_attr($idx); ?>][title]" value="<?php echo esc_attr($sec['title']); ?>">
-                                <input type="hidden" name="aiseo_sections[<?php echo esc_attr($idx); ?>][id]" value="<?php echo esc_attr($sec['id']); ?>">
-                                <input type="hidden" name="aiseo_sections[<?php echo esc_attr($idx); ?>][type]" value="<?php echo esc_attr($sec['type']); ?>">
-                                <textarea name="aiseo_sections[<?php echo esc_attr($idx); ?>][body]" rows="5" placeholder="Section narrative (editable)"><?php echo esc_textarea($sec['body'] ?? ''); ?></textarea>
-                                <div class="reco">
-                                    <label>Recommendations (one per line)</label>
-                                    <textarea name="aiseo_sections[<?php echo esc_attr($idx); ?>][reco_raw]" rows="3"><?php echo esc_textarea(implode("\n", $sec['reco_list'] ?? [])); ?></textarea>
-                                    <small>Suggestions can be prefilled by AI or edited manually.</small>
-                                </div>
+                            <div class="controls">
+                                <label>
+                                    <input type="hidden" name="aiseo_sections[<?php echo esc_attr($idx); ?>][visible]" value="0">
+                                    <input type="checkbox" name="aiseo_sections[<?php echo esc_attr($idx); ?>][visible]" value="1" <?php checked($visible); ?>>
+                                    Show section
+                                </label>
+                                <button type="button" class="button aiseo-ai-one" data-id="<?php echo esc_attr($sec['id']); ?>">AI</button>
                             </div>
                         </div>
-                    <?php endforeach; ?>
-                </div>
-                <div class="add-row">
-                    <select id="aiseo-add-type">
-                        <option value="">Add Section…</option>
-                        <?php foreach ($registry as $k => $r): ?>
-                            <option value="<?php echo esc_attr($k); ?>"><?php echo esc_html($r['label']); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <button type="button" class="button" id="aiseo-add-btn">Add</button>
-                    <button type="button" class="button button-primary" id="aiseo-ai-all">Generate AI for All Sections</button>
-                </div>
+                        <?php if ($hasMetricsContent): ?>
+                            <div class="metrics">
+                                <?php self::renderMetricsTable($metrics); ?>
+                            </div>
+                        <?php endif; ?>
+                        <div class="editor">
+                            <?php
+                            wp_editor(
+                                $sec['body'] ?? '',
+                                $editorId,
+                                [
+                                    'textarea_name' => "aiseo_sections[{$idx}][body]",
+                                    'textarea_rows' => 8,
+                                    'editor_height' => 180,
+                                    'media_buttons' => false,
+                                ]
+                            );
+                            ?>
+                        </div>
+                        <?php if ($sec['type'] === 'recommendations'): ?>
+                            <div class="reco">
+                                <label><strong>Recommended Actions (one per line)</strong></label>
+                                <textarea name="aiseo_sections[<?php echo esc_attr($idx); ?>][reco_raw]" rows="4"><?php echo esc_textarea(implode("\n", $recoList)); ?></textarea>
+                            </div>
+                        <?php endif; ?>
+                        <input type="hidden" name="aiseo_sections[<?php echo esc_attr($idx); ?>][title]" value="<?php echo esc_attr($sec['title']); ?>">
+                        <input type="hidden" name="aiseo_sections[<?php echo esc_attr($idx); ?>][id]" value="<?php echo esc_attr($sec['id']); ?>">
+                        <input type="hidden" name="aiseo_sections[<?php echo esc_attr($idx); ?>][type]" value="<?php echo esc_attr($sec['type']); ?>">
+                    </div>
+                <?php endforeach; ?>
             </div>
         </div>
         <script>
         (function($){
-            const $list = $('#aiseo-sections-list');
+            const ajaxNonce = '<?php echo esc_js($nonce); ?>';
+            const postId = <?php echo (int) $post->ID; ?>;
 
-            function renumber(){
-                $list.find('.section').each(function(idx){
-                    $(this).find('input, textarea').each(function(){
-                        const name = $(this).attr('name');
-                        if (!name) return;
-                        $(this).attr('name', name.replace(/aiseo_sections\[\d+]/, 'aiseo_sections[' + idx + ']'));
-                    });
-                });
+            function setEditorContent(editorId, content) {
+                if (window.tinymce) {
+                    const editor = window.tinymce.get(editorId);
+                    if (editor) {
+                        editor.setContent(content || '');
+                    }
+                }
+                const textarea = document.getElementById(editorId);
+                if (textarea) {
+                    textarea.value = content || '';
+                }
             }
 
-            $list.sortable({
-                handle: '.drag',
-                stop: renumber
-            });
-
-            $('#aiseo-add-btn').on('click', function(){
-                const type = $('#aiseo-add-type').val();
-                if (!type) {
-                    return;
-                }
-                const label = $('#aiseo-add-type option:selected').text();
-                const id = type + '_' + Math.random().toString(36).slice(2, 8);
-                const idx = $list.find('.section').length;
-                const template = `
-                    <div class="section" data-id="${id}">
-                        <div class="head">
-                            <div class="type">
-                                <span class="dashicons dashicons-move drag"></span>${label}
-                            </div>
-                            <div class="controls">
-                                <button type="button" class="button aiseo-ai-one" data-id="${id}">AI</button>
-                                <button type="button" class="button button-link-delete aiseo-del" data-id="${id}">Remove</button>
-                            </div>
-                        </div>
-                        <div class="body">
-                            <label>Custom Title</label>
-                            <input type="text" name="aiseo_sections[${idx}][title]" value="${label}">
-                            <input type="hidden" name="aiseo_sections[${idx}][id]" value="${id}">
-                            <input type="hidden" name="aiseo_sections[${idx}][type]" value="${type}">
-                            <textarea name="aiseo_sections[${idx}][body]" rows="5" placeholder="Section narrative (editable)"></textarea>
-                            <div class="reco">
-                                <label>Recommendations (one per line)</label>
-                                <textarea name="aiseo_sections[${idx}][reco_raw]" rows="3"></textarea>
-                                <small>Suggestions can be prefilled by AI or edited manually.</small>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                $list.append(template);
-            });
-
-            $(document).on('click', '.aiseo-del', function(){
-                $(this).closest('.section').remove();
-                renumber();
-            });
-
-            function aiForSection(sectionId){
+            function aiForSection(sectionId) {
                 const form = document.forms['post'];
                 if (!form) {
                     return;
                 }
+
+                const $section = $('.aiseo-sections .section[data-id="' + sectionId + '"]');
+                const editorId = $section.data('editor');
+
                 const type = form.querySelector('[name="aiseo_report_type"]')?.value || 'general';
                 const project = form.querySelector('[name="aiseo_project_slug"]')?.value || '';
                 const page = form.querySelector('[name="aiseo_page"]')?.value || '';
                 const runs = form.querySelector('[name="aiseo_runs"]')?.value || '[]';
 
+                $section.addClass('loading');
+
                 $.post(ajaxurl, {
                     action: 'aiseo_sections_generate',
-                    post_id: <?php echo (int) $post->ID; ?>,
+                    post_id: postId,
                     section_id: sectionId,
                     type: type,
                     project: project,
                     page: page,
                     runs: runs,
-                    _wpnonce: '<?php echo esc_js($nonce); ?>'
+                    _wpnonce: ajaxNonce
                 }).done(function(res){
-                    if (!res || !res.success) {
-                        return;
+                    if (res && res.success) {
+                        setEditorContent(editorId, res.data.body || '');
+                        const reco = res.data.reco_list || [];
+                        const $reco = $section.find('textarea[name*="[reco_raw]"]');
+                        if ($reco.length) {
+                            $reco.val(reco.join("\n"));
+                        }
                     }
-                    const wrap = $list.find('.section[data-id="' + sectionId + '"]');
-                    wrap.find('textarea[name*="[body]"]').val(res.data.body || '');
-                    wrap.find('textarea[name*="[reco_raw]"]').val((res.data.reco_list || []).join("\n"));
+                }).always(function(){
+                    $section.removeClass('loading');
                 });
             }
 
@@ -198,13 +219,117 @@ class ReportSectionsUI
             });
 
             $('#aiseo-ai-all').on('click', function(){
-                $list.find('.section').each(function(){
+                $('.aiseo-sections .section').each(function(){
                     aiForSection($(this).data('id'));
                 });
             });
         })(jQuery);
         </script>
         <?php
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $sections
+     * @return array<int,array<string,mixed>>
+     */
+    private static function prepareSections(array $sections, string $type): array
+    {
+        $registry = Sections::registry();
+        $existingByType = [];
+
+        foreach ($sections as $section) {
+            if (!is_array($section) || empty($section['type'])) {
+                continue;
+            }
+            $existingByType[$section['type']] = $section;
+        }
+
+        $prepared = [];
+
+        foreach ($registry as $key => $def) {
+            if (($def['legacy'] ?? false) || !in_array($type, $def['enabled_for'], true)) {
+                continue;
+            }
+
+            $section = $existingByType[$key] ?? [
+                'id' => uniqid($key . '_'),
+                'type' => $key,
+                'title' => $def['label'],
+                'body' => '',
+                'reco_list' => [],
+                'order' => $def['order'] ?? 0,
+                'visible' => true,
+            ];
+
+            $prepared[] = self::normalizeSection($section, $def['label'], (int) ($def['order'] ?? 0));
+            unset($existingByType[$key]);
+        }
+
+        foreach ($existingByType as $key => $section) {
+            $label = $registry[$key]['label'] ?? ucfirst(str_replace('_', ' ', $key));
+            $prepared[] = self::normalizeSection($section, $label, (int) ($section['order'] ?? 900));
+        }
+
+        usort($prepared, static function (array $a, array $b) {
+            return ($a['order'] ?? 0) <=> ($b['order'] ?? 0);
+        });
+
+        return $prepared;
+    }
+
+    /**
+     * @param array<string,mixed> $section
+     * @return array<string,mixed>
+     */
+    private static function normalizeSection(array $section, string $label, int $fallbackOrder): array
+    {
+        $type = isset($section['type']) ? (string) $section['type'] : 'section';
+        $section['id'] = isset($section['id']) && $section['id'] !== '' ? (string) $section['id'] : uniqid($type . '_');
+        $section['title'] = isset($section['title']) && $section['title'] !== '' ? (string) $section['title'] : $label;
+        $section['order'] = isset($section['order']) ? (int) $section['order'] : $fallbackOrder;
+        $section['body'] = isset($section['body']) ? (string) $section['body'] : '';
+        $section['reco_list'] = is_array($section['reco_list'] ?? null) ? $section['reco_list'] : [];
+        $section['visible'] = array_key_exists('visible', $section) ? (bool) $section['visible'] : true;
+
+        return $section;
+    }
+
+    /**
+     * @param array<string,mixed> $table
+     */
+    private static function renderMetricsTable(array $table): void
+    {
+        $rows = $table['rows'] ?? [];
+        $headers = $table['headers'] ?? [];
+
+        if (!$headers && $rows) {
+            $headers = array_keys(reset($rows));
+        }
+
+        if ($rows) {
+            echo '<table class="metrics-table"><thead><tr>';
+            foreach ($headers as $header) {
+                echo '<th>' . esc_html((string) $header) . '</th>';
+            }
+            echo '</tr></thead><tbody>';
+            foreach ($rows as $row) {
+                echo '<tr>';
+                foreach ($headers as $header) {
+                    $cell = $row[$header] ?? '';
+                    echo '<td>' . esc_html((string) $cell) . '</td>';
+                }
+                echo '</tr>';
+            }
+            echo '</tbody></table>';
+        }
+
+        if (!$rows && !empty($table['empty'])) {
+            echo '<p class="metrics-empty">' . esc_html((string) $table['empty']) . '</p>';
+        }
+
+        if (!empty($table['note'])) {
+            echo '<p class="metrics-note">' . esc_html((string) $table['note']) . '</p>';
+        }
     }
 
     public static function save(int $postId, \WP_Post $post, bool $update): void
@@ -225,12 +350,18 @@ class ReportSectionsUI
         $out = [];
 
         foreach ($_POST['aiseo_sections'] as $idx => $row) {
+            $visible = !empty($row['visible']);
+            $recoRaw = $row['reco_raw'] ?? '';
+            if (is_array($recoRaw)) {
+                $recoRaw = implode("\n", $recoRaw);
+            }
             $out[] = [
                 'id' => sanitize_text_field($row['id'] ?? ''),
                 'type' => sanitize_text_field($row['type'] ?? ''),
                 'title' => sanitize_text_field($row['title'] ?? ''),
                 'body' => wp_kses_post($row['body'] ?? ''),
-                'reco_list' => array_values(array_filter(array_map('trim', preg_split('/\r?\n/', (string) ($row['reco_raw'] ?? ''))))),
+                'visible' => $visible ? 1 : 0,
+                'reco_list' => array_values(array_filter(array_map('trim', preg_split('/\r?\n/', (string) $recoRaw)))),
                 'order' => (int) $idx * 10,
             ];
         }

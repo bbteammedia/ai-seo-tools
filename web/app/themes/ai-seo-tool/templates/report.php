@@ -2,6 +2,7 @@
 use AISEO\PostTypes\Report as ReportPostType;
 use AISEO\Helpers\Sections;
 use AISEO\Helpers\DataLoader;
+use AISEO\Helpers\ReportMetrics;
 
 /** @var \WP_Post|null $report */
 $report = $GLOBALS['aiseo_report_post'] ?? null;
@@ -23,6 +24,8 @@ $pageUrl = get_post_meta($report->ID, ReportPostType::META_PAGE, true) ?: '';
 $runsMeta = get_post_meta($report->ID, ReportPostType::META_RUNS, true) ?: '[]';
 $runs = json_decode($runsMeta, true) ?: [];
 $summaryText = get_post_meta($report->ID, ReportPostType::META_SUMMARY, true) ?: '';
+$summaryVisibleMeta = get_post_meta($report->ID, ReportPostType::META_SUMMARY_VISIBLE, true);
+$showSummary = $summaryVisibleMeta === '' ? true : $summaryVisibleMeta === '1';
 $actionsMeta = get_post_meta($report->ID, ReportPostType::META_ACTIONS, true) ?: '[]';
 $actions = json_decode($actionsMeta, true);
 $actions = is_array($actions) ? array_filter(array_map('trim', $actions)) : [];
@@ -33,7 +36,17 @@ $techNotes = get_post_meta($report->ID, ReportPostType::META_TECH, true) ?: '';
 
 $sectionsRaw = get_post_meta($report->ID, Sections::META_SECTIONS, true) ?: '[]';
 $sections = json_decode($sectionsRaw, true);
-$sections = is_array($sections) ? $sections : [];
+$sections = is_array($sections) ? array_values(array_filter(array_map(static function ($section) {
+    if (!is_array($section)) {
+        return null;
+    }
+    if (!array_key_exists('visible', $section)) {
+        $section['visible'] = 1;
+    } else {
+        $section['visible'] = (int) $section['visible'];
+    }
+    return $section;
+}, $sections))) : [];
 usort($sections, static fn ($a, $b) => ($a['order'] ?? 0) <=> ($b['order'] ?? 0));
 
 $snapshotMeta = get_post_meta($report->ID, ReportPostType::META_SNAPSHOT, true) ?: '';
@@ -42,6 +55,8 @@ if (!is_array($snapshot) || empty($snapshot['runs'])) {
     $snapshot = DataLoader::forReport($type, (string) $project, is_array($runs) ? $runs : [], (string) $pageUrl);
 }
 $snapshotRuns = $snapshot['runs'] ?? [];
+$sectionMetrics = ReportMetrics::build($type, $snapshot);
+$sectionRegistry = Sections::registry();
 
 $stats = [
     'pages' => 0,
@@ -118,6 +133,9 @@ $runsList = is_array($runs) && $runs ? implode(', ', array_map('sanitize_text_fi
         table.metrics th { background:#f9fafc; width:45%; font-weight:600; color:#334155; }
         .pill-list { list-style:none; margin:12px 0; padding:0; display:flex; flex-wrap:wrap; gap:8px; }
         .pill-list li { background:#e6f0ff; color:#1b4ed8; padding:8px 12px; border-radius:999px; font-size:14px; }
+        .metrics-block { margin-top:12px; }
+        .metrics-empty { font-style:italic; color:#64748b; margin:8px 0 0; }
+        .metrics-note { font-size:13px; color:#64748b; margin-top:6px; }
         .section-card { background:#f9fbff; border-radius:14px; padding:20px 24px; margin-top:20px; border:1px solid #dfe7f6; }
         .section-card h3 { margin-top:0; }
         .section-card .body { font-size:15px; line-height:1.6; color:#1f2933; }
@@ -169,7 +187,7 @@ $runsList = is_array($runs) && $runs ? implode(', ', array_map('sanitize_text_fi
         </ul>
     </header>
 
-    <?php if ($summaryText): ?>
+    <?php if ($summaryText && $showSummary): ?>
         <section>
             <h2>Executive Summary</h2>
             <div class="summary-box">
@@ -265,24 +283,72 @@ $runsList = is_array($runs) && $runs ? implode(', ', array_map('sanitize_text_fi
     <?php endif; ?>
 
     <?php if ($sections): ?>
-        <section>
-            <h2>Detailed Sections</h2>
-            <?php foreach ($sections as $section): ?>
-                <div class="section-card">
-                    <h3><?php echo esc_html($section['title'] ?: ($section['type'] ?? 'Section')); ?></h3>
-                    <?php if (!empty($section['body'])): ?>
-                        <div class="body"><?php echo wp_kses_post(wpautop($section['body'])); ?></div>
-                    <?php endif; ?>
-                    <?php if (!empty($section['reco_list']) && is_array($section['reco_list'])): ?>
-                        <ul>
-                            <?php foreach ($section['reco_list'] as $reco): ?>
-                                <li><?php echo esc_html((string) $reco); ?></li>
-                            <?php endforeach; ?>
-                        </ul>
-                    <?php endif; ?>
-                </div>
-            <?php endforeach; ?>
-        </section>
+        <?php
+        $renderSectionMetrics = static function (array $table): void {
+            $rows = $table['rows'] ?? [];
+            $headers = $table['headers'] ?? [];
+            if (!$headers && $rows) {
+                $headers = array_keys(reset($rows));
+            }
+            if ($rows) {
+                echo '<table class="metrics"><thead><tr>';
+                foreach ($headers as $header) {
+                    echo '<th>' . esc_html((string) $header) . '</th>';
+                }
+                echo '</tr></thead><tbody>';
+                foreach ($rows as $row) {
+                    echo '<tr>';
+                    foreach ($headers as $header) {
+                        $value = $row[$header] ?? '';
+                        echo '<td>' . esc_html((string) $value) . '</td>';
+                    }
+                    echo '</tr>';
+                }
+                echo '</tbody></table>';
+            }
+            if (!$rows && !empty($table['empty'])) {
+                echo '<p class="metrics-empty">' . esc_html((string) $table['empty']) . '</p>';
+            }
+            if (!empty($table['note'])) {
+                echo '<p class="metrics-note">' . esc_html((string) $table['note']) . '</p>';
+            }
+        };
+        $visibleSections = array_filter($sections, static fn ($section) => (($section['visible'] ?? 1) === 1));
+        ?>
+        <?php if ($visibleSections): ?>
+            <section>
+                <h2>Detailed Sections</h2>
+                <?php foreach ($sections as $section): ?>
+                    <?php
+                        if (($section['visible'] ?? 1) !== 1) {
+                            continue;
+                        }
+                        $typeKey = (string) ($section['type'] ?? '');
+                        $label = $section['title'] ?: ($sectionRegistry[$typeKey]['label'] ?? ucfirst(str_replace('_', ' ', $typeKey)));
+                        $metrics = $sectionMetrics[$typeKey] ?? [];
+                        $hasMetrics = !empty($metrics['rows']) || !empty($metrics['empty']) || !empty($metrics['note']);
+                    ?>
+                    <div class="section-card">
+                        <h3><?php echo esc_html($label); ?></h3>
+                        <?php if ($hasMetrics): ?>
+                            <div class="metrics-block">
+                                <?php $renderSectionMetrics($metrics); ?>
+                            </div>
+                        <?php endif; ?>
+                        <?php if (!empty($section['body'])): ?>
+                            <div class="body"><?php echo wp_kses_post(wpautop($section['body'])); ?></div>
+                        <?php endif; ?>
+                        <?php if ($typeKey === 'recommendations' && !empty($section['reco_list']) && is_array($section['reco_list'])): ?>
+                            <ul>
+                                <?php foreach ($section['reco_list'] as $reco): ?>
+                                    <li><?php echo esc_html((string) $reco); ?></li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            </section>
+        <?php endif; ?>
     <?php endif; ?>
 
     <footer>
