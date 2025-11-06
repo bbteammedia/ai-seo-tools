@@ -1,6 +1,10 @@
 <?php
 namespace AISEO\Template;
 
+use AISEO\PostTypes\Report as ReportPostType;
+use Dompdf\Dompdf;
+use Dompdf\Options;
+
 class Report
 {
     private static bool $booted = false;
@@ -34,7 +38,64 @@ class Report
             return $template;
         }
 
+        $reportPost = get_page_by_path($project, OBJECT, ReportPostType::POST_TYPE);
+        if (!$reportPost instanceof \WP_Post) {
+            return $template;
+        }
+
         $file = get_theme_file_path('templates/report.php');
-        return file_exists($file) ? $file : $template;
+        if (!file_exists($file)) {
+            return $template;
+        }
+
+        global $wp_query, $post;
+        $post = $reportPost;
+
+        if ($wp_query instanceof \WP_Query) {
+            $wp_query->is_404 = false;
+            $wp_query->is_home = false;
+            $wp_query->is_page = false;
+            $wp_query->is_single = true;
+            $wp_query->is_singular = true;
+            $wp_query->posts = [$reportPost];
+            $wp_query->post = $reportPost;
+            $wp_query->queried_object = $reportPost;
+            $wp_query->queried_object_id = $reportPost->ID;
+            $wp_query->found_posts = 1;
+            $wp_query->post_count = 1;
+            $wp_query->max_num_pages = 1;
+        }
+
+        setup_postdata($reportPost);
+        $GLOBALS['aiseo_report_post'] = $reportPost;
+        status_header(200);
+
+        $format = isset($_GET['format']) ? sanitize_key($_GET['format']) : '';
+        if ($format === 'pdf') {
+            self::renderPdf($reportPost, $file);
+            exit;
+        }
+
+        return $file;
+    }
+
+    private static function renderPdf(\WP_Post $reportPost, string $file): void
+    {
+        ob_start();
+        include $file;
+        $html = ob_get_clean() ?: '';
+
+        $options = new Options();
+        $options->set('isRemoteEnabled', true);
+        $options->set('isHtml5ParserEnabled', true);
+
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html, 'UTF-8');
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        $filename = sanitize_title(get_the_title($reportPost) ?: 'report');
+        $dompdf->stream($filename . '.pdf', ['Attachment' => true]);
+        exit;
     }
 }

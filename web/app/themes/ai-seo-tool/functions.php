@@ -25,6 +25,7 @@ if (is_admin()) {
 
 add_action('init', [\AISEO\Admin\ReportMetaBox::class, 'boot']);
 add_action('init', [\AISEO\Admin\ReportSectionsUI::class, 'boot']);
+add_action('admin_init', [\AISEO\Admin\ReportAdminList::class, 'boot']);
 
 // Register run history page
 add_action('admin_menu', [\AISEO\Admin\RunHistoryPage::class, 'register_menu']);
