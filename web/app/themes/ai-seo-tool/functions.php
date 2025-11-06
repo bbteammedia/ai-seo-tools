@@ -7,6 +7,7 @@ add_action('rest_api_init', [\AISEO\Rest\Routes::class, 'register']);
 
 // Register custom post types
 add_action('init', [\AISEO\PostTypes\Project::class, 'register']);
+add_action('init', [\AISEO\PostTypes\Report::class, 'register']);
 
 // Register front-end routes/templates
 \AISEO\Template\Report::register();
@@ -21,6 +22,9 @@ add_action('admin_init', [\AISEO\Admin\Dashboard::class, 'registerActions']);
 if (is_admin()) {
     \AISEO\Admin\Analytics::bootstrap();
 }
+
+add_action('init', [\AISEO\Admin\ReportMetaBox::class, 'boot']);
+add_action('init', [\AISEO\Admin\ReportSectionsUI::class, 'boot']);
 
 // Register run history page
 add_action('admin_menu', [\AISEO\Admin\RunHistoryPage::class, 'register_menu']);
