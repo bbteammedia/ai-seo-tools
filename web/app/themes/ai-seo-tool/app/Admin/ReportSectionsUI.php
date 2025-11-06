@@ -79,8 +79,11 @@ class ReportSectionsUI
             .aiseo-sections .section.loading { opacity:0.65; }
             .aiseo-sections .section .head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
             .aiseo-sections .section .type { font-weight:600; display:flex; align-items:center; gap:8px; }
-            .aiseo-sections .section .controls { display:flex; align-items:center; gap:12px; }
-            .aiseo-sections .section .controls label { display:flex; align-items:center; gap:6px; font-weight:500; }
+            .aiseo-sections .section .controls { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+            .aiseo-sections .section .controls .order { display:flex; align-items:center; gap:6px; font-weight:500; }
+            .aiseo-sections .section .controls .order span { font-size:12px; text-transform:uppercase; letter-spacing:0.05em; color:#64748b; }
+            .aiseo-sections .section .controls .order input { width:64px; }
+            .aiseo-sections .section .controls .visibility { display:flex; align-items:center; gap:6px; font-weight:500; }
             .aiseo-sections .section .metrics { margin-top:12px; }
             .aiseo-sections .section .metrics-table { width:100%; border-collapse:collapse; margin:0; font-size:13px; }
             .aiseo-sections .section .metrics-table th,
@@ -114,6 +117,7 @@ class ReportSectionsUI
                         $metaList = is_array($sec['meta_list'] ?? null) ? $sec['meta_list'] : [];
                         $metaJson = $metaList ? wp_json_encode($metaList, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) : "[]";
                         $suppressMetrics = in_array($typeKey, ['executive_summary', 'top_actions', 'meta_recommendations', 'technical_findings'], true);
+                        $orderValue = self::sanitizeOrder((int) ($sec['order'] ?? $idx));
                     ?>
                     <div class="section" data-id="<?php echo esc_attr($sec['id']); ?>" data-editor="<?php echo esc_attr($editorId); ?>">
                         <div class="head">
@@ -121,7 +125,11 @@ class ReportSectionsUI
                                 <?php echo esc_html($label); ?>
                             </div>
                             <div class="controls">
-                                <label>
+                                <label class="order">
+                                    <span>Order</span>
+                                    <input type="number" min="0" max="15" step="1" name="aiseo_sections[<?php echo esc_attr($idx); ?>][order]" value="<?php echo esc_attr($orderValue); ?>">
+                                </label>
+                                <label class="visibility">
                                     <input type="hidden" name="aiseo_sections[<?php echo esc_attr($idx); ?>][visible]" value="0">
                                     <input type="checkbox" name="aiseo_sections[<?php echo esc_attr($idx); ?>][visible]" value="1" <?php checked($visible); ?>>
                                     Show section
@@ -263,11 +271,15 @@ class ReportSectionsUI
 
         $legacy = self::legacyPayload($post);
         $prepared = [];
+        $positionCounter = 0;
 
         foreach ($registry as $key => $def) {
             if (($def['legacy'] ?? false) || !in_array($type, $def['enabled_for'], true)) {
                 continue;
             }
+
+            $fallbackOrder = self::sanitizeOrder($positionCounter);
+            ++$positionCounter;
 
             $section = $existingByType[$key] ?? [
                 'id' => uniqid($key . '_'),
@@ -276,12 +288,12 @@ class ReportSectionsUI
                 'body' => '',
                 'reco_list' => [],
                 'meta_list' => [],
-                'order' => $def['order'] ?? 0,
+                'order' => $fallbackOrder,
                 'visible' => true,
             ];
 
             $prepared[] = self::hydrateLegacySection(
-                self::normalizeSection($section, $def['label'], (int) ($def['order'] ?? 0)),
+                self::normalizeSection($section, $def['label'], $fallbackOrder),
                 $legacy
             );
             unset($existingByType[$key]);
@@ -289,8 +301,10 @@ class ReportSectionsUI
 
         foreach ($existingByType as $key => $section) {
             $label = $registry[$key]['label'] ?? ucfirst(str_replace('_', ' ', $key));
+            $fallbackOrder = self::sanitizeOrder((int) ($section['order'] ?? $positionCounter));
+            ++$positionCounter;
             $prepared[] = self::hydrateLegacySection(
-                self::normalizeSection($section, $label, (int) ($section['order'] ?? 900)),
+                self::normalizeSection($section, $label, $fallbackOrder),
                 $legacy
             );
         }
@@ -311,7 +325,7 @@ class ReportSectionsUI
         $type = isset($section['type']) ? (string) $section['type'] : 'section';
         $section['id'] = isset($section['id']) && $section['id'] !== '' ? (string) $section['id'] : uniqid($type . '_');
         $section['title'] = isset($section['title']) && $section['title'] !== '' ? (string) $section['title'] : $label;
-        $section['order'] = isset($section['order']) ? (int) $section['order'] : $fallbackOrder;
+        $section['order'] = isset($section['order']) ? self::sanitizeOrder((int) $section['order']) : self::sanitizeOrder($fallbackOrder);
         $section['body'] = isset($section['body']) ? (string) $section['body'] : '';
         $section['reco_list'] = is_array($section['reco_list'] ?? null) ? $section['reco_list'] : [];
         $section['visible'] = array_key_exists('visible', $section) ? (bool) $section['visible'] : true;
@@ -444,6 +458,17 @@ class ReportSectionsUI
         return $out;
     }
 
+    private static function sanitizeOrder(int $order): int
+    {
+        if ($order < 0) {
+            $order = 0;
+        }
+        if ($order > 15) {
+            $order = 15;
+        }
+        return $order;
+    }
+
     /**
      * @param array<string,mixed> $table
      */
@@ -512,6 +537,9 @@ class ReportSectionsUI
             $recoList = array_values(array_filter(array_map('trim', preg_split('/\r?\n/', (string) $recoRaw))));
             $recoList = array_map('sanitize_text_field', $recoList);
 
+            $orderRaw = $row['order'] ?? $idx;
+            $order = self::sanitizeOrder(is_numeric($orderRaw) ? (int) $orderRaw : (int) $idx);
+
             $type = sanitize_text_field($row['type'] ?? '');
             $body = wp_kses_post($row['body'] ?? '');
             $metaJsonRaw = isset($row['meta_json']) ? (string) $row['meta_json'] : '';
@@ -525,7 +553,7 @@ class ReportSectionsUI
                 'visible' => $visible ? 1 : 0,
                 'reco_list' => $recoList,
                 'meta_list' => $metaList,
-                'order' => (int) $idx * 10,
+                'order' => $order,
             ];
 
             switch ($type) {
@@ -543,6 +571,8 @@ class ReportSectionsUI
                     break;
             }
         }
+
+        usort($out, static fn ($a, $b) => ($a['order'] ?? 0) <=> ($b['order'] ?? 0));
 
         update_post_meta($postId, Sections::META_SECTIONS, wp_json_encode($out));
         update_post_meta($postId, Report::META_SUMMARY, $summaryBody);

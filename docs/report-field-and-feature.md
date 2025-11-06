@@ -28,6 +28,7 @@ The legacy “Generate AI Summary” control is retired; each section now has it
 - Fixed list of sections defined in `AISEO\Helpers\Sections::registry()`.
 - Each section row renders:
   - **Show section** checkbox (persisted as `visible` in the section object).
+  - Manual order input (`order`, 0–15) that sets the render priority.
   - Contextual metrics table (read-only) sourced from `ReportMetrics::build()`.
   - TinyMCE editor for the narrative body (`body`).
   - “AI” button that hits `Gemini::summarizeSection()` and replaces the editor content (and optional lists).
@@ -56,7 +57,7 @@ The editor no longer supports ad-hoc add/remove; order is fixed by the registry 
 ```
 
 - `visible` is stored as `1` or `0`. Defaults to visible.
-- `order` controls render order (multiple of 10).
+- `order` controls render order (user-entered 0–15 priority in the editor).
 - `type` is one of the registered keys. Legacy keys remain readable but are hidden from defaults.
 - `meta_list` is used by the `meta_recommendations` section for structured rows (`url`, `title`, `meta_description`).
 

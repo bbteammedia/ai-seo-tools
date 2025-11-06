@@ -108,6 +108,7 @@ class Sections
                 continue;
             }
 
+            $position = count($items);
             $items[] = [
                 'id' => uniqid($key . '_'),
                 'type' => $key,
@@ -116,7 +117,7 @@ class Sections
                 'ai_notes' => '',
                 'reco_list' => [],
                 'meta_list' => [],
-                'order' => $def['order'],
+                'order' => min($position, 15),
                 'visible' => true,
             ];
         }

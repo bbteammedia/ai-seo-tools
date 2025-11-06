@@ -107,8 +107,17 @@ if (trim($techNotes) === '' && $legacyTechNotes !== '') {
 $techVisibleFlag = is_array($techSection) ? ((int) ($techSection['visible'] ?? 1) === 1) : (trim($techNotes) !== '');
 $showTech = $techVisibleFlag && trim($techNotes) !== '';
 
+$orderedVisibleSections = array_values(array_filter($sections, static function ($section) {
+    if (!is_array($section)) {
+        return false;
+    }
+    return ((int) ($section['visible'] ?? 1)) === 1;
+}));
+usort($orderedVisibleSections, static function ($a, $b) {
+    return (($a['order'] ?? 0) <=> ($b['order'] ?? 0));
+});
 $specialSectionTypes = ['executive_summary', 'top_actions', 'meta_recommendations', 'technical_findings'];
-$visibleDetailSections = array_values(array_filter($sections, static function ($section) use ($specialSectionTypes) {
+$visibleDetailSections = array_values(array_filter($orderedVisibleSections, static function ($section) use ($specialSectionTypes) {
     if (!is_array($section)) {
         return false;
     }
@@ -116,7 +125,7 @@ $visibleDetailSections = array_values(array_filter($sections, static function ($
     if (in_array($typeKey, $specialSectionTypes, true)) {
         return false;
     }
-    return ((int) ($section['visible'] ?? 1)) === 1;
+    return true;
 }));
 
 $snapshotMeta = get_post_meta($report->ID, ReportPostType::META_SNAPSHOT, true) ?: '';
@@ -257,20 +266,20 @@ $runsList = is_array($runs) && $runs ? implode(', ', array_map('sanitize_text_fi
         </ul>
     </header>
 
-    <?php if ($showSummary): ?>
-        <section>
-            <h2>Executive Summary</h2>
-            <div class="summary-box">
-                <?php echo wp_kses_post(wpautop($summaryBody)); ?>
-            </div>
-        </section>
-    <?php endif; ?>
-
+<?php if ($showSummary): ?>
     <section>
-        <h2>Key Metrics Snapshot</h2>
-        <table class="metrics">
-            <tbody>
-            <tr>
+        <h2>Executive Summary</h2>
+        <div class="summary-box">
+            <?php echo wp_kses_post(wpautop($summaryBody)); ?>
+        </div>
+    </section>
+<?php endif; ?>
+
+<section>
+    <h2>Key Metrics Snapshot</h2>
+    <table class="metrics">
+        <tbody>
+        <tr>
                 <th scope="row">Total Pages Crawled</th>
                 <td><?php echo number_format_i18n($stats['pages']); ?></td>
             </tr>
@@ -300,120 +309,120 @@ $runsList = is_array($runs) && $runs ? implode(', ', array_map('sanitize_text_fi
             </tr>
             </tbody>
         </table>
-    </section>
+</section>
 
-    <?php if ($showActions): ?>
-        <section>
-            <h2>Top Actions</h2>
-            <ol class="actions-list">
-                <?php foreach ($actions as $action): ?>
-                    <li><?php echo esc_html($action); ?></li>
-                <?php endforeach; ?>
-            </ol>
-        </section>
-    <?php endif; ?>
-
-    <?php if ($showMetaRec): ?>
-        <section>
-            <h2>Meta Recommendations</h2>
-            <table class="meta-table">
-                <thead>
-                <tr>
-                    <th scope="col">URL</th>
-                    <th scope="col">Suggested Title</th>
-                    <th scope="col">Suggested Description</th>
-                </tr>
-                </thead>
-                <tbody>
-                <?php foreach ($metaRec as $row): ?>
-                    <tr>
-                        <td>
-                            <?php if (!empty($row['url'])): ?>
-                                <a href="<?php echo esc_url($row['url']); ?>" target="_blank" rel="noopener"><?php echo esc_html($row['url']); ?></a>
-                            <?php else: ?>
-                                —
-                            <?php endif; ?>
-                        </td>
-                        <td><?php echo esc_html($row['title'] ?? ''); ?></td>
-                        <td><?php echo esc_html($row['meta_description'] ?? ''); ?></td>
-                    </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
-        </section>
-    <?php endif; ?>
-
-    <?php if ($showTech): ?>
-        <section>
-            <h2>Technical Findings</h2>
-            <div class="tech-box">
-                <?php echo wp_kses_post(wpautop($techNotes)); ?>
-            </div>
-        </section>
-    <?php endif; ?>
-
-    <?php
-    $renderSectionMetrics = static function (array $table): void {
-        $rows = $table['rows'] ?? [];
-        $headers = $table['headers'] ?? [];
-        if (!$headers && $rows) {
-            $headers = array_keys(reset($rows));
-        }
-        if ($rows) {
-            echo '<table class="metrics"><thead><tr>';
-            foreach ($headers as $header) {
-                echo '<th>' . esc_html((string) $header) . '</th>';
-            }
-            echo '</tr></thead><tbody>';
-            foreach ($rows as $row) {
-                echo '<tr>';
-                foreach ($headers as $header) {
-                    $value = $row[$header] ?? '';
-                    echo '<td>' . esc_html((string) $value) . '</td>';
-                }
-                echo '</tr>';
-            }
-            echo '</tbody></table>';
-        }
-        if (!$rows && !empty($table['empty'])) {
-            echo '<p class="metrics-empty">' . esc_html((string) $table['empty']) . '</p>';
-        }
-        if (!empty($table['note'])) {
-            echo '<p class="metrics-note">' . esc_html((string) $table['note']) . '</p>';
-        }
-    };
-    ?>
-    <?php if ($visibleDetailSections): ?>
-        <section>
-            <h2>Detailed Sections</h2>
-            <?php foreach ($visibleDetailSections as $section): ?>
-                <?php
-                    $typeKey = (string) ($section['type'] ?? '');
-                    $label = $section['title'] ?: ($sectionRegistry[$typeKey]['label'] ?? ucfirst(str_replace('_', ' ', $typeKey)));
-                    $metrics = $sectionMetrics[$typeKey] ?? [];
-                    $hasMetrics = !empty($metrics['rows']) || !empty($metrics['empty']) || !empty($metrics['note']);
-                ?>
-                <div class="section-card">
-                    <h3><?php echo esc_html($label); ?></h3>
-                    <?php if ($hasMetrics): ?>
-                        <div class="metrics-block">
-                            <?php $renderSectionMetrics($metrics); ?>
-                        </div>
-                    <?php endif; ?>
-                    <?php if (!empty($section['body'])): ?>
-                        <div class="body"><?php echo wp_kses_post(wpautop($section['body'])); ?></div>
-                    <?php endif; ?>
-                    <?php if (!empty($section['reco_list']) && is_array($section['reco_list'])): ?>
-                        <ul>
-                            <?php foreach ($section['reco_list'] as $reco): ?>
-                                <li><?php echo esc_html((string) $reco); ?></li>
-                            <?php endforeach; ?>
-                        </ul>
-                    <?php endif; ?>
-                </div>
+<?php if ($showActions): ?>
+    <section>
+        <h2>Top Actions</h2>
+        <ol class="actions-list">
+            <?php foreach ($actions as $action): ?>
+                <li><?php echo esc_html($action); ?></li>
             <?php endforeach; ?>
-        </section>
-    <?php endif; ?>
+        </ol>
+    </section>
+<?php endif; ?>
+
+<?php if ($showMetaRec): ?>
+    <section>
+        <h2>Meta Recommendations</h2>
+        <table class="meta-table">
+            <thead>
+            <tr>
+                <th scope="col">URL</th>
+                <th scope="col">Suggested Title</th>
+                <th scope="col">Suggested Description</th>
+            </tr>
+            </thead>
+            <tbody>
+            <?php foreach ($metaRec as $row): ?>
+                <tr>
+                    <td>
+                        <?php if (!empty($row['url'])): ?>
+                            <a href="<?php echo esc_url($row['url']); ?>" target="_blank" rel="noopener"><?php echo esc_html($row['url']); ?></a>
+                        <?php else: ?>
+                            —
+                        <?php endif; ?>
+                    </td>
+                    <td><?php echo esc_html($row['title'] ?? ''); ?></td>
+                    <td><?php echo esc_html($row['meta_description'] ?? ''); ?></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </section>
+<?php endif; ?>
+
+<?php if ($showTech): ?>
+    <section>
+        <h2>Technical Findings</h2>
+        <div class="tech-box">
+            <?php echo wp_kses_post(wpautop($techNotes)); ?>
+        </div>
+    </section>
+<?php endif; ?>
+
+<?php
+$renderSectionMetrics = static function (array $table): void {
+    $rows = $table['rows'] ?? [];
+    $headers = $table['headers'] ?? [];
+    if (!$headers && $rows) {
+        $headers = array_keys(reset($rows));
+    }
+    if ($rows) {
+        echo '<table class="metrics"><thead><tr>';
+        foreach ($headers as $header) {
+            echo '<th>' . esc_html((string) $header) . '</th>';
+        }
+        echo '</tr></thead><tbody>';
+        foreach ($rows as $row) {
+            echo '<tr>';
+            foreach ($headers as $header) {
+                $value = $row[$header] ?? '';
+                echo '<td>' . esc_html((string) $value) . '</td>';
+            }
+            echo '</tr>';
+        }
+        echo '</tbody></table>';
+    }
+    if (!$rows && !empty($table['empty'])) {
+        echo '<p class="metrics-empty">' . esc_html((string) $table['empty']) . '</p>';
+    }
+    if (!empty($table['note'])) {
+        echo '<p class="metrics-note">' . esc_html((string) $table['note']) . '</p>';
+    }
+};
+?>
+<?php if ($visibleDetailSections): ?>
+    <section>
+        <h2>Detailed Sections</h2>
+        <?php foreach ($visibleDetailSections as $section): ?>
+            <?php
+                $typeKey = (string) ($section['type'] ?? '');
+                $label = $section['title'] ?: ($sectionRegistry[$typeKey]['label'] ?? ucfirst(str_replace('_', ' ', $typeKey)));
+                $metrics = $sectionMetrics[$typeKey] ?? [];
+                $hasMetrics = !empty($metrics['rows']) || !empty($metrics['empty']) || !empty($metrics['note']);
+            ?>
+            <div class="section-card">
+                <h3><?php echo esc_html($label); ?></h3>
+                <?php if ($hasMetrics): ?>
+                    <div class="metrics-block">
+                        <?php $renderSectionMetrics($metrics); ?>
+                    </div>
+                <?php endif; ?>
+                <?php if (!empty($section['body'])): ?>
+                    <div class="body"><?php echo wp_kses_post(wpautop($section['body'])); ?></div>
+                <?php endif; ?>
+                <?php if (!empty($section['reco_list']) && is_array($section['reco_list'])): ?>
+                    <ul>
+                        <?php foreach ($section['reco_list'] as $reco): ?>
+                            <li><?php echo esc_html((string) $reco); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
+            </div>
+        <?php endforeach; ?>
+    </section>
+<?php endif; ?>
 
     <footer>
         Prepared with AI SEO Tools · <?php echo esc_html(date_i18n(get_option('date_format'))); ?>
