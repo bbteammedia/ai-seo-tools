@@ -22,7 +22,7 @@ class Gemini
             self::buildReportPrompt($type, $data),
             [
                 'temperature' => 0.4,
-                'maxOutputTokens' => 1024,
+                'maxOutputTokens' => 2048,
             ]
         );
 
@@ -176,8 +176,24 @@ class Gemini
         if (is_array($decoded)) {
             return $text;
         }
+        
+        // FIX 2a: Strip common markdown code fences (```json or ```) that models sometimes add.
+        $text = preg_replace('/^```json\s*|```\s*$/s', '', $text);
+        $text = trim($text);
 
-        // Attempt to pull the first JSON object from the text.
+        // FIX 2b: Find the text between the first '{' and the last '}' to capture the full object.
+        $start = strpos($text, '{');
+        $end = strrpos($text, '}');
+
+        if ($start !== false && $end !== false && $end > $start) {
+            $candidate = substr($text, $start, $end - $start + 1);
+            $decoded = json_decode($candidate, true);
+            if (is_array($decoded)) {
+                return $candidate;
+            }
+        }
+        
+        // Fallback: Attempt to pull the first JSON object from the text using the original greedy regex.
         if (preg_match('/\{.*\}/s', $text, $matches)) {
             $candidate = $matches[0];
             $decoded = json_decode($candidate, true);
