@@ -10,6 +10,7 @@ use AISEO\Crawl\Worker;
 use AISEO\Audit\Runner as AuditRunner;
 use AISEO\Report\Builder as ReportBuilder;
 use AISEO\Report\Summary;
+use AISEO\Analytics\Store as AnalyticsStore;
 use AISEO\PostTypes\Project;
 
 class Routes
@@ -37,6 +38,18 @@ class Routes
         register_rest_route('ai-seo-tool/v1', '/report', [
             'methods' => 'POST',
             'callback' => [self::class, 'report'],
+            'permission_callback' => '__return_true',
+        ]);
+
+        register_rest_route('ai-seo-tool/v1', '/upload-ga', [
+            'methods' => 'POST',
+            'callback' => [self::class, 'uploadGa'],
+            'permission_callback' => '__return_true',
+        ]);
+
+        register_rest_route('ai-seo-tool/v1', '/upload-gsc', [
+            'methods' => 'POST',
+            'callback' => [self::class, 'uploadGsc'],
             'permission_callback' => '__return_true',
         ]);
 
@@ -202,4 +215,100 @@ class Routes
         return preg_replace('/[^A-Za-z0-9_\-]/', '', $runId);
     }
 
+    public static function uploadGa(WP_REST_Request $req)
+    {
+        return self::handleAnalyticsUpload($req, 'ga');
+    }
+
+    public static function uploadGsc(WP_REST_Request $req)
+    {
+        return self::handleAnalyticsUpload($req, 'gsc');
+    }
+
+    private static function handleAnalyticsUpload(WP_REST_Request $req, string $target)
+    {
+        if (!Http::validate_token($req)) {
+            return Http::fail('invalid key', 401);
+        }
+
+        $project = sanitize_text_field($req->get_param('project'));
+        if (!$project) {
+            return Http::fail('project required', 422);
+        }
+
+        $runId = $req->get_param('run');
+        $runId = $runId ? self::normalizeRunId($runId) : (Storage::getLatestRun($project) ?? '');
+        if (!$runId) {
+            return Http::fail('run not found', 404);
+        }
+
+        $payload = self::resolveAnalyticsPayload($req);
+        if ($payload === null) {
+            return Http::fail('no analytics payload', 422);
+        }
+
+        $path = AnalyticsStore::save($project, $runId, $target, $payload);
+
+        return Http::ok([
+            'project' => $project,
+            'run_id' => $runId,
+            'saved' => true,
+            'path' => $path,
+        ]);
+    }
+
+    private static function resolveAnalyticsPayload(WP_REST_Request $req): ?array
+    {
+        $json = $req->get_json_params();
+        if (is_array($json) && !empty($json)) {
+            return $json;
+        }
+
+        $files = $req->get_file_params();
+        if (!empty($files)) {
+            $file = reset($files);
+            if (is_array($file) && isset($file['tmp_name']) && is_uploaded_file($file['tmp_name'])) {
+                $contents = file_get_contents($file['tmp_name']);
+                if ($contents === false || $contents === '') {
+                    return null;
+                }
+                $decoded = json_decode($contents, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    return $decoded;
+                }
+                $rows = self::parseCsvToArray($contents);
+                if ($rows !== null) {
+                    return ['rows' => $rows];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static function parseCsvToArray(string $contents): ?array
+    {
+        $lines = preg_split('/\r\n|\r|\n/', trim($contents));
+        if (!$lines || count($lines) < 2) {
+            return null;
+        }
+        $header = str_getcsv(array_shift($lines));
+        if (!$header) {
+            return null;
+        }
+
+        $data = [];
+        foreach ($lines as $line) {
+            if (trim($line) === '') {
+                continue;
+            }
+            $row = str_getcsv($line);
+            if (!$row) {
+                continue;
+            }
+            $data[] = array_combine($header, array_pad($row, count($header), null));
+        }
+
+        return $data ?: null;
+    }
 }

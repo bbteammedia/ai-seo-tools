@@ -18,6 +18,9 @@ add_action('after_switch_theme', function () {
 // Register admin dashboard
 add_action('admin_menu', [\AISEO\Admin\Dashboard::class, 'register']);
 add_action('admin_init', [\AISEO\Admin\Dashboard::class, 'registerActions']);
+if (is_admin()) {
+    \AISEO\Admin\Analytics::bootstrap();
+}
 
 // Register run history page
 add_action('admin_menu', [\AISEO\Admin\RunHistoryPage::class, 'register_menu']);
@@ -26,6 +29,8 @@ add_action('admin_menu', [\AISEO\Admin\RunHistoryPage::class, 'register_menu']);
 add_filter('cron_schedules', [\AISEO\Cron\Scheduler::class, 'registerSchedules']);
 add_action('init', [\AISEO\Cron\Scheduler::class, 'init']);
 add_action('switch_theme', [\AISEO\Cron\Scheduler::class, 'deactivate']);
+add_action('init', [\AISEO\Cron\AnalyticsSync::class, 'init']);
+add_action('switch_theme', [\AISEO\Cron\AnalyticsSync::class, 'deactivate']);
 
 
 // Ensure storage base dir exists on theme load

@@ -1,6 +1,7 @@
 <?php
 namespace AISEO\PostTypes;
 
+use AISEO\Analytics\GoogleAnalytics;
 use AISEO\Helpers\Storage;
 
 class Project
@@ -85,7 +86,53 @@ class Project
         $baseUrl = get_post_meta($post->ID, self::META_BASE_URL, true);
         $schedule = get_post_meta($post->ID, self::META_SCHEDULE, true) ?: 'manual';
         $lastRun = (int) get_post_meta($post->ID, self::META_LAST_RUN, true);
+        $slug = $post->post_name ?: '';
+        $config = [];
+        if ($slug) {
+            Storage::ensureProject($slug);
+            $cfgPath = Storage::projectDir($slug) . '/config.json';
+            if (is_file($cfgPath)) {
+                $config = json_decode(file_get_contents($cfgPath), true) ?: [];
+            }
+        }
+        $gaConfig = $config['analytics']['ga'] ?? [];
+        $gaPropertyId = $gaConfig['property_id'] ?? '';
+        $gaConnected = !empty($gaConfig['refresh_token']);
+        $gaLastSync = $gaConfig['last_sync'] ?? null;
+        $gaLastError = $gaConfig['last_error'] ?? null;
+        $gaRange = $gaConfig['range'] ?? 'last_30_days';
+        $gaCustomStart = $gaConfig['custom_start'] ?? '';
+        $gaCustomEnd = $gaConfig['custom_end'] ?? '';
+        $gaMetrics = $gaConfig['metrics'] ?? GoogleAnalytics::defaultMetrics();
+        if (!is_array($gaMetrics)) {
+            $gaMetrics = GoogleAnalytics::defaultMetrics();
+        }
+        $clientConfigured = GoogleAnalytics::clientId() && GoogleAnalytics::clientSecret();
+        $connectUrl = $slug ? wp_nonce_url(add_query_arg([
+            'action' => 'aiseo_ga_connect',
+            'project' => $slug,
+        ], admin_url('admin-post.php')), 'aiseo_ga_connect_' . $slug) : '';
+        $disconnectUrl = $slug ? wp_nonce_url(add_query_arg([
+            'action' => 'aiseo_ga_disconnect',
+            'project' => $slug,
+        ], admin_url('admin-post.php')), 'aiseo_ga_disconnect_' . $slug) : '';
+        $syncUrl = $slug ? wp_nonce_url(add_query_arg([
+            'action' => 'aiseo_ga_sync',
+            'project' => $slug,
+        ], admin_url('admin-post.php')), 'aiseo_ga_sync_' . $slug) : '';
         ?>
+        <?php if (isset($_GET['ga_notice'])): ?>
+            <?php $notice = sanitize_text_field($_GET['ga_notice']); ?>
+            <?php if ($notice === 'connected'): ?>
+                <div class="notice notice-success is-dismissible"><p><?php esc_html_e('Google Analytics connected successfully.', 'ai-seo-tool'); ?></p></div>
+            <?php elseif ($notice === 'disconnected'): ?>
+                <div class="notice notice-success is-dismissible"><p><?php esc_html_e('Google Analytics disconnected.', 'ai-seo-tool'); ?></p></div>
+            <?php elseif ($notice === 'synced'): ?>
+                <div class="notice notice-success is-dismissible"><p><?php esc_html_e('Google Analytics data synced.', 'ai-seo-tool'); ?></p></div>
+            <?php elseif ($notice === 'error'): ?>
+                <div class="notice notice-error is-dismissible"><p><?php echo esc_html($_GET['ga_message'] ?? __('Google Analytics error.', 'ai-seo-tool')); ?></p></div>
+            <?php endif; ?>
+        <?php endif; ?>
         <p>
             <label for="aiseo_project_base_url"><strong><?php esc_html_e('Primary Site URL', 'ai-seo-tool'); ?></strong></label>
             <input type="url" name="aiseo_project_base_url" id="aiseo_project_base_url" class="widefat" value="<?php echo esc_attr($baseUrl); ?>" placeholder="https://example.com" />
@@ -111,6 +158,89 @@ class Project
             }
             ?>
         </p>
+        <hr />
+        <h2><?php esc_html_e('Google Analytics', 'ai-seo-tool'); ?></h2>
+        <?php if (!$clientConfigured): ?>
+            <p class="notice notice-warning"><?php esc_html_e('Set AISEO_GA_CLIENT_ID and AISEO_GA_CLIENT_SECRET in your environment to enable Google Analytics sync.', 'ai-seo-tool'); ?></p>
+        <?php endif; ?>
+        <p>
+            <label for="aiseo_ga_property_id"><strong><?php esc_html_e('GA Property ID (GA4)', 'ai-seo-tool'); ?></strong></label>
+            <input type="text" name="aiseo_ga_property_id" id="aiseo_ga_property_id" class="widefat" value="<?php echo esc_attr($gaPropertyId); ?>" placeholder="properties/123456789" />
+            <small class="description"><?php esc_html_e('Use the full resource name (e.g. properties/123456789).', 'ai-seo-tool'); ?></small>
+        </p>
+        <?php if ($slug): ?>
+            <p>
+                <?php if ($gaConnected): ?>
+                    <span class="dashicons dashicons-yes-alt" aria-hidden="true"></span>
+                    <strong><?php esc_html_e('Connected', 'ai-seo-tool'); ?></strong>
+                    <?php if ($gaLastSync): ?>
+                        <span class="description"><?php printf(esc_html__('Last sync: %s', 'ai-seo-tool'), esc_html($gaLastSync)); ?></span>
+                    <?php endif; ?>
+                    <?php if ($gaLastError): ?>
+                        <br><span class="description" style="color:#c92c2c;"><?php echo esc_html($gaLastError); ?></span>
+                    <?php endif; ?>
+                    <br>
+                    <a class="button" href="<?php echo esc_url($syncUrl); ?>"><?php esc_html_e('Sync GA Data Now', 'ai-seo-tool'); ?></a>
+                    <a class="button button-secondary" href="<?php echo esc_url($disconnectUrl); ?>"><?php esc_html_e('Disconnect', 'ai-seo-tool'); ?></a>
+                <?php else: ?>
+                    <span class="dashicons dashicons-no" aria-hidden="true"></span>
+                    <strong><?php esc_html_e('Not connected to Google Analytics', 'ai-seo-tool'); ?></strong><br>
+                    <a class="button button-primary<?php echo $clientConfigured ? '' : ' disabled'; ?>" href="<?php echo esc_url($clientConfigured ? $connectUrl : '#'); ?>" <?php if (!$clientConfigured) { echo 'aria-disabled="true"'; } ?>><?php esc_html_e('Connect Google Analytics', 'ai-seo-tool'); ?></a>
+                <?php endif; ?>
+            </p>
+            <fieldset>
+                <legend><?php esc_html_e('GA Sync Settings', 'ai-seo-tool'); ?></legend>
+                <p>
+                    <label for="aiseo_ga_range"><strong><?php esc_html_e('Date Range', 'ai-seo-tool'); ?></strong></label>
+                    <select name="aiseo_ga_range" id="aiseo_ga_range" class="widefat">
+                        <?php foreach (GoogleAnalytics::rangeOptions() as $value => $label): ?>
+                            <option value="<?php echo esc_attr($value); ?>" <?php selected($gaRange, $value); ?>><?php echo esc_html($label); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small class="description"><?php esc_html_e('Choose the range used when syncing Google Analytics data.', 'ai-seo-tool'); ?></small>
+                </p>
+                <div class="aiseo-ga-custom-range" style="<?php echo $gaRange === 'custom' ? '' : 'display:none;'; ?>">
+                    <p>
+                        <label for="aiseo_ga_custom_start"><strong><?php esc_html_e('Custom Start Date', 'ai-seo-tool'); ?></strong></label>
+                        <input type="date" name="aiseo_ga_custom_start" id="aiseo_ga_custom_start" value="<?php echo esc_attr($gaCustomStart); ?>" class="regular-text" />
+                    </p>
+                    <p>
+                        <label for="aiseo_ga_custom_end"><strong><?php esc_html_e('Custom End Date', 'ai-seo-tool'); ?></strong></label>
+                        <input type="date" name="aiseo_ga_custom_end" id="aiseo_ga_custom_end" value="<?php echo esc_attr($gaCustomEnd); ?>" class="regular-text" />
+                    </p>
+                </div>
+                <p>
+                    <strong><?php esc_html_e('Metrics to Sync', 'ai-seo-tool'); ?></strong><br>
+                    <small class="description"><?php esc_html_e('Select the metrics you want to collect for this project.', 'ai-seo-tool'); ?></small>
+                </p>
+                <div class="aiseo-ga-metric-groups">
+                    <?php foreach (GoogleAnalytics::metricGroups() as $group => $items): ?>
+                        <fieldset style="margin-bottom:10px;">
+                            <legend><?php echo esc_html($items['label']); ?></legend>
+                            <?php foreach ($items['metrics'] as $metric => $label): ?>
+                                <label style="display:block;">
+                                    <input type="checkbox" name="aiseo_ga_metrics[]" value="<?php echo esc_attr($metric); ?>" <?php checked(in_array($metric, $gaMetrics, true)); ?> />
+                                    <?php echo esc_html($label); ?>
+                                </label>
+                            <?php endforeach; ?>
+                        </fieldset>
+                    <?php endforeach; ?>
+                </div>
+            </fieldset>
+        <?php else: ?>
+            <p class="description"><?php esc_html_e('Save the project first to configure Google Analytics.', 'ai-seo-tool'); ?></p>
+        <?php endif; ?>
+        <script>
+        (function($){
+            $('#aiseo_ga_range').on('change', function(){
+                if ($(this).val() === 'custom') {
+                    $('.aiseo-ga-custom-range').slideDown();
+                } else {
+                    $('.aiseo-ga-custom-range').slideUp();
+                }
+            });
+        })(jQuery);
+        </script>
         <?php
     }
 
@@ -160,6 +290,31 @@ class Project
         $seed = is_array($config['seed_urls'] ?? null) ? $config['seed_urls'] : [];
         if ($baseUrl) { $seed[] = $baseUrl; }
         $config['seed_urls'] = array_values(array_unique(array_filter($seed)));
+
+        $gaPropertyId = isset($_POST['aiseo_ga_property_id']) ? sanitize_text_field($_POST['aiseo_ga_property_id']) : '';
+        $gaRange = isset($_POST['aiseo_ga_range']) ? sanitize_text_field($_POST['aiseo_ga_range']) : 'last_30_days';
+        $gaCustomStart = isset($_POST['aiseo_ga_custom_start']) ? sanitize_text_field($_POST['aiseo_ga_custom_start']) : '';
+        $gaCustomEnd = isset($_POST['aiseo_ga_custom_end']) ? sanitize_text_field($_POST['aiseo_ga_custom_end']) : '';
+        $gaMetrics = isset($_POST['aiseo_ga_metrics']) && is_array($_POST['aiseo_ga_metrics']) ? array_map('sanitize_text_field', $_POST['aiseo_ga_metrics']) : GoogleAnalytics::defaultMetrics();
+        if (!$gaMetrics) {
+            $gaMetrics = GoogleAnalytics::defaultMetrics();
+        }
+
+        if (!isset($config['analytics'])) {
+            $config['analytics'] = [];
+        }
+        if (!isset($config['analytics']['ga'])) {
+            $config['analytics']['ga'] = [];
+        }
+        $config['analytics']['ga']['property_id'] = $gaPropertyId;
+        $config['analytics']['ga']['range'] = $gaRange ?: 'last_30_days';
+        if ($gaRange === 'custom') {
+            $config['analytics']['ga']['custom_start'] = $gaCustomStart ?: null;
+            $config['analytics']['ga']['custom_end'] = $gaCustomEnd ?: null;
+        } else {
+            unset($config['analytics']['ga']['custom_start'], $config['analytics']['ga']['custom_end']);
+        }
+        $config['analytics']['ga']['metrics'] = array_values(array_unique($gaMetrics));
 
         Storage::writeJson($cfgPath, $config);
     }
