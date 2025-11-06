@@ -423,6 +423,12 @@ TXT;
 
     private static function labelForSection(string $sectionId): string
     {
+        if (strpos($sectionId, 'executive_summary_') === 0) {
+            return 'Executive Summary';
+        }
+        if (strpos($sectionId, 'top_actions_') === 0) {
+            return 'Top Actions';
+        }
         if (strpos($sectionId, 'overview_') === 0) {
             return 'Overview';
         }
@@ -444,8 +450,14 @@ TXT;
         if (strpos($sectionId, 'backlink_profile_') === 0) {
             return 'Backlink Profile';
         }
+        if (strpos($sectionId, 'meta_recommendations_') === 0) {
+            return 'Meta Recommendations';
+        }
         if (strpos($sectionId, 'onpage_content_image_') === 0) {
             return 'Content & Image Optimization';
+        }
+        if (strpos($sectionId, 'technical_findings_') === 0) {
+            return 'Technical Findings';
         }
         if (strpos($sectionId, 'recommendations_') === 0) {
             return 'Recommendations';

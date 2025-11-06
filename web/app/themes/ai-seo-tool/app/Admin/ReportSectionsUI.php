@@ -64,7 +64,7 @@ class ReportSectionsUI
         $sectionsRaw = json_decode($stored, true);
         $sectionsRaw = is_array($sectionsRaw) ? $sectionsRaw : [];
 
-        $sections = self::prepareSections($sectionsRaw, $type);
+        $sections = self::prepareSections($sectionsRaw, $type, $post);
         $registry = Sections::registry();
         $nonce = wp_create_nonce('aiseo_ai_sections_' . $post->ID);
 
@@ -104,12 +104,16 @@ class ReportSectionsUI
             <div id="aiseo-sections-list">
                 <?php foreach ($sections as $idx => $sec): ?>
                     <?php
-                        $label = $registry[$sec['type']]['label'] ?? ($sec['title'] ?: ucfirst(str_replace('_', ' ', (string) $sec['type'])));
+                        $typeKey = $sec['type'] ?? '';
+                        $label = $registry[$typeKey]['label'] ?? ($sec['title'] ?: ucfirst(str_replace('_', ' ', (string) $typeKey)));
                         $editorId = 'aiseo_section_' . $idx . '_body';
-                        $visible = $sec['visible'] ?? true;
-                        $metrics = $metricsBySection[$sec['type']] ?? [];
+                        $visible = (bool) ($sec['visible'] ?? true);
+                        $metrics = $metricsBySection[$typeKey] ?? [];
                         $hasMetricsContent = !empty($metrics['rows']) || !empty($metrics['empty']) || !empty($metrics['note']);
                         $recoList = is_array($sec['reco_list'] ?? null) ? $sec['reco_list'] : [];
+                        $metaList = is_array($sec['meta_list'] ?? null) ? $sec['meta_list'] : [];
+                        $metaJson = $metaList ? wp_json_encode($metaList, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) : "[]";
+                        $suppressMetrics = in_array($typeKey, ['executive_summary', 'top_actions', 'meta_recommendations', 'technical_findings'], true);
                     ?>
                     <div class="section" data-id="<?php echo esc_attr($sec['id']); ?>" data-editor="<?php echo esc_attr($editorId); ?>">
                         <div class="head">
@@ -125,7 +129,7 @@ class ReportSectionsUI
                                 <button type="button" class="button aiseo-ai-one" data-id="<?php echo esc_attr($sec['id']); ?>">AI</button>
                             </div>
                         </div>
-                        <?php if ($hasMetricsContent): ?>
+                        <?php if (!$suppressMetrics && $hasMetricsContent): ?>
                             <div class="metrics">
                                 <?php self::renderMetricsTable($metrics); ?>
                             </div>
@@ -144,15 +148,28 @@ class ReportSectionsUI
                             );
                             ?>
                         </div>
-                        <?php if ($sec['type'] === 'recommendations'): ?>
+                        <?php if ($typeKey === 'top_actions'): ?>
+                            <div class="reco">
+                                <label><strong>Top Actions (one per line)</strong></label>
+                                <textarea name="aiseo_sections[<?php echo esc_attr($idx); ?>][reco_raw]" rows="4"><?php echo esc_textarea(implode("\n", $recoList)); ?></textarea>
+                                <small>Displayed as the prioritized action list in the report.</small>
+                            </div>
+                        <?php elseif ($typeKey === 'recommendations'): ?>
                             <div class="reco">
                                 <label><strong>Recommended Actions (one per line)</strong></label>
                                 <textarea name="aiseo_sections[<?php echo esc_attr($idx); ?>][reco_raw]" rows="4"><?php echo esc_textarea(implode("\n", $recoList)); ?></textarea>
+                                <small>Suggestions can be prefilled by AI or edited manually.</small>
+                            </div>
+                        <?php elseif ($typeKey === 'meta_recommendations'): ?>
+                            <div class="reco">
+                                <label><strong>Meta Recommendations (JSON array)</strong></label>
+                                <textarea name="aiseo_sections[<?php echo esc_attr($idx); ?>][meta_json]" rows="6"><?php echo esc_textarea($metaJson); ?></textarea>
+                                <small>Example: [{"url":"...","title":"...","meta_description":"..."}]</small>
                             </div>
                         <?php endif; ?>
                         <input type="hidden" name="aiseo_sections[<?php echo esc_attr($idx); ?>][title]" value="<?php echo esc_attr($sec['title']); ?>">
                         <input type="hidden" name="aiseo_sections[<?php echo esc_attr($idx); ?>][id]" value="<?php echo esc_attr($sec['id']); ?>">
-                        <input type="hidden" name="aiseo_sections[<?php echo esc_attr($idx); ?>][type]" value="<?php echo esc_attr($sec['type']); ?>">
+                        <input type="hidden" name="aiseo_sections[<?php echo esc_attr($idx); ?>][type]" value="<?php echo esc_attr($typeKey); ?>">
                     </div>
                 <?php endforeach; ?>
             </div>
@@ -232,7 +249,7 @@ class ReportSectionsUI
      * @param array<int,array<string,mixed>> $sections
      * @return array<int,array<string,mixed>>
      */
-    private static function prepareSections(array $sections, string $type): array
+    private static function prepareSections(array $sections, string $type, \WP_Post $post): array
     {
         $registry = Sections::registry();
         $existingByType = [];
@@ -244,6 +261,7 @@ class ReportSectionsUI
             $existingByType[$section['type']] = $section;
         }
 
+        $legacy = self::legacyPayload($post);
         $prepared = [];
 
         foreach ($registry as $key => $def) {
@@ -257,17 +275,24 @@ class ReportSectionsUI
                 'title' => $def['label'],
                 'body' => '',
                 'reco_list' => [],
+                'meta_list' => [],
                 'order' => $def['order'] ?? 0,
                 'visible' => true,
             ];
 
-            $prepared[] = self::normalizeSection($section, $def['label'], (int) ($def['order'] ?? 0));
+            $prepared[] = self::hydrateLegacySection(
+                self::normalizeSection($section, $def['label'], (int) ($def['order'] ?? 0)),
+                $legacy
+            );
             unset($existingByType[$key]);
         }
 
         foreach ($existingByType as $key => $section) {
             $label = $registry[$key]['label'] ?? ucfirst(str_replace('_', ' ', $key));
-            $prepared[] = self::normalizeSection($section, $label, (int) ($section['order'] ?? 900));
+            $prepared[] = self::hydrateLegacySection(
+                self::normalizeSection($section, $label, (int) ($section['order'] ?? 900)),
+                $legacy
+            );
         }
 
         usort($prepared, static function (array $a, array $b) {
@@ -290,8 +315,133 @@ class ReportSectionsUI
         $section['body'] = isset($section['body']) ? (string) $section['body'] : '';
         $section['reco_list'] = is_array($section['reco_list'] ?? null) ? $section['reco_list'] : [];
         $section['visible'] = array_key_exists('visible', $section) ? (bool) $section['visible'] : true;
+        $section['meta_list'] = self::normalizeMetaList($section['meta_list'] ?? []);
 
         return $section;
+    }
+
+    /**
+     * @return array{summary:string,actions:array<int,string>,meta:array<int,array<string,string>>,tech:string}
+     */
+    private static function legacyPayload(\WP_Post $post): array
+    {
+        $summary = get_post_meta($post->ID, Report::META_SUMMARY, true) ?: '';
+        $actionsMeta = get_post_meta($post->ID, Report::META_ACTIONS, true) ?: '[]';
+        $actions = json_decode($actionsMeta, true);
+        $actions = is_array($actions) ? array_values(array_filter(array_map('trim', $actions))) : [];
+
+        $metaMeta = get_post_meta($post->ID, Report::META_META_RECO, true) ?: '[]';
+        $meta = json_decode($metaMeta, true);
+        $meta = is_array($meta) ? self::normalizeMetaList($meta) : [];
+
+        $tech = get_post_meta($post->ID, Report::META_TECH, true) ?: '';
+
+        return [
+            'summary' => (string) $summary,
+            'actions' => $actions,
+            'meta' => $meta,
+            'tech' => (string) $tech,
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $section
+     */
+    private static function hydrateLegacySection(array $section, array $legacy): array
+    {
+        $type = $section['type'] ?? '';
+        switch ($type) {
+            case 'executive_summary':
+                if (trim((string) ($section['body'] ?? '')) === '' && $legacy['summary'] !== '') {
+                    $section['body'] = $legacy['summary'];
+                }
+                break;
+            case 'top_actions':
+                if (empty($section['reco_list']) && !empty($legacy['actions'])) {
+                    $section['reco_list'] = $legacy['actions'];
+                }
+                break;
+            case 'meta_recommendations':
+                if (empty($section['meta_list']) && !empty($legacy['meta'])) {
+                    $section['meta_list'] = $legacy['meta'];
+                }
+                break;
+            case 'technical_findings':
+                if (trim((string) ($section['body'] ?? '')) === '' && $legacy['tech'] !== '') {
+                    $section['body'] = $legacy['tech'];
+                }
+                break;
+        }
+
+        return $section;
+    }
+
+    /**
+     * @param mixed $items
+     * @return array<int,array<string,string>>
+     */
+    private static function normalizeMetaList($items): array
+    {
+        if (!is_array($items)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $out[] = [
+                'url' => (string) ($item['url'] ?? ''),
+                'title' => (string) ($item['title'] ?? ''),
+                'meta_description' => (string) ($item['meta_description'] ?? ''),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return array<int,array<string,string>>
+     */
+    private static function parseMetaJson(string $json): array
+    {
+        $json = trim($json);
+        if ($json === '') {
+            return [];
+        }
+
+        $decoded = json_decode($json, true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        return self::sanitizeMetaList($decoded);
+    }
+
+    /**
+     * @param mixed $items
+     * @return array<int,array<string,string>>
+     */
+    private static function sanitizeMetaList($items): array
+    {
+        if (!is_array($items)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $out[] = [
+                'url' => esc_url_raw($item['url'] ?? ''),
+                'title' => sanitize_text_field($item['title'] ?? ''),
+                'meta_description' => sanitize_text_field($item['meta_description'] ?? ''),
+            ];
+        }
+
+        return $out;
     }
 
     /**
@@ -348,6 +498,10 @@ class ReportSectionsUI
         }
 
         $out = [];
+        $summaryBody = '';
+        $topActions = [];
+        $metaRecommendations = [];
+        $techBody = '';
 
         foreach ($_POST['aiseo_sections'] as $idx => $row) {
             $visible = !empty($row['visible']);
@@ -355,18 +509,46 @@ class ReportSectionsUI
             if (is_array($recoRaw)) {
                 $recoRaw = implode("\n", $recoRaw);
             }
+            $recoList = array_values(array_filter(array_map('trim', preg_split('/\r?\n/', (string) $recoRaw))));
+            $recoList = array_map('sanitize_text_field', $recoList);
+
+            $type = sanitize_text_field($row['type'] ?? '');
+            $body = wp_kses_post($row['body'] ?? '');
+            $metaJsonRaw = isset($row['meta_json']) ? (string) $row['meta_json'] : '';
+            $metaList = $type === 'meta_recommendations' ? self::parseMetaJson($metaJsonRaw) : self::sanitizeMetaList($row['meta_list'] ?? []);
+
             $out[] = [
                 'id' => sanitize_text_field($row['id'] ?? ''),
-                'type' => sanitize_text_field($row['type'] ?? ''),
+                'type' => $type,
                 'title' => sanitize_text_field($row['title'] ?? ''),
-                'body' => wp_kses_post($row['body'] ?? ''),
+                'body' => $body,
                 'visible' => $visible ? 1 : 0,
-                'reco_list' => array_values(array_filter(array_map('trim', preg_split('/\r?\n/', (string) $recoRaw)))),
+                'reco_list' => $recoList,
+                'meta_list' => $metaList,
                 'order' => (int) $idx * 10,
             ];
+
+            switch ($type) {
+                case 'executive_summary':
+                    $summaryBody = $body;
+                    break;
+                case 'top_actions':
+                    $topActions = $recoList;
+                    break;
+                case 'meta_recommendations':
+                    $metaRecommendations = $metaList;
+                    break;
+                case 'technical_findings':
+                    $techBody = $body;
+                    break;
+            }
         }
 
         update_post_meta($postId, Sections::META_SECTIONS, wp_json_encode($out));
+        update_post_meta($postId, Report::META_SUMMARY, $summaryBody);
+        update_post_meta($postId, Report::META_ACTIONS, wp_json_encode($topActions));
+        update_post_meta($postId, Report::META_META_RECO, wp_json_encode($metaRecommendations));
+        update_post_meta($postId, Report::META_TECH, $techBody);
     }
 
     public static function generateAiForSection(): void

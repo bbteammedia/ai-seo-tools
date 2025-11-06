@@ -13,6 +13,16 @@ class Sections
     public static function registry(): array
     {
         return [
+            'executive_summary' => [
+                'label' => 'Executive Summary',
+                'enabled_for' => ['general', 'per_page', 'technical'],
+                'order' => 5,
+            ],
+            'top_actions' => [
+                'label' => 'Top Actions',
+                'enabled_for' => ['general', 'per_page', 'technical'],
+                'order' => 8,
+            ],
             'overview' => [
                 'label' => 'Overview',
                 'enabled_for' => ['general', 'per_page', 'technical'],
@@ -43,10 +53,20 @@ class Sections
                 'enabled_for' => ['general', 'technical', 'per_page'],
                 'order' => 60,
             ],
+            'meta_recommendations' => [
+                'label' => 'Meta Recommendations',
+                'enabled_for' => ['general', 'technical', 'per_page'],
+                'order' => 80,
+            ],
+            'technical_findings' => [
+                'label' => 'Technical Findings',
+                'enabled_for' => ['general', 'technical', 'per_page'],
+                'order' => 90,
+            ],
             'recommendations' => [
                 'label' => 'Recommendations',
                 'enabled_for' => ['general', 'technical', 'per_page'],
-                'order' => 70,
+                'order' => 100,
             ],
             // Legacy definitions kept for backward compatibility with saved data.
             'performance_issues' => [
@@ -95,6 +115,7 @@ class Sections
                 'body' => '',
                 'ai_notes' => '',
                 'reco_list' => [],
+                'meta_list' => [],
                 'order' => $def['order'],
                 'visible' => true,
             ];

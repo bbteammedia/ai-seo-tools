@@ -14,7 +14,6 @@ class Report
     public const META_META_RECO = '_aiseo_meta_recos';
     public const META_TECH = '_aiseo_tech_findings';
     public const META_SNAPSHOT = '_aiseo_snapshot';
-    public const META_SUMMARY_VISIBLE = '_aiseo_summary_visible';
 
     public static function registerPostType(): void
     {
@@ -45,7 +44,6 @@ class Report
             self::META_META_RECO,
             self::META_TECH,
             self::META_SNAPSHOT,
-            self::META_SUMMARY_VISIBLE,
         ];
 
         foreach ($metas as $metaKey) {

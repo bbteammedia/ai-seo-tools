@@ -12,12 +12,16 @@ class ReportMetrics
         $base = self::compileBase($snapshot);
 
         return [
+            'executive_summary' => ['rows' => [], 'headers' => []],
+            'top_actions' => ['rows' => [], 'headers' => []],
             'overview' => self::overviewTable($type, $base),
             'performance_summary' => self::performanceSummaryTable($type, $base),
             'technical_seo_issues' => self::technicalIssuesTable($type, $base),
             'onpage_seo_content' => self::onpageTable($base),
             'keyword_analysis' => self::keywordTable($base),
             'backlink_profile' => self::backlinkTable($base),
+            'meta_recommendations' => ['rows' => [], 'headers' => []],
+            'technical_findings' => ['rows' => [], 'headers' => []],
             'recommendations' => ['rows' => [], 'headers' => []],
         ];
     }

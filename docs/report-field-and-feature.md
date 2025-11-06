@@ -12,15 +12,14 @@ This spec describes the live implementation of the Report editor (WP admin), the
 | Project | `_aiseo_project_slug` | Populated from `Storage::baseDir()` folders. |
 | Page URL | `_aiseo_page` | Only shown for `per_page`. |
 | Runs | `_aiseo_runs` | JSON array of run IDs; sanitized on save. |
-| Executive Summary | `_aiseo_summary` | WYSIWYG/TinyMCE field. |
-| Show Executive Summary | `_aiseo_summary_visible` | `'1'` (default) or `'0'`. Controls rendering on the front end. |
-| Top Actions | `_aiseo_top_actions` | JSON array of short action strings. |
-| Meta Recommendations | `_aiseo_meta_recos` | JSON array of objects (`url`, `title`, `meta_description`). |
-| Technical Findings | `_aiseo_tech_findings` | Freeform notes. |
+| Executive Summary | `_aiseo_summary` | Synced from the `executive_summary` section. |
+| Top Actions | `_aiseo_top_actions` | Synced from the `top_actions` section (`reco_list`). |
+| Meta Recommendations | `_aiseo_meta_recos` | Synced from the `meta_recommendations` section (`meta_list`). |
+| Technical Findings | `_aiseo_tech_findings` | Synced from the `technical_findings` section. |
 | Report Snapshot | `_aiseo_snapshot` | JSON payload from `DataLoader::forReport()`. |
 | Modular Sections | `_aiseo_sections` | JSON array of section objects (see §3). |
 
-The “Generate AI Summary” button in the metabox still calls `Gemini::summarizeReport()` and updates `_aiseo_summary`, `_aiseo_top_actions`, `_aiseo_meta_recos`, `_aiseo_tech_findings`, `_aiseo_snapshot`, and leaves `_aiseo_summary_visible` untouched.
+The legacy “Generate AI Summary” control is retired; each section now has its own AI button. When a section is saved, its content is mirrored into the backing post meta listed above so existing consumers keep working.
 
 ---
 
@@ -31,9 +30,11 @@ The “Generate AI Summary” button in the metabox still calls `Gemini::summari
   - **Show section** checkbox (persisted as `visible` in the section object).
   - Contextual metrics table (read-only) sourced from `ReportMetrics::build()`.
   - TinyMCE editor for the narrative body (`body`).
-  - “AI” button that hits `Gemini::summarizeSection()` and replaces the editor content (and optional `reco_list` for Recommendations).
-  - `Recommendations` section includes an additional textarea to capture bullet items (`reco_list`).
+  - “AI” button that hits `Gemini::summarizeSection()` and replaces the editor content (and optional lists).
+  - `top_actions` and `recommendations` expose a textarea for one-action-per-line (`reco_list`).
+  - `meta_recommendations` exposes a JSON textarea (`meta_list`) for URL/title/description rows.
 - “Generate AI for All Sections” loops through every section and triggers the AJAX helper sequentially.
+- Section-level visibility replaces the legacy `_aiseo_summary_visible` toggle.
 
 The editor no longer supports ad-hoc add/remove; order is fixed by the registry and persisted via the `order` field.
 
@@ -48,6 +49,7 @@ The editor no longer supports ad-hoc add/remove; order is fixed by the registry 
   "title": "Overview",
   "body": "<p>Editable narrative…</p>",
   "reco_list": ["Bullet 1", "Bullet 2"],
+  "meta_list": [],
   "visible": 1,
   "order": 10
 }
@@ -56,6 +58,7 @@ The editor no longer supports ad-hoc add/remove; order is fixed by the registry 
 - `visible` is stored as `1` or `0`. Defaults to visible.
 - `order` controls render order (multiple of 10).
 - `type` is one of the registered keys. Legacy keys remain readable but are hidden from defaults.
+- `meta_list` is used by the `meta_recommendations` section for structured rows (`url`, `title`, `meta_description`).
 
 ---
 
@@ -63,13 +66,17 @@ The editor no longer supports ad-hoc add/remove; order is fixed by the registry 
 
 | Type key | Default label | Enabled report types | Notes |
 |---|---|---|---|
+| `executive_summary` | Executive Summary | general, technical, per_page | Narrative lead. Controls the summary block on the report. |
+| `top_actions` | Top Actions | general, technical, per_page | One action per line (`reco_list`); rendered as the high-priority list. |
 | `overview` | Overview | general, technical, per_page | Metrics table varies per report type. |
 | `performance_summary` | Performance Summary | general, technical, per_page | Shows GA/GSC/Crawler highlights. |
 | `technical_seo_issues` | Technical SEO Issues | general, technical, per_page | Table of issue counts + sample URLs. |
 | `onpage_seo_content` | On-Page SEO & Content | general, technical, per_page | Guides for titles, meta, H1, content depth, imagery. |
 | `keyword_analysis` | Keyword Analysis | general, technical, per_page | Summaries from GSC data (with graceful fallbacks). |
 | `backlink_profile` | Backlink Profile | general, technical, per_page | Displays backlink snapshot if data exists. |
-| `recommendations` | Recommendations | general, technical, per_page | Uses `reco_list` bullets + editor body. |
+| `meta_recommendations` | Meta Recommendations | general, technical, per_page | Stores structured URL/title/description rows (`meta_list`). |
+| `technical_findings` | Technical Findings | general, technical, per_page | Freeform notes section for deeper technical commentary. |
+| `recommendations` | Recommendations | general, technical, per_page | Uses `reco_list` bullets + editor body for follow-up tasks. |
 
 Legacy keys (`performance_issues`, `technical_seo`, `onpage_meta_heading`, `onpage_content_image`) are still recognized for existing posts but are no longer added by default.
 
@@ -78,6 +85,7 @@ Legacy keys (`performance_issues`, `technical_seo`, `onpage_meta_heading`, `onpa
 ## 5. Metrics Reference
 
 `AISEO\Helpers\ReportMetrics::build($type, $snapshot)` compiles the data used for admin previews and the public template tables.
+Narrative-only sections (`executive_summary`, `top_actions`, `meta_recommendations`, `technical_findings`) intentionally return empty metric sets and rely on their saved content for rendering.
 
 ### 5.1 Overview Metrics
 
@@ -141,7 +149,7 @@ Displays referring domains, total backlinks, new/lost links, average toxic score
    - Metrics table / notes (if any).
    - Narrative body (`wpautop`-formatted).
    - Recommendations list for `recommendations` section.
-5. Executive Summary respects `_aiseo_summary_visible`.
+5. Executive Summary visibility is driven by the section’s `visible` flag.
 
 All tables reuse the `table.metrics` styling; helper classes `.metrics-empty` and `.metrics-note` provide fallback messaging.
 
@@ -158,7 +166,7 @@ All tables reuse the `table.metrics` styling; helper classes `.metrics-empty` an
 
 - Existing reports without `visible` default to showing all sections.
 - Legacy section types continue to display (labeled as their original names) but are excluded from defaults for new reports.
-- `_aiseo_summary_visible` defaults to `1` to preserve current behaviour.
+- Existing reports without explicit `visible` flags default to showing the new sections.
 - If analytics/backlink data is absent, tables render placeholders instead of breaking.
 
 ---
