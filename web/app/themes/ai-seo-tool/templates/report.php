@@ -16,6 +16,16 @@ if (!$runParam && $projectSlug) {
 $base = getenv('AISEO_STORAGE_DIR') ?: get_theme_file_path('storage/projects');
 $reportPath = $runParam ? Storage::runDir($projectSlug, $runParam) . '/report.json' : '';
 $data = ($reportPath && file_exists($reportPath)) ? json_decode(file_get_contents($reportPath), true) : null;
+$summaryPath = $runParam ? Storage::runDir($projectSlug, $runParam) . '/summary.json' : '';
+$summary = ($summaryPath && file_exists($summaryPath)) ? json_decode(file_get_contents($summaryPath), true) : [];
+if (!is_array($summary)) {
+    $summary = [];
+}
+$timeseriesPath = $projectSlug ? Storage::projectDir($projectSlug) . '/timeseries.json' : '';
+$timeseries = ($timeseriesPath && file_exists($timeseriesPath)) ? json_decode(file_get_contents($timeseriesPath), true) : ['items' => []];
+if (!is_array($timeseries) || !isset($timeseries['items']) || !is_array($timeseries['items'])) {
+    $timeseries = ['items' => []];
+}
 ?><!doctype html>
 <html>
 <head>
@@ -63,6 +73,28 @@ $data = ($reportPath && file_exists($reportPath)) ? json_decode(file_get_content
           </div></div>
         </div>
       </div>
+      <div class="row g-3 mt-3">
+        <div class="col-md-6">
+          <div class="card"><div class="card-body">
+            <h5 class="card-title">Status Breakdown (This Run)</h5>
+            <canvas id="statusPie"></canvas>
+          </div></div>
+        </div>
+        <div class="col-md-6">
+          <div class="card"><div class="card-body">
+            <h5 class="card-title">Issues (This Run)</h5>
+            <div class="display-6" id="issuesThisRun"><?php echo (int) ($summary['issues']['total'] ?? 0); ?></div>
+          </div></div>
+        </div>
+        <div class="col-12">
+          <div class="card"><div class="card-body">
+            <h5 class="card-title">Trends Over Time</h5>
+            <div class="ratio ratio-21x9">
+              <canvas id="trendLine"></canvas>
+            </div>
+          </div></div>
+        </div>
+      </div>
       <div class="row g-3 mt-1">
         <div class="col-12">
           <div class="card"><div class="card-body">
@@ -95,5 +127,63 @@ $data = ($reportPath && file_exists($reportPath)) ? json_decode(file_get_content
       </div>
     <?php endif; ?>
   </div>
+  <?php
+  $summaryForJs = $summary ?: new stdClass();
+  $seriesItemsForJs = isset($timeseries['items']) && is_array($timeseries['items']) ? $timeseries['items'] : [];
+  ?>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+  (function () {
+    const summary = <?php echo json_encode($summaryForJs, JSON_UNESCAPED_SLASHES); ?>;
+    const series = <?php echo json_encode($seriesItemsForJs, JSON_UNESCAPED_SLASHES); ?>;
+
+    const issuesEl = document.getElementById('issuesThisRun');
+    if (issuesEl) {
+      issuesEl.textContent = summary?.issues?.total || 0;
+    }
+
+    const statusCanvas = document.getElementById('statusPie');
+    if (statusCanvas && typeof Chart !== 'undefined') {
+      new Chart(statusCanvas, {
+        type: 'pie',
+        data: {
+          labels: ['2xx', '3xx', '4xx', '5xx', 'other'],
+          datasets: [{
+            data: [
+              summary?.status?.['2xx'] || 0,
+              summary?.status?.['3xx'] || 0,
+              summary?.status?.['4xx'] || 0,
+              summary?.status?.['5xx'] || 0,
+              summary?.status?.other || 0
+            ],
+            backgroundColor: ['#36a2eb', '#4bc0c0', '#ffcd56', '#ff6384', '#a1a1a1']
+          }]
+        }
+      });
+    }
+
+    const trendCanvas = document.getElementById('trendLine');
+    if (trendCanvas && typeof Chart !== 'undefined') {
+      const labels = series.map(item => item.date);
+      new Chart(trendCanvas, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            { label: 'Pages', data: series.map(i => i.pages || 0), borderColor: '#36a2eb', backgroundColor: 'rgba(54,162,235,0.2)', fill: false },
+            { label: '2xx', data: series.map(i => i['2xx'] || 0), borderColor: '#4bc0c0', backgroundColor: 'rgba(75,192,192,0.2)', fill: false },
+            { label: '4xx', data: series.map(i => i['4xx'] || 0), borderColor: '#ffcd56', backgroundColor: 'rgba(255,205,86,0.2)', fill: false },
+            { label: '5xx', data: series.map(i => i['5xx'] || 0), borderColor: '#ff6384', backgroundColor: 'rgba(255,99,132,0.2)', fill: false },
+            { label: 'Issues', data: series.map(i => i.issues || 0), borderColor: '#a17de8', backgroundColor: 'rgba(161,125,232,0.2)', fill: false }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false
+        }
+      });
+    }
+  })();
+  </script>
 </body>
 </html>
