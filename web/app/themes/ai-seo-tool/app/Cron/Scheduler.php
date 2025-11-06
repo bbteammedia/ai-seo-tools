@@ -8,6 +8,7 @@ use AISEO\Crawl\Worker;
 use AISEO\Audit\Runner as AuditRunner;
 use AISEO\Report\Builder as ReportBuilder;
 use AISEO\Report\Summary;
+use AISEO\Analytics\Dispatcher as AnalyticsDispatcher;
 
 class Scheduler
 {
@@ -99,6 +100,7 @@ class Scheduler
                 $report = ReportBuilder::build($project, $latestRun);
                 $summary = Summary::build($project, $latestRun);
                 Summary::appendTimeseries($project, $summary);
+                AnalyticsDispatcher::syncProject($project, $latestRun);
                 $meta['completed_at'] = gmdate('c');
                 $meta['summary'] = [
                     'pages' => $summary['pages'],
