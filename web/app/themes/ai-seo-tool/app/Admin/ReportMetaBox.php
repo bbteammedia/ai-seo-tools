@@ -59,7 +59,7 @@ class ReportMetaBox
             <div>
                 <label><strong>Project</strong></label><br/>
                 <select name="aiseo_project_slug" id="aiseo_project_slug">
-                    <option value="">— select —</option>
+                    <option value="">- select -</option>
                     <?php foreach ($projects as $p): ?>
                         <option value="<?php echo esc_attr($p); ?>" <?php selected($project, $p); ?>><?php echo esc_html($p); ?></option>
                     <?php endforeach; ?>
@@ -76,10 +76,17 @@ class ReportMetaBox
                 <label><strong>Runs (for compare)</strong></label>
                 <input type="text" class="widefat" name="aiseo_runs" value="<?php echo esc_attr(wp_json_encode($runs)); ?>" placeholder='["RUN_ID_A","RUN_ID_B"]' />
                 <p class="description">Leave empty to use the latest run. For General/Technical you can add multiple run IDs to compare.</p>
+                <button type="button" class="button button-secondary" id="aiseo-refresh-data">Refresh Data</button>
+                <p class="description" id="aiseo-refresh-status">Pulls metrics from storage based on the selected project, runs, and report type.</p>
             </div>
         </div>
         <script>
         (function($){
+            const refreshState = {
+                nonce: '<?php echo esc_js(wp_create_nonce('aiseo_refresh_sections_' . $post->ID)); ?>',
+                postId: <?php echo (int) $post->ID; ?>,
+            };
+
             function togglePage(){
                 const type = $('#aiseo_report_type').val();
                 if (type === 'per_page') {
@@ -91,6 +98,73 @@ class ReportMetaBox
 
             $('#aiseo_report_type').on('change', togglePage);
             togglePage();
+
+            const $refreshButton = $('#aiseo-refresh-data');
+            const $status = $('#aiseo-refresh-status');
+
+            function setStatus(message, isError = false){
+                if (!$status.length) {
+                    return;
+                }
+                $status.text(message);
+                $status.css('color', isError ? '#d63638' : '#646970');
+            }
+
+            function resolveEditorForm() {
+                return (
+                    document.getElementById('post') ||
+                    document.querySelector('form#post') ||
+                    document.querySelector('form[name="post"]') ||
+                    document.querySelector('form.editor-post-form')
+                );
+            }
+
+            if ($refreshButton.length) {
+                $refreshButton.on('click', function(e){
+                    e.preventDefault();
+                    const form = resolveEditorForm();
+                    if (!form) {
+                        setStatus('Editor form missing. Reload the page and try again.', true);
+                        return;
+                    }
+                    const type = form.querySelector('[name="aiseo_report_type"]')?.value || 'general';
+                    const project = form.querySelector('[name="aiseo_project_slug"]')?.value || '';
+                    const page = form.querySelector('[name="aiseo_page"]')?.value || '';
+                    const runs = form.querySelector('[name="aiseo_runs"]')?.value || '[]';
+
+                    if (!project) {
+                        setStatus('Select a project before refreshing data.', true);
+                        return;
+                    }
+
+                    setStatus('Refreshing data… this may take a moment.');
+                    $refreshButton.prop('disabled', true).addClass('updating-message');
+
+                    $.post(ajaxurl, {
+                        action: 'aiseo_refresh_sections',
+                        post_id: refreshState.postId,
+                        _wpnonce: refreshState.nonce,
+                        type: type,
+                        project: project,
+                        page: page,
+                        runs: runs
+                    }).done(function(res){
+                        if (res && res.success) {
+                            setStatus('Data refreshed. Reloading…');
+                            setTimeout(function(){ window.location.reload(); }, 600);
+                        } else if (res && res.data && res.data.msg) {
+                            setStatus(res.data.msg, true);
+                        } else {
+                            setStatus('Refresh failed. Please try again.', true);
+                        }
+                    }).fail(function(xhr){
+                        const message = xhr?.responseJSON?.data?.msg || ('AJAX ' + xhr.status);
+                        setStatus(message, true);
+                    }).always(function(){
+                        $refreshButton.prop('disabled', false).removeClass('updating-message');
+                    });
+                });
+            }
         })(jQuery);
         </script>
         <?php

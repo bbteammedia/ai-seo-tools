@@ -1,8 +1,6 @@
 <?php
 use AISEO\PostTypes\Report as ReportPostType;
 use AISEO\Helpers\Sections;
-use AISEO\Helpers\DataLoader;
-use AISEO\Helpers\ReportMetrics;
 
 /** @var \WP_Post|null $report */
 $report = $GLOBALS['aiseo_report_post'] ?? null;
@@ -130,64 +128,69 @@ $visibleDetailSections = array_values(array_filter($orderedVisibleSections, stat
 
 $snapshotMeta = get_post_meta($report->ID, ReportPostType::META_SNAPSHOT, true) ?: '';
 $snapshot = json_decode($snapshotMeta, true);
-if (!is_array($snapshot) || empty($snapshot['runs'])) {
-    $snapshot = DataLoader::forReport($type, (string) $project, is_array($runs) ? $runs : [], (string) $pageUrl);
-}
-$snapshotRuns = $snapshot['runs'] ?? [];
-$sectionMetrics = ReportMetrics::build($type, $snapshot);
+$snapshot = is_array($snapshot) ? $snapshot : [];
+$runsData = is_array($snapshot['runs'] ?? null) ? $snapshot['runs'] : [];
 $sectionRegistry = Sections::registry();
 
-$stats = [
-    'pages' => 0,
-    'issues' => 0,
-    'status' => [
-        '2xx' => 0,
-        '3xx' => 0,
-        '4xx' => 0,
-        '5xx' => 0,
-        'other' => 0,
-    ],
+$totalPages = 0;
+$totalIssues = 0;
+$statusTotals = [
+    '2xx' => 0,
+    '3xx' => 0,
+    '4xx' => 0,
+    '5xx' => 0,
+    'other' => 0,
 ];
-$wordCountTotal = 0;
-$wordCountPages = 0;
-$brokenLinks = 0;
-$missingTitle = 0;
-$missingMeta = 0;
 
-foreach ($snapshotRuns as $run) {
-    $summary = $run['summary'] ?? [];
-    $stats['pages'] += (int) ($summary['pages'] ?? count($run['pages'] ?? []));
-    $stats['issues'] += (int) ($summary['issues']['total'] ?? 0);
+foreach ($runsData as $runData) {
+    if (!is_array($runData)) {
+        continue;
+    }
+    $summary = is_array($runData['summary'] ?? null) ? $runData['summary'] : [];
+    $issuesSummary = is_array($summary['issues'] ?? null) ? $summary['issues'] : [];
+    $statusSummary = is_array($summary['status'] ?? null)
+        ? $summary['status']
+        : (is_array($summary['status_buckets'] ?? null) ? $summary['status_buckets'] : []);
 
-    foreach (['2xx', '3xx', '4xx', '5xx', 'other'] as $bucket) {
-        $stats['status'][$bucket] += (int) ($summary['status'][$bucket] ?? 0);
+    $totalPages += (int) ($summary['pages'] ?? $summary['total_pages'] ?? 0);
+
+    if (isset($issuesSummary['total'])) {
+        $totalIssues += (int) $issuesSummary['total'];
+    } else {
+        $issueSum = 0;
+        foreach ($issuesSummary as $count) {
+            if (is_numeric($count)) {
+                $issueSum += (int) $count;
+            }
+        }
+        $totalIssues += $issueSum;
     }
 
-    $pages = $run['pages'] ?? [];
-    foreach ($pages as $page) {
-        $wordCount = (int) ($page['word_count'] ?? 0);
-        if ($wordCount > 0) {
-            $wordCountTotal += $wordCount;
-            $wordCountPages++;
-        }
-
-        $title = trim((string) ($page['title'] ?? ''));
-        $metaDesc = trim((string) ($page['meta_description'] ?? ''));
-        if ($title === '') {
-            $missingTitle++;
-        }
-        if ($metaDesc === '') {
-            $missingMeta++;
-        }
-
-        $statusCode = (int) ($page['status'] ?? 0);
-        if ($statusCode >= 400 && $statusCode < 500) {
-            $brokenLinks++;
-        }
+    foreach ($statusTotals as $bucket => $value) {
+        $statusTotals[$bucket] += (int) ($statusSummary[$bucket] ?? 0);
     }
 }
 
-$avgWordcount = $wordCountPages ? (int) floor($wordCountTotal / $wordCountPages) : null;
+$latestRun = $runsData ? $runsData[array_key_last($runsData)] : null;
+$latestSummary = is_array($latestRun['summary'] ?? null) ? $latestRun['summary'] : [];
+$latestStatus = is_array($latestSummary['status'] ?? null)
+    ? $latestSummary['status']
+    : (is_array($latestSummary['status_buckets'] ?? null) ? $latestSummary['status_buckets'] : []);
+$latestIssues = is_array($latestSummary['issues'] ?? null) ? $latestSummary['issues'] : [];
+
+$dash = static function ($value): string {
+    if ($value === null || $value === '' || $value === []) {
+        return '-';
+    }
+    if ($value === 0 || $value === '0') {
+        return '0';
+    }
+    if (is_numeric($value)) {
+        return number_format_i18n((float) $value);
+    }
+    return (string) $value;
+};
+
 $generatedAt = get_the_modified_date('F j, Y', $report);
 $runsList = is_array($runs) && $runs ? implode(', ', array_map('sanitize_text_field', $runs)) : 'Latest run';
 
@@ -243,7 +246,7 @@ $runsList = is_array($runs) && $runs ? implode(', ', array_map('sanitize_text_fi
         <ul class="meta-grid">
             <li>
                 <strong>Project</strong>
-                <?php echo $project ? esc_html($project) : '—'; ?>
+                <?php echo $project ? esc_html($project) : '-'; ?>
             </li>
             <?php if ($pageUrl): ?>
             <li>
@@ -257,11 +260,11 @@ $runsList = is_array($runs) && $runs ? implode(', ', array_map('sanitize_text_fi
             </li>
             <li>
                 <strong>Total Pages</strong>
-                <?php echo number_format_i18n($stats['pages']); ?>
+                <?php echo esc_html($dash($totalPages)); ?>
             </li>
             <li>
                 <strong>Total Issues</strong>
-                <?php echo number_format_i18n($stats['issues']); ?>
+                <?php echo esc_html($dash($totalIssues)); ?>
             </li>
         </ul>
     </header>
@@ -280,33 +283,25 @@ $runsList = is_array($runs) && $runs ? implode(', ', array_map('sanitize_text_fi
     <table class="metrics">
         <tbody>
         <tr>
-                <th scope="row">Total Pages Crawled</th>
-                <td><?php echo number_format_i18n($stats['pages']); ?></td>
-            </tr>
-            <tr>
-                <th scope="row">Indexed Pages (2xx)</th>
-                <td><?php echo number_format_i18n($stats['status']['2xx']); ?></td>
-            </tr>
-            <tr>
-                <th scope="row">Broken Links (4xx)</th>
-                <td><?php echo number_format_i18n($stats['status']['4xx']); ?></td>
-            </tr>
-            <tr>
-                <th scope="row">Server Errors (5xx)</th>
-                <td><?php echo number_format_i18n($stats['status']['5xx']); ?></td>
-            </tr>
-            <tr>
-                <th scope="row">Average Word Count</th>
-                <td><?php echo $avgWordcount ? number_format_i18n($avgWordcount) : '—'; ?></td>
-            </tr>
-            <tr>
-                <th scope="row">Pages Missing Title</th>
-                <td><?php echo number_format_i18n($missingTitle); ?></td>
-            </tr>
-            <tr>
-                <th scope="row">Pages Missing Meta Description</th>
-                <td><?php echo number_format_i18n($missingMeta); ?></td>
-            </tr>
+            <th scope="row">Total Pages Crawled</th>
+            <td><?php echo esc_html($dash($latestSummary['pages'] ?? null)); ?></td>
+        </tr>
+        <tr>
+            <th scope="row">Indexed Pages (2xx)</th>
+            <td><?php echo esc_html($dash($latestStatus['2xx'] ?? ($statusTotals['2xx'] ?? null))); ?></td>
+        </tr>
+        <tr>
+            <th scope="row">Broken Links (4xx)</th>
+            <td><?php echo esc_html($dash($latestStatus['4xx'] ?? ($statusTotals['4xx'] ?? null))); ?></td>
+        </tr>
+        <tr>
+            <th scope="row">Server Errors (5xx)</th>
+            <td><?php echo esc_html($dash($latestStatus['5xx'] ?? ($statusTotals['5xx'] ?? null))); ?></td>
+        </tr>
+        <tr>
+            <th scope="row">Issues Found (Total)</th>
+            <td><?php echo esc_html($dash($latestIssues['total'] ?? $totalIssues)); ?></td>
+        </tr>
             </tbody>
         </table>
 </section>
@@ -340,7 +335,7 @@ $runsList = is_array($runs) && $runs ? implode(', ', array_map('sanitize_text_fi
                         <?php if (!empty($row['url'])): ?>
                             <a href="<?php echo esc_url($row['url']); ?>" target="_blank" rel="noopener"><?php echo esc_html($row['url']); ?></a>
                         <?php else: ?>
-                            —
+                            -
                         <?php endif; ?>
                     </td>
                     <td><?php echo esc_html($row['title'] ?? ''); ?></td>
@@ -399,7 +394,7 @@ $renderSectionMetrics = static function (array $table): void {
             <?php
                 $typeKey = (string) ($section['type'] ?? '');
                 $label = $section['title'] ?: ($sectionRegistry[$typeKey]['label'] ?? ucfirst(str_replace('_', ' ', $typeKey)));
-                $metrics = $sectionMetrics[$typeKey] ?? [];
+                $metrics = is_array($section['metrics'] ?? null) ? $section['metrics'] : [];
                 $hasMetrics = !empty($metrics['rows']) || !empty($metrics['empty']) || !empty($metrics['note']);
             ?>
             <div class="section-card">

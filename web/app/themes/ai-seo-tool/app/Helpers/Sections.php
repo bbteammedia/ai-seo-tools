@@ -53,6 +53,21 @@ class Sections
                 'enabled_for' => ['general', 'technical', 'per_page'],
                 'order' => 60,
             ],
+            'crawl_history' => [
+                'label' => 'Crawl History',
+                'enabled_for' => ['general', 'technical', 'per_page'],
+                'order' => 65,
+            ],
+            'traffic_trends' => [
+                'label' => 'Traffic Trends',
+                'enabled_for' => ['general', 'technical', 'per_page'],
+                'order' => 70,
+            ],
+            'search_visibility' => [
+                'label' => 'Search Visibility',
+                'enabled_for' => ['general', 'technical', 'per_page'],
+                'order' => 75,
+            ],
             'meta_recommendations' => [
                 'label' => 'Meta Recommendations',
                 'enabled_for' => ['general', 'technical', 'per_page'],
@@ -117,6 +132,7 @@ class Sections
                 'ai_notes' => '',
                 'reco_list' => [],
                 'meta_list' => [],
+                'metrics' => [],
                 'order' => min($position, 15),
                 'visible' => true,
             ];

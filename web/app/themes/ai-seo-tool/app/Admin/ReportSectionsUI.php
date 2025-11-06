@@ -14,6 +14,7 @@ class ReportSectionsUI
         add_action('add_meta_boxes', [self::class, 'registerMetaBox']);
         add_action('save_post_' . Report::POST_TYPE, [self::class, 'save'], 10, 3);
         add_action('wp_ajax_aiseo_sections_generate', [self::class, 'generateAiForSection']);
+        add_action('wp_ajax_aiseo_refresh_sections', [self::class, 'refreshSectionsData']);
         add_action('admin_enqueue_scripts', [self::class, 'assets']);
     }
 
@@ -68,9 +69,14 @@ class ReportSectionsUI
         $registry = Sections::registry();
         $nonce = wp_create_nonce('aiseo_ai_sections_' . $post->ID);
 
-        $snapshot = DataLoader::forReport($type, (string) $project, $runs, (string) $pageUrl);
-        $metricsBySection = ReportMetrics::build($type, $snapshot);
-        $hasData = !empty($snapshot['runs']);
+        $hasData = false;
+        foreach ($sections as $sectionCheck) {
+            $metricsCheck = is_array($sectionCheck['metrics'] ?? null) ? $sectionCheck['metrics'] : [];
+            if (!empty($metricsCheck['rows'])) {
+                $hasData = true;
+                break;
+            }
+        }
 
         ?>
         <style>
@@ -111,13 +117,17 @@ class ReportSectionsUI
                         $label = $registry[$typeKey]['label'] ?? ($sec['title'] ?: ucfirst(str_replace('_', ' ', (string) $typeKey)));
                         $editorId = 'aiseo_section_' . $idx . '_body';
                         $visible = (bool) ($sec['visible'] ?? true);
-                        $metrics = $metricsBySection[$typeKey] ?? [];
-                        $hasMetricsContent = !empty($metrics['rows']) || !empty($metrics['empty']) || !empty($metrics['note']);
+                        $metrics = is_array($sec['metrics'] ?? null) ? $sec['metrics'] : [];
+                        $hasMetricsContent = self::hasMetricContent($metrics);
                         $recoList = is_array($sec['reco_list'] ?? null) ? $sec['reco_list'] : [];
                         $metaList = is_array($sec['meta_list'] ?? null) ? $sec['meta_list'] : [];
                         $metaJson = $metaList ? wp_json_encode($metaList, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) : "[]";
                         $suppressMetrics = in_array($typeKey, ['executive_summary', 'top_actions', 'meta_recommendations', 'technical_findings'], true);
                         $orderValue = self::sanitizeOrder((int) ($sec['order'] ?? $idx));
+                        $metricsJson = wp_json_encode($metrics);
+                        if (!is_string($metricsJson)) {
+                            $metricsJson = '[]';
+                        }
                     ?>
                     <div class="section" data-id="<?php echo esc_attr($sec['id']); ?>" data-editor="<?php echo esc_attr($editorId); ?>">
                         <div class="head">
@@ -137,6 +147,7 @@ class ReportSectionsUI
                                 <button type="button" class="button aiseo-ai-one" data-id="<?php echo esc_attr($sec['id']); ?>">AI</button>
                             </div>
                         </div>
+                        <input type="hidden" name="aiseo_sections[<?php echo esc_attr($idx); ?>][metrics_json]" value="<?php echo esc_attr($metricsJson); ?>">
                         <?php if (!$suppressMetrics && $hasMetricsContent): ?>
                             <div class="metrics">
                                 <?php self::renderMetricsTable($metrics); ?>
@@ -200,8 +211,17 @@ class ReportSectionsUI
                 }
             }
 
+            function resolveEditorForm(){
+                return (
+                    document.getElementById('post') ||
+                    document.querySelector('form#post') ||
+                    document.querySelector('form[name="post"]') ||
+                    document.querySelector('form.editor-post-form')
+                );
+            }
+
             function aiForSection(sectionId) {
-                const form = document.forms['post'];
+                const form = resolveEditorForm();
                 if (!form) {
                     return;
                 }
@@ -330,6 +350,7 @@ class ReportSectionsUI
         $section['reco_list'] = is_array($section['reco_list'] ?? null) ? $section['reco_list'] : [];
         $section['visible'] = array_key_exists('visible', $section) ? (bool) $section['visible'] : true;
         $section['meta_list'] = self::normalizeMetaList($section['meta_list'] ?? []);
+        $section['metrics'] = is_array($section['metrics'] ?? null) ? $section['metrics'] : [];
 
         return $section;
     }
@@ -469,6 +490,136 @@ class ReportSectionsUI
         return $order;
     }
 
+    private static function hasMetricContent(array $metrics): bool
+    {
+        return !empty($metrics['rows']) || !empty($metrics['empty']) || !empty($metrics['note']);
+    }
+
+    /**
+     * @param mixed $metrics
+     * @return array<string,mixed>
+     */
+    private static function sanitizeMetrics($metrics): array
+    {
+        if (!is_array($metrics)) {
+            return [
+                'headers' => [],
+                'rows' => [],
+                'empty' => '',
+                'note' => '',
+            ];
+        }
+
+        $headers = [];
+        if (isset($metrics['headers']) && is_array($metrics['headers'])) {
+            foreach ($metrics['headers'] as $header) {
+                if (is_scalar($header)) {
+                    $headers[] = sanitize_text_field((string) $header);
+                }
+            }
+        }
+
+        $rows = [];
+        if (isset($metrics['rows']) && is_array($metrics['rows'])) {
+            foreach ($metrics['rows'] as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $cleanRow = [];
+                foreach ($row as $key => $value) {
+                    $cleanKey = is_scalar($key) ? sanitize_text_field((string) $key) : '';
+                    if ($cleanKey === '') {
+                        continue;
+                    }
+                    $cleanRow[$cleanKey] = is_scalar($value) ? sanitize_text_field((string) $value) : '';
+                }
+                if ($cleanRow) {
+                    $rows[] = $cleanRow;
+                }
+            }
+        }
+
+        $emptyMessage = '';
+        if (!empty($metrics['empty'])) {
+            $emptyMessage = sanitize_text_field((string) $metrics['empty']);
+        }
+
+        $noteMessage = '';
+        if (!empty($metrics['note'])) {
+            $noteMessage = sanitize_text_field((string) $metrics['note']);
+        }
+
+        return [
+            'headers' => $headers,
+            'rows' => $rows,
+            'empty' => $emptyMessage,
+            'note' => $noteMessage,
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $section
+     * @return array<string,mixed>
+     */
+    private static function sanitizeSectionForStorage(array $section): array
+    {
+        $order = self::sanitizeOrder((int) ($section['order'] ?? 0));
+        $visible = !empty($section['visible']) ? 1 : 0;
+        $recoList = is_array($section['reco_list'] ?? null) ? array_values(array_map('sanitize_text_field', $section['reco_list'])) : [];
+
+        return [
+            'id' => sanitize_text_field($section['id'] ?? ''),
+            'type' => sanitize_text_field($section['type'] ?? ''),
+            'title' => sanitize_text_field($section['title'] ?? ''),
+            'body' => wp_kses_post($section['body'] ?? ''),
+            'visible' => $visible,
+            'reco_list' => $recoList,
+            'meta_list' => self::sanitizeMetaList($section['meta_list'] ?? []),
+            'metrics' => self::sanitizeMetrics($section['metrics'] ?? []),
+            'order' => $order,
+        ];
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $sections
+     */
+    private static function storeSections(int $postId, array $sections): void
+    {
+        $sanitized = [];
+        $summaryBody = '';
+        $topActions = [];
+        $metaRecommendations = [];
+        $techBody = '';
+
+        foreach ($sections as $section) {
+            $clean = self::sanitizeSectionForStorage($section);
+            $sanitized[] = $clean;
+
+            switch ($clean['type']) {
+                case 'executive_summary':
+                    $summaryBody = $clean['body'];
+                    break;
+                case 'top_actions':
+                    $topActions = $clean['reco_list'];
+                    break;
+                case 'meta_recommendations':
+                    $metaRecommendations = $clean['meta_list'];
+                    break;
+                case 'technical_findings':
+                    $techBody = $clean['body'];
+                    break;
+            }
+        }
+
+        usort($sanitized, static fn ($a, $b) => ($a['order'] ?? 0) <=> ($b['order'] ?? 0));
+
+        update_post_meta($postId, Sections::META_SECTIONS, wp_json_encode($sanitized));
+        update_post_meta($postId, Report::META_SUMMARY, $summaryBody);
+        update_post_meta($postId, Report::META_ACTIONS, wp_json_encode($topActions));
+        update_post_meta($postId, Report::META_META_RECO, wp_json_encode($metaRecommendations));
+        update_post_meta($postId, Report::META_TECH, $techBody);
+    }
+
     /**
      * @param array<string,mixed> $table
      */
@@ -518,67 +669,91 @@ class ReportSectionsUI
         }
 
         if (!isset($_POST['aiseo_sections']) || !is_array($_POST['aiseo_sections'])) {
-            update_post_meta($postId, Sections::META_SECTIONS, wp_json_encode([]));
+            self::storeSections($postId, []);
             return;
         }
 
-        $out = [];
-        $summaryBody = '';
-        $topActions = [];
-        $metaRecommendations = [];
-        $techBody = '';
-
+        $sections = [];
         foreach ($_POST['aiseo_sections'] as $idx => $row) {
-            $visible = !empty($row['visible']);
             $recoRaw = $row['reco_raw'] ?? '';
             if (is_array($recoRaw)) {
                 $recoRaw = implode("\n", $recoRaw);
             }
             $recoList = array_values(array_filter(array_map('trim', preg_split('/\r?\n/', (string) $recoRaw))));
-            $recoList = array_map('sanitize_text_field', $recoList);
 
-            $orderRaw = $row['order'] ?? $idx;
-            $order = self::sanitizeOrder(is_numeric($orderRaw) ? (int) $orderRaw : (int) $idx);
+            $metricsJsonRaw = isset($row['metrics_json']) ? (string) $row['metrics_json'] : '';
+            $metricsDecoded = $metricsJsonRaw !== '' ? json_decode(stripslashes($metricsJsonRaw), true) : [];
+            if (!is_array($metricsDecoded)) {
+                $metricsDecoded = [];
+            }
 
-            $type = sanitize_text_field($row['type'] ?? '');
-            $body = wp_kses_post($row['body'] ?? '');
             $metaJsonRaw = isset($row['meta_json']) ? (string) $row['meta_json'] : '';
-            $metaList = $type === 'meta_recommendations' ? self::parseMetaJson($metaJsonRaw) : self::sanitizeMetaList($row['meta_list'] ?? []);
+            $metaList = ($row['type'] ?? '') === 'meta_recommendations'
+                ? self::parseMetaJson($metaJsonRaw)
+                : self::sanitizeMetaList($row['meta_list'] ?? []);
 
-            $out[] = [
-                'id' => sanitize_text_field($row['id'] ?? ''),
-                'type' => $type,
-                'title' => sanitize_text_field($row['title'] ?? ''),
-                'body' => $body,
-                'visible' => $visible ? 1 : 0,
+            $sections[] = [
+                'id' => $row['id'] ?? '',
+                'type' => $row['type'] ?? '',
+                'title' => $row['title'] ?? '',
+                'body' => $row['body'] ?? '',
+                'visible' => !empty($row['visible']),
                 'reco_list' => $recoList,
                 'meta_list' => $metaList,
-                'order' => $order,
+                'metrics' => $metricsDecoded,
+                'order' => $row['order'] ?? $idx,
             ];
-
-            switch ($type) {
-                case 'executive_summary':
-                    $summaryBody = $body;
-                    break;
-                case 'top_actions':
-                    $topActions = $recoList;
-                    break;
-                case 'meta_recommendations':
-                    $metaRecommendations = $metaList;
-                    break;
-                case 'technical_findings':
-                    $techBody = $body;
-                    break;
-            }
         }
 
-        usort($out, static fn ($a, $b) => ($a['order'] ?? 0) <=> ($b['order'] ?? 0));
+        self::storeSections($postId, $sections);
+    }
 
-        update_post_meta($postId, Sections::META_SECTIONS, wp_json_encode($out));
-        update_post_meta($postId, Report::META_SUMMARY, $summaryBody);
-        update_post_meta($postId, Report::META_ACTIONS, wp_json_encode($topActions));
-        update_post_meta($postId, Report::META_META_RECO, wp_json_encode($metaRecommendations));
-        update_post_meta($postId, Report::META_TECH, $techBody);
+    public static function refreshSectionsData(): void
+    {
+        $postId = isset($_POST['post_id']) ? (int) $_POST['post_id'] : 0;
+        if (!$postId || !current_user_can('edit_post', $postId)) {
+            wp_send_json_error(['msg' => 'permission_denied']);
+        }
+
+        check_ajax_referer('aiseo_refresh_sections_' . $postId);
+
+        $type = sanitize_text_field($_POST['type'] ?? 'general');
+        $project = sanitize_text_field($_POST['project'] ?? '');
+        $page = esc_url_raw($_POST['page'] ?? '');
+        $runsDecoded = json_decode(stripslashes($_POST['runs'] ?? '[]'), true);
+        $runs = is_array($runsDecoded) ? array_values(array_map('sanitize_text_field', $runsDecoded)) : [];
+
+        if ($project === '') {
+            wp_send_json_error(['msg' => 'Select a project before refreshing.']);
+        }
+
+        $data = DataLoader::forReport($type, $project, $runs, $page);
+        if (!$data) {
+            wp_send_json_error(['msg' => 'Data loader failed.']);
+        }
+
+        $post = get_post($postId);
+        if (!$post instanceof \WP_Post) {
+            wp_send_json_error(['msg' => 'Report not found.']);
+        }
+
+        $storedSectionsRaw = get_post_meta($postId, Sections::META_SECTIONS, true) ?: '';
+        $storedSections = json_decode($storedSectionsRaw, true);
+        $storedSections = is_array($storedSections) ? $storedSections : [];
+
+        $sections = self::prepareSections($storedSections, $type, $post);
+        $metricsBySection = ReportMetrics::build($type, $data);
+
+        foreach ($sections as &$section) {
+            $typeKey = $section['type'] ?? '';
+            $section['metrics'] = $metricsBySection[$typeKey] ?? [];
+        }
+        unset($section);
+
+        self::storeSections($postId, $sections);
+        update_post_meta($postId, Report::META_SNAPSHOT, wp_json_encode($data));
+
+        wp_send_json_success(['msg' => 'Sections refreshed.']);
     }
 
     public static function generateAiForSection(): void

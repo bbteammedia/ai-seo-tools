@@ -3,62 +3,68 @@ namespace AISEO\Helpers;
 
 class DataLoader
 {
-    public static function forReport(string $type, string $project, array $runs, string $pageUrl = ''): array
+    public static function forReport(string $type, string $project, array $runs = [], string $pageUrl = ''): array
     {
-        $project = sanitize_title($project);
-        $result = [
+        $out = [
             'type' => $type,
             'project' => $project,
             'runs' => [],
+            'project_scope' => [
+                'timeseries' => self::read(Storage::projectDir($project) . '/timeseries.json'),
+                'ga_timeseries' => self::read(Storage::projectDir($project) . '/analytics/ga-timeseries.json'),
+                'gsc_timeseries' => self::read(Storage::projectDir($project) . '/analytics/gsc-timeseries.json'),
+            ],
         ];
-
         if (!$project) {
-            return $result;
+            return $out;
         }
 
-        $useRuns = $runs;
-        if (empty($useRuns)) {
+        if (!$runs) {
             $latest = Storage::getLatestRun($project);
             if ($latest) {
-                $useRuns = [$latest];
+                $runs = [$latest];
             }
         }
 
-        foreach ($useRuns as $run) {
-            $run = sanitize_text_field($run);
-            if (!$run) {
-                continue;
-            }
-
+        foreach ($runs as $run) {
             $dir = Storage::runDir($project, $run);
-            $summary = self::read($dir . '/summary.json');
-            $audit = self::read($dir . '/audit.json');
-            $report = self::read($dir . '/report.json');
-            $pages = [];
+            $runPack = [
+                'run_id' => $run,
+                'summary' => self::read($dir . '/summary.json') ?: [],
+                'report' => self::read($dir . '/report.json') ?: [],
+                'audit' => self::read($dir . '/audit.json') ?: [],
+                'analytics' => [
+                    'ga' => self::read($dir . '/analytics/ga.json'),
+                    'gsc' => self::read($dir . '/analytics/gsc.json'),
+                    'gsc_details' => self::read($dir . '/analytics/gsc-details.json'),
+                ],
+                'backlinks' => [
+                    'provider' => self::read($dir . '/backlinks/provider.json'),
+                ],
+                'pages' => [],
+            ];
 
             if ($type === 'per_page' && $pageUrl) {
-                $path = $dir . '/pages/' . md5($pageUrl) . '.json';
-                $pages = is_file($path) ? [self::read($path)] : [];
-            } else {
-                foreach (glob($dir . '/pages/*.json') as $file) {
-                    $pages[] = self::read($file);
-                }
+                $pf = $dir . '/pages/' . md5($pageUrl) . '.json';
+                $runPack['pages'] = is_file($pf) ? [self::read($pf) ?: []] : [];
             }
 
-            $result['runs'][] = [
-                'run_id' => $run,
-                'summary' => $summary,
-                'audit' => $audit,
-                'report' => $report,
-                'pages' => $pages,
-            ];
+            $out['runs'][] = $runPack;
         }
 
-        return $result;
+        return $out;
     }
 
     private static function read(string $path)
     {
-        return is_file($path) ? json_decode(file_get_contents($path), true) : null;
+        if (!is_file($path)) {
+            return null;
+        }
+        $json = file_get_contents($path);
+        if ($json === false) {
+            return null;
+        }
+        $data = json_decode($json, true);
+        return is_array($data) ? $data : null;
     }
 }

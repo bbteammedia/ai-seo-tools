@@ -49,7 +49,9 @@
     "symfony/dom-crawler": "^7.3",
     "guzzlehttp/guzzle": "^7.10",
     "dompdf/dompdf": "^3.1",
-    "symfony/css-selector": "^7.3"
+    "symfony/css-selector": "^7.3",
+    "wpackagist-plugin/classic-editor": "^1.6",
+    "wpackagist-plugin/wp-crontrol": "^1.19"
   },
   "require-dev": {
     "roave/security-advisories": "dev-latest",

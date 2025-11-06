@@ -81,7 +81,7 @@ class Dashboard
                                 <?php if ($summary['run_id']): ?>
                                     <?php printf(__('Todo: %d, Done: %d, Pages: %d', 'ai-seo-tool'), $summary['queue_remaining'], $summary['queue_done'], $summary['pages']); ?>
                                 <?php else: ?>
-                                    —
+                                    -
                                 <?php endif; ?>
                             </td>
                             <td>

@@ -50,7 +50,7 @@ class ReportAdminList
 
         $post = get_post($postId);
         if (!$post instanceof \WP_Post) {
-            echo '—';
+            echo '-';
             return;
         }
 
