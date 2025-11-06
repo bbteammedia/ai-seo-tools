@@ -10,7 +10,10 @@ class GoogleAnalytics
     private const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
     private const REPORT_ENDPOINT = 'https://analyticsdata.googleapis.com/v1beta';
     private const DEFAULT_RUN_ID = 'analytics';
-    private const SCOPE = 'https://www.googleapis.com/auth/analytics.readonly';
+    private const SCOPES = [
+        'https://www.googleapis.com/auth/analytics.readonly',
+        'https://www.googleapis.com/auth/webmasters.readonly',
+    ];
 
     public static function clientId(): string
     {
@@ -33,7 +36,7 @@ class GoogleAnalytics
             'response_type' => 'code',
             'client_id' => self::clientId(),
             'redirect_uri' => self::redirectUri(),
-            'scope' => self::SCOPE,
+            'scope' => implode(' ', self::SCOPES),
             'access_type' => 'offline',
             'prompt' => 'consent',
             'include_granted_scopes' => 'true',
@@ -148,6 +151,13 @@ class GoogleAnalytics
         $config['analytics']['ga']['last_sync'] = null;
         $config['analytics']['ga']['last_error'] = null;
         self::writeConfig($project, $config);
+    }
+
+    public static function hasRefreshToken(string $project): bool
+    {
+        $config = self::loadConfig($project);
+        self::ensureGaConfig($config);
+        return !empty($config['analytics']['ga']['refresh_token']);
     }
 
     public static function isConfigured(string $project): bool

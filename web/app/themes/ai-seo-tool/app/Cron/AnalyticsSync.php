@@ -2,6 +2,7 @@
 namespace AISEO\Cron;
 
 use AISEO\Analytics\GoogleAnalytics;
+use AISEO\Analytics\SearchConsole;
 use AISEO\PostTypes\Project;
 
 class AnalyticsSync
@@ -39,22 +40,47 @@ class AnalyticsSync
 
         foreach ($projects as $projectId) {
             $slug = get_post_field('post_name', $projectId);
-            if (!$slug || !GoogleAnalytics::isConfigured($slug)) {
+            if (!$slug) {
                 continue;
             }
 
-            try {
-                GoogleAnalytics::sync($slug);
-            } catch (\Throwable $exception) {
-                $config = GoogleAnalytics::loadConfig($slug);
-                if (!isset($config['analytics']) || !is_array($config['analytics'])) {
-                    $config['analytics'] = [];
+            $gaConfigured = GoogleAnalytics::isConfigured($slug);
+            $gscConfigured = SearchConsole::isConfigured($slug);
+
+            if (!$gaConfigured && !$gscConfigured) {
+                continue;
+            }
+
+            if ($gaConfigured) {
+                try {
+                    GoogleAnalytics::sync($slug);
+                } catch (\Throwable $exception) {
+                    $config = GoogleAnalytics::loadConfig($slug);
+                    if (!isset($config['analytics']) || !is_array($config['analytics'])) {
+                        $config['analytics'] = [];
+                    }
+                    if (!isset($config['analytics']['ga']) || !is_array($config['analytics']['ga'])) {
+                        $config['analytics']['ga'] = [];
+                    }
+                    $config['analytics']['ga']['last_error'] = $exception->getMessage();
+                    GoogleAnalytics::writeConfig($slug, $config);
                 }
-                if (!isset($config['analytics']['ga']) || !is_array($config['analytics']['ga'])) {
-                    $config['analytics']['ga'] = [];
+            }
+
+            if ($gscConfigured) {
+                try {
+                    SearchConsole::sync($slug);
+                } catch (\Throwable $exception) {
+                    $config = GoogleAnalytics::loadConfig($slug);
+                    if (!isset($config['analytics']) || !is_array($config['analytics'])) {
+                        $config['analytics'] = [];
+                    }
+                    if (!isset($config['analytics']['gsc']) || !is_array($config['analytics']['gsc'])) {
+                        $config['analytics']['gsc'] = [];
+                    }
+                    $config['analytics']['gsc']['last_error'] = $exception->getMessage();
+                    GoogleAnalytics::writeConfig($slug, $config);
                 }
-                $config['analytics']['ga']['last_error'] = $exception->getMessage();
-                GoogleAnalytics::writeConfig($slug, $config);
             }
         }
     }

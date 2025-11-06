@@ -2,6 +2,7 @@
 namespace AISEO\Admin;
 
 use AISEO\Analytics\GoogleAnalytics;
+use AISEO\Analytics\SearchConsole;
 use AISEO\PostTypes\Project;
 
 class Analytics
@@ -95,28 +96,47 @@ class Analytics
         self::assertManageCapabilities();
         $project = isset($_GET['project']) ? sanitize_title($_GET['project']) : '';
         $nonce = $_GET['_wpnonce'] ?? '';
-        if (!$project || !wp_verify_nonce($nonce, 'aiseo_ga_sync_' . $project)) {
+        $type = isset($_GET['type']) ? sanitize_key($_GET['type']) : 'ga';
+        $expectedNonce = $type === 'gsc' ? 'aiseo_ga_sync_' . $project . '_gsc' : 'aiseo_ga_sync_' . $project . '_ga';
+        if (!$project || (!wp_verify_nonce($nonce, $expectedNonce) && !wp_verify_nonce($nonce, 'aiseo_ga_sync_' . $project))) {
             wp_die(__('Invalid request.', 'ai-seo-tool'));
         }
 
         $redirect = self::projectEditLink($project);
         try {
-            GoogleAnalytics::sync($project);
-            wp_safe_redirect(add_query_arg('ga_notice', 'synced', $redirect));
+            if ($type === 'gsc') {
+                SearchConsole::sync($project);
+                wp_safe_redirect(add_query_arg('ga_notice', 'synced_gsc', $redirect));
+            } else {
+                GoogleAnalytics::sync($project);
+                wp_safe_redirect(add_query_arg('ga_notice', 'synced', $redirect));
+            }
         } catch (\Throwable $exception) {
             $config = GoogleAnalytics::loadConfig($project);
             if (!isset($config['analytics']) || !is_array($config['analytics'])) {
                 $config['analytics'] = [];
             }
-            if (!isset($config['analytics']['ga']) || !is_array($config['analytics']['ga'])) {
-                $config['analytics']['ga'] = [];
+            if ($type === 'gsc') {
+                if (!isset($config['analytics']['gsc']) || !is_array($config['analytics']['gsc'])) {
+                    $config['analytics']['gsc'] = [];
+                }
+                $config['analytics']['gsc']['last_error'] = $exception->getMessage();
+                GoogleAnalytics::writeConfig($project, $config);
+                wp_safe_redirect(add_query_arg([
+                    'ga_notice' => 'gsc_error',
+                    'ga_message' => rawurlencode($exception->getMessage()),
+                ], $redirect));
+            } else {
+                if (!isset($config['analytics']['ga']) || !is_array($config['analytics']['ga'])) {
+                    $config['analytics']['ga'] = [];
+                }
+                $config['analytics']['ga']['last_error'] = $exception->getMessage();
+                GoogleAnalytics::writeConfig($project, $config);
+                wp_safe_redirect(add_query_arg([
+                    'ga_notice' => 'error',
+                    'ga_message' => rawurlencode($exception->getMessage()),
+                ], $redirect));
             }
-            $config['analytics']['ga']['last_error'] = $exception->getMessage();
-            GoogleAnalytics::writeConfig($project, $config);
-            wp_safe_redirect(add_query_arg([
-                'ga_notice' => 'error',
-                'ga_message' => rawurlencode($exception->getMessage()),
-            ], $redirect));
         }
         exit;
     }

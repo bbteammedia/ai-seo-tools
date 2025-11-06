@@ -65,4 +65,18 @@ class Store
 
         file_put_contents($path, json_encode($existing, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
     }
+
+    public static function writeExtra(string $project, string $runId, string $filename, array $payload): string
+    {
+        $dirs = Storage::ensureRun($project, $runId);
+        $analyticsDir = $dirs['base'] . '/analytics';
+        if (!is_dir($analyticsDir)) {
+            wp_mkdir_p($analyticsDir);
+        }
+
+        $path = $analyticsDir . '/' . ltrim($filename, '/');
+        file_put_contents($path, json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+        return $path;
+    }
 }
