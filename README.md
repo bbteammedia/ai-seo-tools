@@ -1,50 +1,135 @@
-<p align="center">
-  <a href="https://roots.io/bedrock/">
-    <img alt="Bedrock" src="https://cdn.roots.io/app/uploads/logo-bedrock.svg" height="100">
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://packagist.org/packages/roots/bedrock"><img alt="Packagist Installs" src="https://img.shields.io/packagist/dt/roots/bedrock?label=projects%20created&colorB=2b3072&colorA=525ddc&style=flat-square"></a>
-  <a href="https://packagist.org/packages/roots/wordpress"><img alt="roots/wordpress Packagist Downloads" src="https://img.shields.io/packagist/dt/roots/wordpress?label=roots%2Fwordpress%20downloads&logo=roots&logoColor=white&colorB=2b3072&colorA=525ddc&style=flat-square"></a>
-  <img src="https://img.shields.io/badge/dynamic/json.svg?url=https://raw.githubusercontent.com/roots/bedrock/master/composer.json&label=wordpress&logo=roots&logoColor=white&query=$.require[%22roots/wordpress%22]&colorB=2b3072&colorA=525ddc&style=flat-square">
-  <a href="https://github.com/roots/bedrock/actions/workflows/ci.yml"><img alt="Build Status" src="https://img.shields.io/github/actions/workflow/status/roots/bedrock/ci.yml?branch=master&logo=github&label=CI&style=flat-square"></a>
-  <a href="https://twitter.com/rootswp"><img alt="Follow Roots" src="https://img.shields.io/badge/follow%20@rootswp-1da1f2?logo=twitter&logoColor=ffffff&message=&style=flat-square"></a>
-  <a href="https://github.com/sponsors/roots"><img src="https://img.shields.io/badge/sponsor%20roots-525ddc?logo=github&style=flat-square&logoColor=ffffff&message=" alt="Sponsor Roots"></a>
-</p>
-
-<p align="center">WordPress boilerplate with Composer, easier configuration, and an improved folder structure</p>
-
-<p align="center">
-  <a href="https://roots.io/bedrock/">Website</a> &nbsp;&nbsp; <a href="https://roots.io/bedrock/docs/installation/">Documentation</a> &nbsp;&nbsp; <a href="https://github.com/roots/bedrock/releases">Releases</a> &nbsp;&nbsp; <a href="https://discourse.roots.io/">Community</a>
-</p>
-
-## Support us
-
-We're dedicated to pushing modern WordPress development forward through our open source projects, and we need your support to keep building. You can support our work by purchasing [Radicle](https://roots.io/radicle/), our recommended WordPress stack, or by [sponsoring us on GitHub](https://github.com/sponsors/roots). Every contribution directly helps us create better tools for the WordPress ecosystem.
-
-### Sponsors
-
-<a href="https://carrot.com/"><img src="https://cdn.roots.io/app/uploads/carrot.svg" alt="Carrot" width="120" height="90"></a> <a href="https://wordpress.com/"><img src="https://cdn.roots.io/app/uploads/wordpress.svg" alt="WordPress.com" width="120" height="90"></a> <a href="https://www.itineris.co.uk/"><img src="https://cdn.roots.io/app/uploads/itineris.svg" alt="Itineris" width="120" height="90"></a> <a href="https://bonsai.so/"><img src="https://cdn.roots.io/app/uploads/bonsai.svg" alt="Bonsai" width="120" height="90"></a>
+# AI SEO Tools (PHP + Gemini)
 
 ## Overview
+AI-powered SEO automation tool built on **WordPress Bedrock**. It automates monthly SEO reports similar to SEMrush, using Gemini for AI summaries. Designed to run on shared hosting using PHP + JavaScript, with minimal dependencies and JSON-based storage.
 
-Bedrock is a WordPress boilerplate for developers that want to manage their projects with Git and Composer. Much of the philosophy behind Bedrock is inspired by the [Twelve-Factor App](http://12factor.net/) methodology, including the [WordPress specific version](https://roots.io/twelve-factor-wordpress/).
+---
 
-- Better folder structure
-- Dependency management with [Composer](https://getcomposer.org)
-- Easy WordPress configuration with environment specific files
-- Environment variables with [Dotenv](https://github.com/vlucas/phpdotenv)
-- Autoloader for mu-plugins (use regular plugins as mu-plugins)
+## Features
+- Website crawling (titles, meta, H1, status, etc.)
+- Integrate with Google Analytics & Search Console (or CSV upload)
+- Keyword & backlink research (manual import + validation)
+- SEO audit (site-wide and per-page)
+- AI summary using **Gemini**
+- Multi-project support (each project = one website)
+- Export reports (HTML + PDF)
+- Cron/queue system via external uptime monitor
+- REST API endpoints using `wp-json`
 
-## Getting Started
+---
 
-See the [Bedrock installation documentation](https://roots.io/bedrock/docs/installation/).
+## Architecture
 
-## Stay Connected
+### Stack
+- **Base**: WordPress (Roots/Bedrock)
+- **App location**: `/web/app/themes/ai-seo-tool/`
+- **Storage**: JSON files (no database dependency)
+- **AI**: Gemini API
+- **Frontend**: Bootstrap + Alpine.js
+- **Composer packages**:
+  - `spatie/crawler`
+  - `symfony/dom-crawler`
+  - `guzzlehttp/guzzle`
+  - `dompdf/dompdf`
+  - `vlucas/phpdotenv`
 
-- Join us on Discord by [sponsoring us on GitHub](https://github.com/sponsors/roots)
-- Participate on [Roots Discourse](https://discourse.roots.io/)
-- Follow [@rootswp on Twitter](https://twitter.com/rootswp)
-- Read the [Roots Blog](https://roots.io/blog/)
-- Subscribe to the [Roots Newsletter](https://roots.io/newsletter/)
+---
+
+## Folder Structure
+```
+bedrock/
+├── composer.json
+├── .env
+├── web/
+│   ├── wp/
+│   ├── app/
+│   │   ├── themes/
+│   │   │   └── ai-seo-tool/
+│   │   │       ├── app/
+│   │   │       │   ├── Crawl/
+│   │   │       │   ├── Audit/
+│   │   │       │   ├── Report/
+│   │   │       │   └── Helpers/
+│   │   │       ├── cron/
+│   │   │       ├── storage/
+│   │   │       │   └── projects/
+│   │   │       │       └── client-slug/
+│   │   │       │           ├── queue/
+│   │   │       │           ├── pages/
+│   │   │       │           ├── crawl.json
+│   │   │       │           └── audit.json
+│   │   │       └── templates/
+```
+
+---
+
+## Crawling Strategy
+
+Each project folder has a `queue/` directory containing `.todo` files for pending URLs.
+
+**Process flow:**
+1. Uptime monitor hits cron endpoint:
+   ```
+   https://example.com/wp-json/ai-seo-tool/v1/crawl-step?project=client-slug&key=SECURETOKEN
+   ```
+2. The script picks one `.todo` file.
+3. Crawls that single URL using **Spatie Crawler** or **Guzzle**.
+4. Saves result as `/pages/{md5(url)}.json`.
+5. Moves `.todo` → `.done`.
+6. Repeats until queue empty.
+7. When complete, another endpoint triggers `audit` + `report` jobs.
+
+---
+
+## Example WP JSON Endpoints
+
+| Endpoint | Description |
+|-----------|--------------|
+| `/wp-json/ai-seo-tool/v1/start-crawl?project=client-slug` | Initialize crawl queue |
+| `/wp-json/ai-seo-tool/v1/crawl-step?project=client-slug` | Process next URL |
+| `/wp-json/ai-seo-tool/v1/audit?project=client-slug` | Run SEO audit |
+| `/wp-json/ai-seo-tool/v1/report?project=client-slug` | Generate HTML/PDF report |
+| `/wp-json/ai-seo-tool/v1/status?project=client-slug` | Get crawl progress |
+
+---
+
+## Reporting Flow
+1. **Crawl results** → JSON per page.  
+2. **Audit script** → checks SEO rules (title length, meta desc, alt tags, etc.).  
+3. **Report script** → compiles audit + analytics + Gemini AI summary.  
+4. **Export** → HTML and PDF.
+
+---
+
+## Example Cron Trigger (Uptime Monitor)
+UptimeRobot or similar calls every 1–2 minutes:
+```
+https://example.com/wp-json/ai-seo-tool/v1/crawl-step?project=client-slug&key=SECURETOKEN
+```
+Each visit processes **1 URL**.  
+When finished, system auto-runs `audit` and `report` endpoints.
+
+---
+
+## Benefits
+- Works fully on shared hosting
+- No database synchronization needed
+- Git-friendly (JSON-based data)
+- Reliable crawl via external cron ping
+- Extendable to plugin or standalone PHP app
+
+---
+
+## Next Steps
+1. Initialize Bedrock + AI SEO Tool theme repo.  
+2. Install Composer dependencies.  
+3. Implement REST endpoints for crawl/audit/report.  
+4. Build queue processor (1 URL per cron).  
+5. Integrate Gemini for AI summaries.  
+6. Add dashboard UI for monitoring progress.
+
+---
+
+**Author:** Adi  
+**Stack:** PHP 8.1+, WordPress Bedrock, Gemini API  
+**Purpose:** Automated SEO report generator for client projects.

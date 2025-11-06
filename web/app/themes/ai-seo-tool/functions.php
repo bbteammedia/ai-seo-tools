@@ -1,6 +1,14 @@
 <?php
-// Ensure theme classes autoload
-require_once __DIR__ . '/vendor/autoload.php';
+// Ensure theme classes autoload via project-level Composer
+$projectAutoload = dirname(__DIR__, 4) . '/vendor/autoload.php';
+if (file_exists($projectAutoload)) {
+    require_once $projectAutoload;
+} else {
+    $themeAutoload = __DIR__ . '/vendor/autoload.php';
+    if (file_exists($themeAutoload)) {
+        require_once $themeAutoload;
+    }
+}
 
 // Register REST routes
 add_action('rest_api_init', [\AISEO\Rest\Routes::class, 'register']);
