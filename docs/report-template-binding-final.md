@@ -260,11 +260,3 @@ add_action('wp_ajax_aiseo_sections_generate', function(){
 - Uses `ajaxurl` in admin; adds console logging on failure.
 
 ---
-
-## 5) What to tell Codex
-
-> Read `docs/report-template-binding-final.md`.  
-> 1) Implement `app/Helpers/DataLoader.php` exactly as specified (include all files listed).  
-> 2) In `web/app/themes/ai-seo-tool/templates/report.php`, bind metrics using the loader outputs (see snippet).  
-> 3) Replace the JS for AI buttons in the admin sections UI with the version in §4 and add the matching PHP AJAX handler.  
-> 4) Test: open a Report, click AI on a section, confirm body/reco fill; open `https://ai-seo-tools.box/ai-seo-report/{slug}` and confirm metrics render.
