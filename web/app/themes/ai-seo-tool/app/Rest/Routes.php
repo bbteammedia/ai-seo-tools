@@ -9,6 +9,7 @@ use AISEO\Crawl\Queue;
 use AISEO\Crawl\Worker;
 use AISEO\Audit\Runner as AuditRunner;
 use AISEO\Report\Builder as ReportBuilder;
+use AISEO\Report\Summary;
 use AISEO\PostTypes\Project;
 
 class Routes
@@ -106,8 +107,15 @@ class Routes
         if (!Queue::next($project, $runId)) {
             $audit = AuditRunner::run($project, $runId);
             $report = ReportBuilder::build($project, $runId);
+            $summary = Summary::build($project, $runId);
+            Summary::appendTimeseries($project, $summary);
             $result['audit'] = $audit['summary'] ?? [];
             $result['report'] = $report['crawl'] ?? [];
+            $result['summary'] = [
+                'pages' => $summary['pages'],
+                'status' => $summary['status'],
+                'issues' => $summary['issues']['total'],
+            ];
         }
 
         return Http::ok([

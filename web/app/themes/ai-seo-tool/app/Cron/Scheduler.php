@@ -7,6 +7,7 @@ use AISEO\Crawl\Queue;
 use AISEO\Crawl\Worker;
 use AISEO\Audit\Runner as AuditRunner;
 use AISEO\Report\Builder as ReportBuilder;
+use AISEO\Report\Summary;
 
 class Scheduler
 {
@@ -96,10 +97,13 @@ class Scheduler
             if ($queueEmpty && empty($meta['completed_at'])) {
                 $audit = AuditRunner::run($project, $latestRun);
                 $report = ReportBuilder::build($project, $latestRun);
+                $summary = Summary::build($project, $latestRun);
+                Summary::appendTimeseries($project, $summary);
                 $meta['completed_at'] = gmdate('c');
                 $meta['summary'] = [
-                    'pages' => $report['crawl']['pages_count'] ?? 0,
-                    'issues' => $audit['summary']['issue_counts'] ?? [],
+                    'pages' => $summary['pages'],
+                    'issues_total' => $summary['issues']['total'],
+                    'status' => $summary['status'],
                 ];
                 Storage::writeJson($metaPath, $meta);
             } elseif ($processed) {

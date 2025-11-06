@@ -290,4 +290,3 @@ In `Worker::process` add delays, domain lock, and robots.txt checks (Spatie Craw
 
 ---
 
-**Tell Codex:** “Open `docs/next-steps-run-history-report.md` and implement step 1 now.”
