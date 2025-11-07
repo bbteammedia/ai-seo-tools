@@ -31,7 +31,10 @@ $legacyMetaRec = is_array($legacyMetaRec) ? $legacyMetaRec : [];
 $legacyTechNotes = get_post_meta($report->ID, ReportPostType::META_TECH, true) ?: '';
 
 $sectionsRaw = get_post_meta($report->ID, Sections::META_SECTIONS, true) ?: '[]';
-$sections = json_decode($sectionsRaw, true);
+$sections = maybe_unserialize($sectionsRaw);
+if (!is_array($sections)) {
+    $sections = [];
+}
 $sections = is_array($sections) ? array_values(array_filter(array_map(static function ($section) {
     if (!is_array($section)) {
         return null;

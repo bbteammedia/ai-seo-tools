@@ -669,7 +669,17 @@ TXT;
     private static function log(string $message, array $context = []): void
     {
         $payload = $context ? ' ' . wp_json_encode($context) : '';
-        error_log('[AISEO Gemini] ' . $message . $payload);
+        // save log file to wp-content/uploads/ai-seo-tool/gemini.log
+        $uploadDir = wp_upload_dir();
+        $logDir = trailingslashit($uploadDir['basedir']) . 'ai-seo-tool';
+        if (!is_dir($logDir)) {
+            wp_mkdir_p($logDir);
+        }
+        $logFile = trailingslashit($logDir) . 'gemini.log';
+        $date = date('Y-m-d H:i:s');
+        file_put_contents($logFile, "[{$date}] {$message}{$payload}\n", FILE_APPEND);
+
+        
     }
 
     private static function shorten(string $value, int $max = 300): string
