@@ -684,39 +684,6 @@ class ReportSectionsUI
 
         }
 
-
-
-        // foreach ($_POST['aiseo_sections'] as $idx => $row) {
-        //     $recoRaw = $row['reco_raw'] ?? '';
-        //     if (is_array($recoRaw)) {
-        //         $recoRaw = implode("\n", $recoRaw);
-        //     }
-        //     $recoList = array_values(array_filter(array_map('trim', preg_split('/\r?\n/', (string) $recoRaw))));
-
-        //     $metricsJsonRaw = isset($row['metrics_json']) ? (string) $row['metrics_json'] : '';
-        //     $metricsDecoded = $metricsJsonRaw !== '' ? json_decode(stripslashes($metricsJsonRaw), true) : [];
-        //     if (!is_array($metricsDecoded)) {
-        //         $metricsDecoded = [];
-        //     }
-
-        //     $metaJsonRaw = isset($row['meta_json']) ? (string) $row['meta_json'] : '';
-        //     $metaList = ($row['type'] ?? '') === 'meta_recommendations'
-        //         ? self::parseMetaJson($metaJsonRaw)
-        //         : self::sanitizeMetaList($row['meta_list'] ?? []);
-
-        //     $sections[] = [
-        //         'id' => $row['id'] ?? '',
-        //         'type' => $row['type'] ?? '',
-        //         'title' => $row['title'] ?? '',
-        //         'body' => $row['body'] ?? '',
-        //         'visible' => !empty($row['visible']),
-        //         'reco_list' => $recoList,
-        //         'meta_list' => $metaList,
-        //         'metrics' => $metricsDecoded,
-        //         'order' => $row['order'] ?? $idx,
-        //     ];
-        // }
-
         self::storeSections($postId, $sections);
     }
 
