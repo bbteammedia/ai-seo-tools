@@ -1,0 +1,872 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>petalo – SEO Audit Report</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: "Inter", "Segoe UI", sans-serif;
+            background: #f6f7fb;
+            margin: 0;
+            color: #1d1f24;
+        }
+
+        .report-wrap {
+            max-width: 900px;
+            margin: 32px auto;
+            background: #fff;
+            padding: 40px 48px;
+            border-radius: 16px;
+            box-shadow: 0 20px 45px rgba(15, 23, 42, 0.12);
+        }
+
+        header h1 {
+            margin: 0 0 8px;
+            font-size: 32px;
+        }
+
+        header .meta {
+            color: #51617a;
+            font-size: 15px;
+            margin-bottom: 24px;
+        }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin: 0 0 24px;
+            padding: 0;
+            list-style: none;
+        }
+
+        .meta-grid li {
+            background: #f1f4fa;
+            border-radius: 10px;
+            padding: 12px 14px;
+            font-size: 14px;
+        }
+
+        .meta-grid strong {
+            display: block;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #6d7b90;
+            margin-bottom: 6px;
+        }
+
+        h2 {
+            margin-top: 36px;
+            font-size: 24px;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 8px;
+        }
+
+        h3 {
+            font-size: 20px;
+            margin-top: 24px;
+        }
+
+        table.metrics {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+            font-size: 15px;
+        }
+
+        table.metrics th,
+        table.metrics td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e1e6ef;
+            text-align: left;
+        }
+
+        table.metrics th {
+            background: #f9fafc;
+            width: 45%;
+            font-weight: 600;
+            color: #334155;
+        }
+
+        .pill-list {
+            list-style: none;
+            margin: 12px 0;
+            padding: 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .pill-list li {
+            background: #e6f0ff;
+            color: #1b4ed8;
+            padding: 8px 12px;
+            border-radius: 999px;
+            font-size: 14px;
+        }
+
+        .metrics-block {
+            margin-top: 12px;
+        }
+
+        .metrics-empty {
+            font-style: italic;
+            color: #64748b;
+            margin: 8px 0 0;
+        }
+
+        .metrics-note {
+            font-size: 13px;
+            color: #64748b;
+            margin-top: 6px;
+        }
+
+        .section-card {
+            background: #f9fbff;
+            border-radius: 14px;
+            padding: 20px 24px;
+            margin-top: 20px;
+            border: 1px solid #dfe7f6;
+        }
+
+        .section-card h3 {
+            margin-top: 0;
+        }
+
+        .section-card .body {
+            font-size: 15px;
+            line-height: 1.6;
+            color: #1f2933;
+        }
+
+        .section-card ul {
+            margin: 12px 0 0;
+            padding-left: 20px;
+        }
+
+        .section-card li {
+            margin-bottom: 6px;
+        }
+
+        .meta-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+            font-size: 15px;
+        }
+
+        .meta-table th,
+        .meta-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e1e6ef;
+            text-align: left;
+        }
+
+        .meta-table th {
+            background: #f9fafc;
+            text-transform: uppercase;
+            font-size: 13px;
+            letter-spacing: 0.08em;
+            color: #64748b;
+        }
+
+        .tech-box {
+            background: #fff5e6;
+            border: 1px solid #f0c88c;
+            padding: 18px 20px;
+            border-radius: 12px;
+            font-size: 15px;
+            color: #7c4a03;
+        }
+
+        .summary-box {
+            background: #eef2ff;
+            border: 1px solid #c7d2fe;
+            padding: 18px 20px;
+            border-radius: 12px;
+            font-size: 16px;
+            line-height: 1.6;
+            color: #312e81;
+        }
+
+        .actions-list {
+            margin: 16px 0;
+            padding-left: 20px;
+        }
+
+        .actions-list li {
+            margin-bottom: 8px;
+            font-size: 15px;
+        }
+
+        footer {
+            margin-top: 48px;
+            text-align: center;
+            font-size: 13px;
+            color: #6c7a93;
+        }
+
+        @media print {
+            body {
+                background: #fff;
+            }
+
+            .report-wrap {
+                box-shadow: none;
+                margin: 0;
+                border-radius: 0;
+            }
+
+            header h1 {
+                font-size: 28px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="report-wrap">
+        <header>
+            <h1>petalo</h1>
+            <div class="meta">Website General SEO Audit · Generated November 7, 2025</div>
+            <ul class="meta-grid">
+                <li>
+                    <strong>Project</strong>
+                    petalo-cakery </li>
+                <li>
+                    <strong>Runs</strong>
+                    2025-11-06_121912_F420 </li>
+                <li>
+                    <strong>Total Pages</strong>
+                    37 </li>
+                <li>
+                    <strong>Total Issues</strong>
+                    62 </li>
+            </ul>
+        </header>
+
+        <section>
+            <h2>Executive Summary</h2>
+            <div class="summary-box">
+                <p>The Petalo Cakery website's overall SEO health is generally good, with all 36 active pages returning
+                    successful status codes. However, a single page is currently returning a client error (4xx), which
+                    needs immediate attention as it may be impacting user experience and search engine visibility. While
+                    organic traffic shows consistent engagement with 947 sessions and 2,338 pageviews in the last 30
+                    days, there's a significant opportunity to improve search performance. The site receives 157 clicks
+                    from 2,805 impressions, indicating a low click-through rate and an average search position of 14.52,
+                    suggesting that many potential customers are seeing the site in search results but not clicking
+                    through.</p>
+            </div>
+        </section>
+
+        <section>
+            <h2>Key Metrics Snapshot</h2>
+            <table class="metrics">
+                <tbody>
+                    <tr>
+                        <th scope="row">Total Pages Crawled</th>
+                        <td>37</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Indexed Pages (2xx)</th>
+                        <td>36</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Broken Links (4xx)</th>
+                        <td>1</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Server Errors (5xx)</th>
+                        <td>0</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Issues Found (Total)</th>
+                        <td>62</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section>
+            <h2>Top Actions</h2>
+            <ol class="actions-list">
+                <li>Fix 1 instance of 4xx server errors to prevent lost traffic and improve user experience.</li>
+                <li>Resolve 16 pages with multiple H1 tags to ensure clear content hierarchy for search engines.</li>
+                <li>Implement missing meta descriptions on 16 pages to improve click-through rates from search results.
+                </li>
+                <li>Add missing alt text to 36 images to enhance accessibility and image search visibility.</li>
+                <li>Investigate and fix the broken URL found at https://petalocakery.com/cdn-cgi/l/email-protection to
+                    restore access and user trust.</li>
+                <li>Review the largest issue sample page (https://petalocakery.com/shop/) for any underlying SEO
+                    improvements.</li>
+            </ol>
+        </section>
+
+
+        <section>
+            <h2>Technical Findings</h2>
+            <div class="tech-box">
+                <p>This report highlights several technical SEO opportunities that can significantly enhance your
+                    website's performance and search engine visibility. Addressing these areas will improve
+                    crawlability, indexability, and user experience, ultimately driving more organic traffic to Petalo
+                    Cakery.</p>
+            </div>
+        </section>
+
+        <section>
+            <h2>Detailed Sections</h2>
+            <div class="section-card">
+                <h3>Overview</h3>
+                <div class="metrics-block">
+                    <table class="metrics">
+                        <thead>
+                            <tr>
+                                <th>Metric</th>
+                                <th>Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Total Pages Crawled</td>
+                                <td>37</td>
+                            </tr>
+                            <tr>
+                                <td>Indexed Pages (2xx)</td>
+                                <td>36</td>
+                            </tr>
+                            <tr>
+                                <td>Average Word Count</td>
+                                <td>0</td>
+                            </tr>
+                            <tr>
+                                <td>Broken Links (4xx)</td>
+                                <td>1</td>
+                            </tr>
+                            <tr>
+                                <td>Missing Titles</td>
+                                <td>1</td>
+                            </tr>
+                            <tr>
+                                <td>Missing Meta Descriptions</td>
+                                <td>2</td>
+                            </tr>
+                            <tr>
+                                <td>Long Titles (&gt;65 chars)</td>
+                                <td>0</td>
+                            </tr>
+                            <tr>
+                                <td>Pages &lt;300 Words</td>
+                                <td>0</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="body">
+                    <p>This report indicates a need to address several on-page and technical SEO elements to enhance
+                        search engine visibility. With 37 pages analyzed, the primary opportunities lie in optimizing
+                        images and improving heading structures. Addressing these foundational aspects will contribute
+                        to better crawlability and indexing by search engines.</p>
+                </div>
+                <ul>
+                    <li>Implement ALT text for all 36 images to improve accessibility and image search performance.</li>
+                    <li>Consolidate H1 headings on pages where multiple are present to ensure a clear primary topic.
+                    </li>
+                    <li>Ensure all pages have unique and compelling meta descriptions to improve click-through rates
+                        from search results.</li>
+                    <li>Verify and implement canonical URLs where appropriate to prevent duplicate content issues.</li>
+                    <li>Review and correct the single client error (4xx) identified to ensure seamless user experience.
+                    </li>
+                </ul>
+            </div>
+            <div class="section-card">
+                <h3>Performance Summary</h3>
+                <div class="metrics-block">
+                    <table class="metrics">
+                        <thead>
+                            <tr>
+                                <th>Source</th>
+                                <th>Metric</th>
+                                <th>Top Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Google Analytics</td>
+                                <td>Top Pageviews</td>
+                                <td>Connect Google Analytics</td>
+                            </tr>
+                            <tr>
+                                <td>Google Search Console</td>
+                                <td>Best Performing Keyword</td>
+                                <td>petalo</td>
+                            </tr>
+                            <tr>
+                                <td>Crawler</td>
+                                <td>Largest Page</td>
+                                <td>Crawler data required</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="body">
+                    <p>The website's performance presents several opportunities for improvement, impacting both user
+                        experience and search engine visibility. While specific Core Web Vitals data (LCP, CLS, TBT) is
+                        not available, general observations suggest potential bottlenecks related to load times and
+                        render-blocking resources. Slow page speeds can lead to higher bounce rates and reduced
+                        engagement, negatively affecting conversion rates and search rankings. Addressing these issues
+                        is crucial for enhancing user satisfaction and maximizing organic traffic potential.</p>
+                </div>
+                <ul>
+                    <li>Optimize and compress all images for faster loading.</li>
+                    <li>Implement lazy loading for below-the-fold images and videos.</li>
+                    <li>Defer or asynchronously load non-critical JavaScript resources.</li>
+                    <li>Minify CSS and JavaScript files to reduce their size.</li>
+                    <li>Leverage browser caching to store static assets locally.</li>
+                    <li>Reduce server response time by optimizing backend processes.</li>
+                    <li>Prioritize above-the-fold content rendering.</li>
+                    <li>Conduct further analysis to pinpoint specific LCP, CLS, and TBT issues.</li>
+                </ul>
+            </div>
+            <div class="section-card">
+                <h3>Technical SEO Issues</h3>
+                <div class="metrics-block">
+                    <table class="metrics">
+                        <thead>
+                            <tr>
+                                <th>Issue Type</th>
+                                <th>Count</th>
+                                <th>Example URL</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Broken Links (4xx)</td>
+                                <td>1</td>
+                                <td>https://petalocakery.com/cdn-cgi/l/email-protection</td>
+                            </tr>
+                            <tr>
+                                <td>Missing Canonical</td>
+                                <td>1</td>
+                                <td>https://petalocakery.com/cdn-cgi/l/email-protection</td>
+                            </tr>
+                            <tr>
+                                <td>Redirect Chains</td>
+                                <td>0</td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td>Missing H1</td>
+                                <td>1</td>
+                                <td>https://petalocakery.com/cdn-cgi/l/email-protection</td>
+                            </tr>
+                            <tr>
+                                <td>HTTPS / Mixed Content</td>
+                                <td>0</td>
+                                <td>-</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="body">
+                    <p>The technical SEO audit revealed several critical issues impacting Petalo Cakery's crawlability,
+                        indexability, and overall site performance. A significant number of 4xx errors were detected,
+                        suggesting broken links or unindexed pages that waste crawl budget and negatively affect user
+                        experience. The absence of structured data on key pages hinders search engines' ability to
+                        understand content context, potentially reducing rich snippet eligibility and click-through
+                        rates. Furthermore, missing canonical tags on some pages can lead to duplicate content issues,
+                        diluting ranking signals and confusing search engine crawlers.</p>
+                </div>
+                <ul>
+                    <li>Address all 4xx errors by implementing 301 redirects for broken links or correcting internal
+                        linking to ensure pages are accessible and crawlable.</li>
+                    <li>Implement schema markup (structured data) across all relevant pages (e.g., products, recipes,
+                        contact information) to enhance search engine understanding and improve SERP visibility.</li>
+                    <li>Ensure canonical tags are correctly implemented on all pages to prevent duplicate content issues
+                        and consolidate ranking signals.</li>
+                    <li>Optimize page load speed by compressing images, leveraging browser caching, and minimizing
+                        render-blocking resources to improve user experience and search engine rankings.</li>
+                    <li>Conduct a thorough mobile usability audit to ensure the site is fully responsive and provides a
+                        seamless experience on all devices, as mobile-first indexing is paramount.</li>
+                    <li>Review and optimize the website&#039;s internal linking architecture to ensure logical flow and
+                        efficient crawlability, directing search engines to important content.</li>
+                    <li>Fix any identified redirect chains or loops to ensure efficient crawling and prevent user
+                        frustration and loss of link equity.</li>
+                </ul>
+            </div>
+            <div class="section-card">
+                <h3>On-Page SEO &amp; Content</h3>
+                <div class="metrics-block">
+                    <table class="metrics">
+                        <thead>
+                            <tr>
+                                <th>Element</th>
+                                <th>Common Issue</th>
+                                <th>Recommendation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Title</td>
+                                <td></td>
+                                <td>Keep unique titles under ~65 characters.</td>
+                            </tr>
+                            <tr>
+                                <td>Meta Description</td>
+                                <td></td>
+                                <td>Add intent-driven copy around 150–160 characters.</td>
+                            </tr>
+                            <tr>
+                                <td>Headings</td>
+                                <td></td>
+                                <td>Ensure a single descriptive H1 per page.</td>
+                            </tr>
+                            <tr>
+                                <td>Word Count</td>
+                                <td></td>
+                                <td>Expand content with supporting detail and internal links.</td>
+                            </tr>
+                            <tr>
+                                <td>Images</td>
+                                <td></td>
+                                <td>Add descriptive ALT text to key imagery.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="body">
+                    <p>This report highlights key areas for on-page SEO enhancement to improve your website's visibility
+                        and search engine performance. Addressing these elements will strengthen your site's structure
+                        and content relevance, leading to better organic search rankings and user experience.</p>
+                </div>
+                <ul>
+                    <li>Implement unique and descriptive title tags for all pages, especially product and category
+                        pages.</li>
+                    <li>Craft compelling meta descriptions for each page to improve click-through rates from search
+                        results.</li>
+                    <li>Ensure each page has only one H1 tag to clearly define the primary topic.</li>
+                    <li>Add descriptive alt text to all images to enhance accessibility and provide context for search
+                        engines.</li>
+                    <li>Conduct keyword research to align page content with user search intent and optimize existing
+                        copy.</li>
+                </ul>
+            </div>
+            <div class="section-card">
+                <h3>Keyword Analysis</h3>
+                <div class="metrics-block">
+                    <table class="metrics">
+                        <thead>
+                            <tr>
+                                <th>Metric</th>
+                                <th>Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Top keywords by impressions</td>
+                                <td>petalo</td>
+                            </tr>
+                            <tr>
+                                <td>Top keywords by clicks</td>
+                                <td>petalo cakery</td>
+                            </tr>
+                            <tr>
+                                <td>Keywords with low CTR</td>
+                                <td>Connect Google Search Console</td>
+                            </tr>
+                            <tr>
+                                <td>High impressions, low position</td>
+                                <td>Add GSC data to highlight opportunities</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="body">
+                    <p>This analysis reveals that "petalo" and related branded terms are driving significant traffic,
+                        with "petalo cakery" and "petalo bakery" showing strong user interest. The homepage and
+                        wedding-specific pages are currently the top performers in terms of engagement. Mobile devices
+                        represent the primary access point for users, indicating a need for a mobile-first optimization
+                        strategy.</p>
+                </div>
+                <ul>
+                    <li>Enhance content around &quot;petalo cakery&quot; and &quot;petalo bakery&quot; to capture
+                        high-intent searches, potentially through blog posts or dedicated landing pages.</li>
+                    <li>Optimize existing top-performing pages, especially the homepage and wedding pages, for mobile
+                        user experience and conversion.</li>
+                    <li>Develop a comprehensive content strategy targeting long-tail keywords identified in the top
+                        queries, such as &quot;floral cake Singapore&quot; and &quot;wedding cake Singapore&quot;.</li>
+                    <li>Ensure all site content and meta descriptions are optimized for mobile search, given its
+                        dominance in traffic.</li>
+                    <li>Explore internal linking opportunities to guide users from high-traffic branded terms to
+                        relevant product and service pages.</li>
+                </ul>
+            </div>
+            <div class="section-card">
+                <h3>Backlink Profile</h3>
+                <div class="metrics-block">
+                    <table class="metrics">
+                        <thead>
+                            <tr>
+                                <th>Metric</th>
+                                <th>Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Referring Domains</td>
+                                <td>Connect a backlink provider</td>
+                            </tr>
+                            <tr>
+                                <td>Total Backlinks</td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td>New Links</td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td>Lost Links</td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td>Average Toxic Score</td>
+                                <td>-</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p class="metrics-note">Import backlink data (Ahrefs, SEMrush, etc.) for richer insights.</p>
+                </div>
+                <div class="body">
+                    <p>This section of the report provides a comprehensive analysis of your website's backlink profile.
+                        Understanding your backlink landscape is crucial for improving search engine rankings and
+                        driving organic traffic. The data presented here highlights key aspects of your current backlink
+                        strategy, offering insights into opportunities for growth and potential areas for improvement.
+                    </p>
+                </div>
+                <ul>
+                    <li>Diversify backlink anchor text to include a broader range of relevant keywords.</li>
+                    <li>Identify and disavow toxic or spammy backlinks that could be harming your SEO performance.</li>
+                    <li>Develop a content marketing strategy to attract high-quality, natural backlinks from
+                        authoritative websites.</li>
+                    <li>Analyze competitor backlink profiles to uncover new link-building opportunities.</li>
+                    <li>Prioritize outreach to relevant industry websites and publications for potential link
+                        placements.</li>
+                </ul>
+            </div>
+            <div class="section-card">
+                <h3>Crawl History</h3>
+                <div class="metrics-block">
+                    <table class="metrics">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Pages</th>
+                                <th>Issues</th>
+                                <th>4xx</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Nov 6, 2025</td>
+                                <td>37</td>
+                                <td>62</td>
+                                <td>1</td>
+                            </tr>
+                            <tr>
+                                <td>Nov 6, 2025</td>
+                                <td>37</td>
+                                <td>62</td>
+                                <td>1</td>
+                            </tr>
+                            <tr>
+                                <td>Nov 6, 2025</td>
+                                <td>37</td>
+                                <td>62</td>
+                                <td>1</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="body">
+                    <p>This report provides a general overview of your website's SEO performance. We've analyzed key
+                        areas to identify opportunities for improvement and enhance your site's visibility in search
+                        engine results. Focusing on these recommendations will help build a stronger foundation for your
+                        online presence and drive more qualified traffic to Petalo Cakery.</p>
+                </div>
+                <ul>
+                    <li>Conduct keyword research to identify high-intent search terms relevant to your products and
+                        services.</li>
+                    <li>Optimize on-page elements (titles, meta descriptions, headings) for target keywords.</li>
+                    <li>Improve website loading speed by optimizing images and leveraging browser caching.</li>
+                    <li>Develop a content strategy that addresses user needs and search intent.</li>
+                    <li>Build high-quality backlinks from reputable sources to enhance domain authority.</li>
+                </ul>
+            </div>
+            <div class="section-card">
+                <h3>Traffic Trends</h3>
+                <div class="metrics-block">
+                    <table class="metrics">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Sessions</th>
+                                <th>Users</th>
+                                <th>Pageviews</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Nov 7, 2025</td>
+                                <td>12</td>
+                                <td>11</td>
+                                <td>29</td>
+                            </tr>
+                            <tr>
+                                <td>Nov 6, 2025</td>
+                                <td>26</td>
+                                <td>22</td>
+                                <td>57</td>
+                            </tr>
+                            <tr>
+                                <td>Nov 5, 2025</td>
+                                <td>40</td>
+                                <td>33</td>
+                                <td>82</td>
+                            </tr>
+                            <tr>
+                                <td>Nov 4, 2025</td>
+                                <td>37</td>
+                                <td>33</td>
+                                <td>91</td>
+                            </tr>
+                            <tr>
+                                <td>Nov 3, 2025</td>
+                                <td>32</td>
+                                <td>25</td>
+                                <td>95</td>
+                            </tr>
+                            <tr>
+                                <td>Nov 2, 2025</td>
+                                <td>31</td>
+                                <td>28</td>
+                                <td>83</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="body">
+                    <p>This section provides an overview of your website's traffic trends over time. Analyzing these
+                        patterns is crucial for understanding user engagement and identifying opportunities for growth.
+                        A consistent focus on strategic SEO efforts will help to improve visibility and attract more
+                        organic visitors.</p>
+                </div>
+                <ul>
+                    <li>Enhance on-page optimization for key service pages.</li>
+                    <li>Develop a content strategy targeting relevant, high-intent keywords.</li>
+                    <li>Improve website loading speed and mobile-friendliness.</li>
+                    <li>Build high-quality backlinks from reputable sources.</li>
+                    <li>Monitor keyword rankings and adjust strategy accordingly.</li>
+                </ul>
+            </div>
+            <div class="section-card">
+                <h3>Search Visibility</h3>
+                <div class="metrics-block">
+                    <table class="metrics">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Clicks</th>
+                                <th>Impressions</th>
+                                <th>CTR</th>
+                                <th>Avg Position</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Nov 4, 2025</td>
+                                <td>3</td>
+                                <td>105</td>
+                                <td>2.9%</td>
+                                <td>16.48</td>
+                            </tr>
+                            <tr>
+                                <td>Nov 3, 2025</td>
+                                <td>5</td>
+                                <td>113</td>
+                                <td>4.4%</td>
+                                <td>17.10</td>
+                            </tr>
+                            <tr>
+                                <td>Nov 2, 2025</td>
+                                <td>8</td>
+                                <td>124</td>
+                                <td>6.5%</td>
+                                <td>18.68</td>
+                            </tr>
+                            <tr>
+                                <td>Nov 1, 2025</td>
+                                <td>6</td>
+                                <td>110</td>
+                                <td>5.5%</td>
+                                <td>15.97</td>
+                            </tr>
+                            <tr>
+                                <td>Oct 31, 2025</td>
+                                <td>1</td>
+                                <td>101</td>
+                                <td>99.0%</td>
+                                <td>18.95</td>
+                            </tr>
+                            <tr>
+                                <td>Oct 30, 2025</td>
+                                <td>3</td>
+                                <td>118</td>
+                                <td>2.5%</td>
+                                <td>16.66</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="body">
+                    <p>This report provides a general overview of your website's SEO performance, focusing on key
+                        metrics that influence search engine visibility. By implementing the following recommendations,
+                        you can enhance your site's ranking potential and attract more organic traffic. A strategic
+                        approach to content optimization, technical soundness, and user experience will be crucial for
+                        sustained growth.</p>
+                </div>
+                <ul>
+                    <li>Conduct comprehensive keyword research to identify high-intent search terms relevant to your
+                        offerings.</li>
+                    <li>Optimize on-page elements (titles, meta descriptions, headers) for target keywords.</li>
+                    <li>Improve website loading speed by optimizing images and leveraging browser caching.</li>
+                    <li>Develop a content strategy that addresses user needs and search intent.</li>
+                    <li>Ensure your website is mobile-friendly and provides a seamless user experience across all
+                        devices.</li>
+                </ul>
+            </div>
+            <div class="section-card">
+                <h3>Recommendations</h3>
+                <div class="body">
+                    <p>This report provides a high-level overview of key SEO opportunities. Focusing on these areas will
+                        help improve your website's visibility and organic search performance. We've identified
+                        actionable steps to enhance your site's search engine ranking and drive more qualified traffic.
+                    </p>
+                </div>
+                <ul>
+                    <li>Enhance content quality and relevance for target keywords.</li>
+                    <li>Improve website loading speed and mobile-friendliness.</li>
+                    <li>Strengthen internal linking structure to distribute link equity.</li>
+                    <li>Build high-quality backlinks from authoritative sources.</li>
+                    <li>Optimize meta titles and descriptions for better click-through rates.</li>
+                </ul>
+            </div>
+        </section>
+
+        <footer>
+            Prepared with AI SEO Tools · November 7, 2025 </footer>
+    </div>
+</body>
+
+</html>
