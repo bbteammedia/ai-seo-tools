@@ -1,10 +1,90 @@
 <?php
 namespace AISEO\AI;
 
+use AISEO\Helpers\LLMContext;
+
 class Gemini
 {
-    private const MODEL = 'gemini-2.5-flash';
+    private const MODEL = 'gemini-2.5-flash-lite';
     private const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent';
+
+    protected $dataSection = [
+            'executive_summary_' => [
+                'label' => 'Executive Summary',
+                'id' => 'executive_summary',
+                'data_key' => 'executiveSummary'
+            ],
+            'top_actions_' => [
+                'label' => 'Top Actions',
+                'id' => 'top_actions',
+                'data_key' => 'topActions'
+            ],
+            'overview_' => [
+                'label' => 'Overview',
+                'id' => 'overview',
+                'data_key' => 'overview'
+            ],
+            'performance_summary_' => [
+                'label' => 'Performance Summary',
+                'id' => 'performance_summary',
+                'data_key' => 'performance'
+            ],
+            'performance_' => [
+                'label' => 'Performance Summary',
+                'id' => 'performance',
+                'data_key' => 'performance'
+            ],
+            'technical_seo_issues_' => [
+                'label' => 'Technical SEO Issues',
+                'id' => 'technical_seo_issues',
+                'data_key' => 'technicalSEO'
+            ],
+            'technical_' => [
+                'label' => 'Technical SEO Issues',
+                'id' => 'technical',
+                'data_key' => 'technicalSEO'
+            ],
+            'onpage_seo_content_' => [
+                'label' => 'On-Page SEO & Content',
+                'id' => 'onpage_seo_content',
+                'data_key' => 'onpageContent'
+            ],
+            'onpage_meta_heading_' => [
+                'label' => 'Meta & Heading Optimization',
+                'id' => 'onpage_meta_heading',
+                'data_key' => 'metaHeading'
+            ],
+            'keyword_analysis_' => [
+                'label' => 'Keyword Analysis',
+                'id' => 'keyword_analysis',
+                'data_key' => 'keywordAnalysis'
+            ],
+            'backlink_profile_' => [
+                'label' => 'Backlink Profile',
+                'id' => 'backlink_profile',
+                'data_key' => 'backlinkProfile'
+            ],
+            'meta_recommendations_' => [
+                'label' => 'Meta Recommendations',
+                'id' => 'meta_recommendations',
+                'data_key' => 'metaRecommendations'
+            ],
+            'onpage_content_image_' => [
+                'label' => 'Content & Image Optimization',
+                'id' => 'onpage_content_image',
+                'data_key' => 'onpageContentImage'
+            ],
+            'technical_findings_' => [
+                'label' => 'Technical Findings',
+                'id' => 'technical_findings',
+                'data_key' => 'technicalFindings'
+            ],
+            'recommendations_' => [
+                'label' => 'Recommendations',
+                'id' => 'recommendations',
+                'data_key' => 'recommendations'
+            ]
+        ];
 
     public static function summarize(string $prompt, array $context = []): array
     {
@@ -45,23 +125,43 @@ class Gemini
 
     public static function summarizeSection(string $type, array $data, string $sectionId): array
     {
-        $label = self::labelForSection($sectionId);
+        $label = self::getSectionString($sectionId, 'label') ?: 'General';
+        $prompt = self::sectionPromptJson(self::getSectionString($sectionId, 'id') ?: 'general');
+
+        $schema = [
+            'type'       => 'object',
+            'properties' => [
+                'body'      => ['type' => 'string', 'description' => '1–2 short paragraphs.'],
+                'reco_list' => [
+                'type'  => 'array',
+                'items' => ['type' => 'string', 'description' => 'Concise, actionable bullet.']
+                ],
+            ],
+            'required'            => ['body','reco_list']
+        ];
 
         $response = self::callGemini(
             self::buildSectionPrompt($type, $label, $sectionId, $data),
             [
-                'temperature' => 0.35,
-                'maxOutputTokens' => 768,
+                'temperature' => $prompt['temperature'] ?? 0.4,
+                'maxOutputTokens' => $prompt['max_tokens'] ?? 1024,
+                'temperature' => $prompt['temperature'] ?? 0.4,
+                'topP' => $prompt['top_p'] ?? 0.95,
+                'responseSchema' => $schema,
             ]
         );
+
+        self::log('Gemini summarizeSection: response received', ['section' => $sectionId, 'response_snippet' => $response]);
 
         if ($response) {
             $decoded = json_decode($response, true);
             if (is_array($decoded)) {
-                return [
-                    'body' => sanitize_textarea_field($decoded['body'] ?? ''),
+                $return = [
+                    'body'      => sanitize_textarea_field($decoded['body'] ?? ''),
                     'reco_list' => self::sanitizeStringsArray($decoded['reco_list'] ?? [], 8),
                 ];
+                self::log('Gemini summarizeSection: response', $return);
+                return $return;
             }
             self::log('Gemini summarizeSection: JSON decode failed', ['section' => $sectionId, 'response' => self::shorten($response)]);
         }
@@ -79,21 +179,19 @@ class Gemini
         }
 
         $endpoint = sprintf(self::ENDPOINT, self::MODEL) . '?key=' . rawurlencode($apiKey);
+
+        $baseConfig = [
+            'temperature'      => 0.4,
+            'topP'             => 0.95,
+            'maxOutputTokens'  => 1024,
+            'responseMimeType' => 'application/json',
+        ];
         $payload = [
-            'contents' => [
-                [
-                    'role' => 'user',
-                    'parts' => [
-                        ['text' => $prompt],
-                    ],
-                ],
-            ],
-            'generationConfig' => array_merge([
-                'temperature' => 0.4,
-                'maxOutputTokens' => 1024,
-                'topP' => 0.95,
-                'responseMimeType' => 'application/json',
-            ], $generationConfig),
+            'contents' => [[
+                'role'  => 'user',
+                'parts' => [['text' => $prompt]],
+            ]],
+            'generationConfig' => array_merge($baseConfig, $generationConfig),
         ];
 
         self::log('Gemini request', [
@@ -235,27 +333,63 @@ TXT;
 
     private static function buildSectionPrompt(string $type, string $label, string $sectionId, array $data): string
     {
-        $stats = self::compileStats($data);
-        $context = self::prepareContext($data);
+        $promptJsonFile = self::getSectionString($sectionId, 'id') ?: 'general';
+        $ctxKey         = self::getSectionString($sectionId, 'data_key') ?: null;
 
+        $ctx = [];
+        if ($ctxKey && method_exists(\AISEO\Helpers\LLMContext::class, $ctxKey)) {
+            $ctx = \AISEO\Helpers\LLMContext::$ctxKey($data);
+        }
+        $contextJson = json_encode($ctx, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        $prompt = self::sectionPromptJson($promptJsonFile) ?: [];
+        $base   = (string)($prompt['prompt'] ?? "You are an SEO analyst writing the '{$label}' section.");
+        $expected = (string)($prompt['expected_result'] ?? 'Return ONLY valid JSON as {"body":string,"reco_list":string[]}.');
+
+        $project = (string)($data['project'] ?? '');
+        $base = strtr($base, [
+            '{{type}}'    => $type,
+            '{{project}}' => $project,
+        ]);
+
+        $guidelinesList = '';
+        if (!empty($prompt['guidelines']) && is_array($prompt['guidelines'])) {
+            $lines = array_map(static fn($s) => '- ' . trim((string)$s), $prompt['guidelines']);
+            $guidelinesList = implode("\n", $lines);
+        }
+
+        // 4) Build strong, compact instruction
         $instructions = <<<TXT
-You are drafting the "{$label}" section of an SEO report ({$type}).
-Focus on trends and issues relevant to this section.
-Output ONLY JSON (no prose around it) with this schema:
-{
-  "body": string,
-  "reco_list": string[] (2-5 concise recommendations)
-}
-Guidelines:
-- Keep body under 120 words; use sentences not bullets.
-- Recommendations must be actionable and specific to this section.
-- If data is missing, mention the gap instead of guessing.
-- Use plain text (no markdown or numbering).
-Section id: {$sectionId}
-General stats: pages={$stats['pages']} issues={$stats['issues']} 4xx={$stats['status4xx']} 5xx={$stats['status5xx']}
-TXT;
+    {$base}
 
-        return $instructions . "\n\nDATA (JSON):\n" . $context;
+    Context (JSON):
+    {$contextJson}
+
+    {$expected}
+
+    Guidelines:
+    {$guidelinesList}
+
+    Hard rules:
+    - Output JSON only (no markdown, code fences, or commentary).
+    - Keys allowed: "body", "reco_list" only.
+    - Use double quotes for all keys/strings; UTF-8 plain text.
+    - "body": concise 1–2 paragraphs; do not invent metrics.
+    - "reco_list": 5–10 non-duplicative, actionable items.
+    - If a metric is unknown, state it without fabricating numbers.
+
+    Metadata:
+    - section_id: {$sectionId}
+    - report_type: {$type}
+    - project: {$project}
+    TXT;
+
+        // 5) If no context AND prompt specifies a fallback_response, append it (the caller may choose to use it)
+        if (empty($ctx) && !empty($prompt['fallback_response'])) {
+            $instructions .= "\n\nFALLBACK_JSON:\n" . (string)$prompt['fallback_response'];
+        }
+
+        return $instructions;
     }
 
     private static function prepareContext(array $data, int $limit = 16000): string
@@ -343,37 +477,25 @@ TXT;
 
     private static function fallbackSection(string $type, array $data, string $sectionId): array
     {
-        $label = self::labelForSection($sectionId);
-        $stats = self::compileStats($data);
-        $runs = $data['runs'] ?? [];
+        $key = self::getSectionString($sectionId, 'id') ?: 'general';
+        $def = self::sectionPromptJson($key); 
+        if (is_array($def) && !empty($def['fallback_response'])) {
+            $decoded = json_decode($def['fallback_response'], true);
 
-        $body = sprintf(
-            '%s: Analyzed %d pages across %d run(s). Total issues: %d. 4xx: %d, 5xx: %d.',
-            $label,
-            $stats['pages'],
-            count($runs),
-            $stats['issues'],
-            $stats['status4xx'],
-            $stats['status5xx']
-        );
-
-        if ($label === 'Meta & Heading Optimization') {
-            $body .= ' Ensure titles ~55 chars, H1 present once, and unique meta descriptions per page.';
-        } elseif ($label === 'Content & Image Optimization') {
-            $body .= ' Improve content depth, internal linking, and add descriptive ALT text for images.';
-        } elseif ($label === 'Technical SEO') {
-            $body .= ' Validate canonicals, robots directives, sitemap coverage, and fix crawl errors.';
+            if (is_array($decoded)) {
+                return [
+                    'body'      => (string)($decoded['body'] ?? ''),
+                    'reco_list' => array_values(array_filter((array)($decoded['reco_list'] ?? []))),
+                ];
+            }
+            return [
+                'body'      => (string)$def['fallback_response'],
+                'reco_list' => [],
+            ];
         }
-
-        $reco = [
-            'Prioritize fixing 4xx/5xx pages to restore crawl health',
-            'Standardize title length and improve meta description quality',
-            'Add ALT text and compress large images',
-        ];
-
         return [
-            'body' => $body,
-            'reco_list' => $reco,
+            'body'      => sprintf("No AI output available. Fallback generated for '%s' (%s report) in project '%s'.", $key, $type ?: 'general', $project ?: 'unknown'),
+            'reco_list' => [],
         ];
     }
 
@@ -421,49 +543,112 @@ TXT;
         return $out;
     }
 
-    private static function labelForSection(string $sectionId): string
+    private static function sectionPromptJson(string $promptJsonFile, string $type = '', string $project = '', string $label = ''): array
     {
-        if (strpos($sectionId, 'executive_summary_') === 0) {
-            return 'Executive Summary';
-        }
-        if (strpos($sectionId, 'top_actions_') === 0) {
-            return 'Top Actions';
-        }
-        if (strpos($sectionId, 'overview_') === 0) {
-            return 'Overview';
-        }
-        if (strpos($sectionId, 'performance_summary_') === 0 || strpos($sectionId, 'performance_') === 0) {
-            return 'Performance Summary';
-        }
-        if (strpos($sectionId, 'technical_seo_issues_') === 0 || strpos($sectionId, 'technical_') === 0) {
-            return 'Technical SEO Issues';
-        }
-        if (strpos($sectionId, 'onpage_seo_content_') === 0) {
-            return 'On-Page SEO & Content';
-        }
-        if (strpos($sectionId, 'onpage_meta_heading_') === 0) {
-            return 'Meta & Heading Optimization';
-        }
-        if (strpos($sectionId, 'keyword_analysis_') === 0) {
-            return 'Keyword Analysis';
-        }
-        if (strpos($sectionId, 'backlink_profile_') === 0) {
-            return 'Backlink Profile';
-        }
-        if (strpos($sectionId, 'meta_recommendations_') === 0) {
-            return 'Meta Recommendations';
-        }
-        if (strpos($sectionId, 'onpage_content_image_') === 0) {
-            return 'Content & Image Optimization';
-        }
-        if (strpos($sectionId, 'technical_findings_') === 0) {
-            return 'Technical Findings';
-        }
-        if (strpos($sectionId, 'recommendations_') === 0) {
-            return 'Recommendations';
+        // 0) Default fallback (short, token-efficient)
+        $default = [
+            'prompt' => "You are an SEO analyst creating a fallback summary for the '{{label}}' section in a {{type}} SEO report for {{project}}. Provide a concise overview of likely SEO improvements based on best practices for this report type.",
+            'expected_result' => "Return ONLY valid JSON (no markdown) as { \"body\": string, \"reco_list\": string[] } where `body` is a short paragraph and `reco_list` includes 5 high-value recommendations.",
+            'guidelines' => [
+                "Adapt to report type (general, per_page, technical).",
+                "Do not mention missing data or unavailable files.",
+                "Keep tone confident, concise, and business-friendly.",
+                "Recommendations must be practical and prioritized.",
+                "Output clean JSON only (no markdown or extra text)."
+            ],
+            'fallback_response' => '{ "body": "Fallback summary generated.", "reco_list": [] }',
+            'temperature' => 0.6,
+            'max_tokens' => 1500,
+            'top_p' => 1,
+            'frequency_penalty' => 0,
+            'presence_penalty' => 0,
+        ];
+
+        // 1) Handle missing filename
+        $key = trim((string)$promptJsonFile);
+        if ($key === '') {
+            return $default;
         }
 
-        return 'Section';
+        // 2) Cache to prevent repeated disk reads
+        static $cache = [];
+        if (isset($cache[$key])) {
+            return $cache[$key];
+        }
+
+        // 3) Resolve prompts directory
+        $dir = rtrim(\get_stylesheet_directory(), '/') . '/templates/prompt';
+        $path = $dir . '/' . $key . '.json';
+
+        // 4) Load + decode file (safe JSON)
+        $fileCfg = [];
+        if (is_file($path) && is_readable($path)) {
+            $raw = file_get_contents($path);
+            if ($raw !== false && $raw !== '') {
+                $decoded = json_decode($raw, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $fileCfg = $decoded;
+                }
+            }
+        }
+
+        // 5) Merge file config into defaults
+        $cfg = array_replace_recursive($default, $fileCfg);
+
+        // 6) Normalize types and fallback
+        $cfg['prompt']          = (string)($cfg['prompt'] ?? $default['prompt']);
+        $cfg['expected_result'] = (string)($cfg['expected_result'] ?? $default['expected_result']);
+        $cfg['guidelines']      = array_values(array_filter(array_map(
+            static fn($g) => is_string($g) ? trim($g) : '',
+            (array)($cfg['guidelines'] ?? $default['guidelines'])
+        ))) ?: $default['guidelines'];
+
+        // Ensure fallback_response valid JSON
+        $fallback = (string)($cfg['fallback_response'] ?? $default['fallback_response']);
+        $test = json_decode($fallback, true);
+        if (!is_array($test) || !array_key_exists('body', $test)) {
+            $fallback = $default['fallback_response'];
+        }
+        $cfg['fallback_response'] = $fallback;
+
+        // Clamp numeric params
+        $cfg['temperature']       = max(0.0, min(1.0, (float)($cfg['temperature'] ?? $default['temperature'])));
+        $cfg['top_p']             = max(0.0, min(1.0, (float)($cfg['top_p'] ?? $default['top_p'])));
+        $cfg['max_tokens']        = max(256, min(4000, (int)($cfg['max_tokens'] ?? $default['max_tokens'])));
+        $cfg['frequency_penalty'] = (float)($cfg['frequency_penalty'] ?? 0);
+        $cfg['presence_penalty']  = (float)($cfg['presence_penalty'] ?? 0);
+
+        // 7) Interpolate variables {{type}}, {{project}}, {{label}}
+        $replacements = [
+            '{{type}}'    => $type,
+            '{{project}}' => $project,
+            '{{label}}'   => $label,
+        ];
+        $cfg['prompt']          = strtr($cfg['prompt'], $replacements);
+        $cfg['expected_result'] = strtr($cfg['expected_result'], $replacements);
+        $cfg['guidelines']      = array_map(fn($g) => strtr($g, $replacements), $cfg['guidelines']);
+
+        // 8) Cache and return
+        $cache[$key] = $cfg;
+        return $cfg;
+    }
+
+    /**
+     * Map $sectionId prefixes to canonical prompt keys used by sectionPromptJson.
+     * Keep this in sync with your prompts directory / registry.
+     */
+    private static function getSectionString(string $sectionId, string $dataKey = 'label'): string
+    {
+        // get $dataSection property
+        $sectionData = (new self())->dataSection;
+
+        foreach ($sectionData as $prefix => $data) {
+            if (strpos($sectionId, $prefix) === 0) {
+                return $data[$dataKey] ?? false;
+            }
+        }
+
+        return false;
     }
 
     private static function truncate(string $value, int $length): string

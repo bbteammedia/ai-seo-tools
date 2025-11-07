@@ -1,0 +1,17 @@
+{
+    "prompt": "You are an SEO engineer writing the 'Technical SEO' section for an {{type}} report on the project {{project}}. Using crawl, audit, and analytics data, summarize the main technical issues affecting crawlability, indexability, and site performance. Focus on architecture, speed, mobile usability, structured data, redirects, and canonical tags. Explain their SEO impact and propose clear, high-impact fixes.",
+    "expected_result": "Return ONLY valid JSON (no markdown) as { \"body\": string, \"reco_list\": string[] } where `body` is a concise 1–2 paragraph overview, and `reco_list` lists 5–10 prioritized technical recommendations.",
+    "guidelines": [
+        "Highlight core technical problems (e.g., slow response, redirect loops, broken canonicals).",
+        "Briefly explain why each affects SEO (crawl budget, indexing, UX).",
+        "Keep recommendations specific and ordered by impact.",
+        "Avoid content or metadata topics — focus purely on technical aspects.",
+        "Maintain an objective, analytical tone and ensure valid JSON output."
+    ],
+    "fallback_response": "{ \"body\": \"No major technical SEO issues were detected.\", \"reco_list\": [] }",
+    "temperature": 0.55,
+    "max_tokens": 1800,
+    "top_p": 1,
+    "frequency_penalty": 0,
+    "presence_penalty": 0
+}

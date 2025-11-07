@@ -185,6 +185,12 @@ class ReportSectionsUI
                                 <textarea name="aiseo_sections[<?php echo esc_attr($idx); ?>][meta_json]" rows="6"><?php echo esc_textarea($metaJson); ?></textarea>
                                 <small>Example: [{"url":"...","title":"...","meta_description":"..."}]</small>
                             </div>
+                        <?php else: ?>
+                            <div class="reco">
+                                <label><strong>Additional Recommendations (one per line)</strong></label>
+                                <textarea name="aiseo_sections[<?php echo esc_attr($idx); ?>][reco_raw]" rows="6"><?php echo esc_textarea(implode("\n", $recoList)); ?></textarea>
+                                <small>Additional Recommendations for AI context.</small>
+                            </div>
                         <?php endif; ?>
                         <input type="hidden" name="aiseo_sections[<?php echo esc_attr($idx); ?>][title]" value="<?php echo esc_attr($sec['title']); ?>">
                         <input type="hidden" name="aiseo_sections[<?php echo esc_attr($idx); ?>][id]" value="<?php echo esc_attr($sec['id']); ?>">
@@ -618,6 +624,7 @@ class ReportSectionsUI
         update_post_meta($postId, Report::META_ACTIONS, wp_json_encode($topActions));
         update_post_meta($postId, Report::META_META_RECO, wp_json_encode($metaRecommendations));
         update_post_meta($postId, Report::META_TECH, $techBody);
+        error_log('ReportSectionsUI: sections saved for post ID ' . $postId);
     }
 
     /**
@@ -660,16 +667,10 @@ class ReportSectionsUI
 
     public static function save(int $postId, \WP_Post $post, bool $update): void
     {
-        if (!isset($_POST['aiseo_sections_nonce']) || !wp_verify_nonce($_POST['aiseo_sections_nonce'], 'aiseo_sections_nonce')) {
-            return;
-        }
-
-        if (!current_user_can('edit_post', $postId)) {
-            return;
-        }
+        if (wp_is_post_autosave($postId) || wp_is_post_revision($postId)) return;
+        if (!current_user_can('edit_post', $postId)) return;
 
         if (!isset($_POST['aiseo_sections']) || !is_array($_POST['aiseo_sections'])) {
-            self::storeSections($postId, []);
             return;
         }
 
@@ -704,6 +705,15 @@ class ReportSectionsUI
                 'order' => $row['order'] ?? $idx,
             ];
         }
+
+        // error_log('ReportSectionsUI: saving ' . count($sections) . ' sections for post ID ' . $postId);
+        // if (!empty($sections)) {
+        //     //dump sections
+        //     foreach ($sections as $section) {
+        //         //log all content
+        //         error_log('Section ID: ' . ($section['id'] ?? '') . ', Type: ' . ($section['type'] ?? '') . ', Title: ' . ($section['title'] ?? '') . ', Order: ' . ($section['order'] ?? '') . ', Visible: ' . (!empty($section['visible']) ? '1' : '0') . ', Body Length: ' . strlen($section['body'] ?? '') . ', Reco Count: ' . count($section['reco_list'] ?? []) . ', Meta Count: ' . count($section['meta_list'] ?? []) . ', Metrics Rows: ' . count($section['metrics']['rows'] ?? []));
+        //     }
+        // }
 
         self::storeSections($postId, $sections);
     }
@@ -752,7 +762,8 @@ class ReportSectionsUI
 
         self::storeSections($postId, $sections);
         update_post_meta($postId, Report::META_SNAPSHOT, wp_json_encode($data));
-
+        error_log('ReportSectionsUI: sections data refreshed for post ID ' . $postId);
+        error_log('Sections data: ' . wp_json_encode($data));
         wp_send_json_success(['msg' => 'Sections refreshed.']);
     }
 

@@ -1,0 +1,17 @@
+{
+    "prompt": "You are an SEO performance specialist writing the 'Performance Issues' section for an {{type}} SEO report for the project {{project}}. Using crawl, audit, and analytics data, summarize key performance issues affecting speed, crawlability, and user experience. Highlight major Core Web Vitals (LCP, CLS, TBT) concerns and their SEO impact, then list the most effective optimization actions.",
+    "expected_result": "Return ONLY valid JSON (no markdown) as { \"body\": string, \"reco_list\": string[] } where `body` is a short summary (1–2 paragraphs) and `reco_list` lists 5–10 specific, prioritized improvements.",
+    "guidelines": [
+        "Identify main bottlenecks (slow load, large assets, render-blocking scripts).",
+        "Explain briefly how they hurt SEO or UX.",
+        "Keep fixes practical and measurable (e.g., 'Compress images', 'Defer JS').",
+        "Avoid deep server-level details or config jargon.",
+        "Ensure valid JSON only, no markdown or commentary."
+    ],
+    "fallback_response": "{ \"body\": \"No major performance issues detected.\", \"reco_list\": [] }",
+    "temperature": 0.55,
+    "max_tokens": 1800,
+    "top_p": 1,
+    "frequency_penalty": 0,
+    "presence_penalty": 0
+}

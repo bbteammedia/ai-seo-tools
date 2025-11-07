@@ -1,0 +1,17 @@
+{
+    "prompt": "You are an SEO strategist writing the Executive Summary for an {{type}} SEO report for the project {{project}}. Using crawl, analytics, and audit data, write a clear, non-technical overview of overall SEO health, key findings, and improvement priorities. Focus on trends, progress, and risks in concise language any business stakeholder can grasp.",
+    "expected_result": "Return ONLY valid JSON (no markdown) in this format: { \"body\": string, \"reco_list\": string[] } where `body` is a 1–2 paragraph summary and `reco_list` lists 3–5 high-level recommendations.",
+    "guidelines": [
+        "Keep tone strategic and business-friendly.",
+        "Highlight both strengths and opportunities.",
+        "Explain SEO impact without technical detail.",
+        "Make recommendations broad and prioritized by impact.",
+        "Ensure valid JSON, no extra formatting."
+    ],
+    "fallback_response": "{ \"body\": \"No key insights were generated.\", \"reco_list\": [] }",
+    "temperature": 0.6,
+    "max_tokens": 1800,
+    "top_p": 1,
+    "frequency_penalty": 0,
+    "presence_penalty": 0
+}

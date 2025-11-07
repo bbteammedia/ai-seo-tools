@@ -177,13 +177,8 @@ class ReportMetaBox
 
     public static function save(int $postId, \WP_Post $post, bool $update): void
     {
-        if (!isset($_POST['aiseo_report_nonce']) || !wp_verify_nonce($_POST['aiseo_report_nonce'], 'aiseo_report_nonce')) {
-            return;
-        }
-
-        if (!current_user_can('edit_post', $postId)) {
-            return;
-        }
+        if (wp_is_post_autosave($postId) || wp_is_post_revision($postId)) return;
+        if (!current_user_can('edit_post', $postId)) return;
 
         update_post_meta($postId, Report::META_TYPE, sanitize_text_field($_POST['aiseo_report_type'] ?? 'general'));
         update_post_meta($postId, Report::META_PROJECT, sanitize_text_field($_POST['aiseo_project_slug'] ?? ''));
