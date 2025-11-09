@@ -1,4 +1,4 @@
-# AI SEO Tools — Milestone Snapshot (5 Nov 2025)
+# Blackbird SEO Tools — Milestone Snapshot (5 Nov 2025)
 
 ## Project Brief
 
@@ -42,7 +42,7 @@ web/app/themes/ai-seo-tool/
 - `spatie/crawler` (`symfony/dom-crawler`, `symfony/css-selector`) for discovery.
 - `guzzlehttp/guzzle` for HTTP requests when needed.
 - WordPress REST API and WP-Cron for orchestration.
-- Bedrock autoloader + PSR-4 namespace `AISEO\`.
+- Bedrock autoloader + PSR-4 namespace `BBSEO\`.
 
 ### Data layout
 
@@ -66,16 +66,16 @@ storage/projects/{slug}/
 
 ### 1. Starting a run
 
-- **Manual**: wp-admin → **AI SEO** → *Run Crawl Now*. Generates a new `run_id`, seeds `runs/{run}/queue` with the configured URLs, and updates `latest_run.txt`.
+- **Manual**: wp-admin → **Blackbird SEO** → *Run Crawl Now*. Generates a new `run_id`, seeds `runs/{run}/queue` with the configured URLs, and updates `latest_run.txt`.
 - **REST**: `POST /wp-json/ai-seo-tool/v1/start-crawl?project={slug}&key={token}` optionally accepts `urls[]` or a pre-supplied `run_id`; the response includes `{ run_id, queued }`.
 - **Scheduler**: Reads per-project `config.json` (`frequency`, `seed_urls`). When the cadence threshold is met, `Queue::init` is invoked automatically to spawn a new run folder.
 
 ### 2. Processing queue (`/crawl-step`)
 
-- **WP-Cron**: Custom schedule `every_minute` triggers `aiseo_minutely_drain`.
+- **WP-Cron**: Custom schedule `every_minute` triggers `BBSEO_minutely_drain`.
   1. Enumerates all projects (config-driven and manual-only) under `storage/projects/`.
   2. Seeds a fresh run when `config.json` frequency rules demand it.
-  3. Drains up to `AISEO_STEPS_PER_TICK` items per tick via `Worker::process($project, $runId)`.
+  3. Drains up to `BBSEO_STEPS_PER_TICK` items per tick via `Worker::process($project, $runId)`.
   4. Once a run’s queue empties, `AuditRunner::run` + `ReportBuilder::build` generate results and update `meta.json` with completion data.
 - **Manual REST**: `GET /wp-json/ai-seo-tool/v1/crawl-step?project=...&run=...` processes a single item and automatically builds audit/report when the queue empties.
 
@@ -104,27 +104,27 @@ For each processed URL:
 - `ReportBuilder` merges audit summary + crawl stats, surfaces top 10 issues, and writes `report.json`.
 - `templates/report.php` renders the JSON data for front-end viewing (`/ai-seo-report/{slug}`).
 
-### 5. Admin dashboard (wp-admin → AI SEO)
+### 5. Admin dashboard (wp-admin → Blackbird SEO)
 
 - Lists projects with primary URL, latest `run_id`, queue counts, and quick actions (view report / seed new run).
 - Shows notices when manual runs succeed or when configuration is missing.
-- Reads `config.json` for seed URLs; global cron disable still controlled via `.env` (`AISEO_DISABLE_CRON=true`).
+- Reads `config.json` for seed URLs; global cron disable still controlled via `.env` (`BBSEO_DISABLE_CRON=true`).
 
 ### 6. Environment configuration
 
 `.env` (root) / `.env.example` include:
 
 ```
-AISEO_SECURE_TOKEN=...                 # Shared secret for REST endpoints
-AISEO_STORAGE_DIR=${WP_CONTENT_DIR}/themes/ai-seo-tool/storage/projects
-AISEO_HTTP_VERIFY_TLS=false            # Optional (skip TLS verify for local/self-signed)
-AISEO_DISABLE_CRON=true                # Optional global cron kill-switch
-AISEO_STEPS_PER_TICK=50               # Optional limit for minutely drain
+BBSEO_SECURE_TOKEN=...                 # Shared secret for REST endpoints
+BBSEO_STORAGE_DIR=${WP_CONTENT_DIR}/themes/ai-seo-tool/storage/projects
+BBSEO_HTTP_VERIFY_TLS=false            # Optional (skip TLS verify for local/self-signed)
+BBSEO_DISABLE_CRON=true                # Optional global cron kill-switch
+BBSEO_STEPS_PER_TICK=50               # Optional limit for minutely drain
 ```
 
 Bedrock `.env` still handles WP_HOME, DB credentials, salts, etc.
 
-## REST Endpoints (all require `key={AISEO_SECURE_TOKEN}`)
+## REST Endpoints (all require `key={BBSEO_SECURE_TOKEN}`)
 
 - `POST /ai-seo-tool/v1/start-crawl` — creates a run directory and seeds `queue/`. Accepts optional `urls[]` and `run_id`; responds with `{ run_id, queued }`.
 - `GET /ai-seo-tool/v1/crawl-step` — processes one item in `runs/{run}/queue`. When the queue empties, audit/report are generated automatically.
@@ -134,10 +134,10 @@ Bedrock `.env` still handles WP_HOME, DB credentials, salts, etc.
 
 ## Scheduler Controls & Behavior
 
-- Global disable via `.env` (`AISEO_DISABLE_CRON=true`).
-- Registers an `every_minute` interval that fires `aiseo_minutely_drain`.
+- Global disable via `.env` (`BBSEO_DISABLE_CRON=true`).
+- Registers an `every_minute` interval that fires `BBSEO_minutely_drain`.
 - Reads `config.json` per project (`enabled`, `frequency`, `seed_urls`). Projects without config can still run manually; cron continues draining any pending queue.
-- `AISEO_STEPS_PER_TICK` (env) controls max steps per tick (default 50).
+- `BBSEO_STEPS_PER_TICK` (env) controls max steps per tick (default 50).
 - When a run completes, its `meta.json` is updated with `completed_at` and summary metrics.
 
 ## Current Situation / Next Opportunities

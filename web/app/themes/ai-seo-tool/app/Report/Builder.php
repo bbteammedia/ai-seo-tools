@@ -1,8 +1,8 @@
 <?php
-namespace AISEO\Report;
+namespace BBSEO\Report;
 
-use AISEO\Helpers\Storage;
-use AISEO\PostTypes\Project;
+use BBSEO\Helpers\Storage;
+use BBSEO\PostTypes\Project;
 
 class Builder
 {

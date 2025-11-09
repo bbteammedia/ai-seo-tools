@@ -1,9 +1,9 @@
 <?php
-use AISEO\PostTypes\Report as ReportPostType;
-use AISEO\Helpers\Sections;
+use BBSEO\PostTypes\Report as ReportPostType;
+use BBSEO\Helpers\Sections;
 
 /** @var \WP_Post|null $report */
-$report = $GLOBALS['aiseo_report_post'] ?? null;
+$report = $GLOBALS['BBSEO_report_post'] ?? null;
 if (!$report instanceof \WP_Post) {
     status_header(404);
     echo '<h1>Report not found</h1>';
@@ -423,7 +423,7 @@ $renderSectionMetrics = static function (array $table): void {
 <?php endif; ?>
 
     <footer>
-        Prepared with AI SEO Tools · <?php echo esc_html(date_i18n(get_option('date_format'))); ?>
+        Prepared with Blackbird SEO Tools · <?php echo esc_html(date_i18n(get_option('date_format'))); ?>
     </footer>
 </div>
 <?php wp_reset_postdata(); ?>

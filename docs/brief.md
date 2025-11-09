@@ -1,4 +1,4 @@
-# AI SEO Tools (PHP + Gemini)
+# Blackbird SEO Tools (PHP + Gemini)
 
 ## Overview
 AI-powered SEO automation tool built on **WordPress Bedrock**. It automates monthly SEO reports similar to SEMrush, using Gemini for AI summaries. Designed to run on shared hosting using PHP + JavaScript, with minimal dependencies and JSON-based storage.
@@ -121,7 +121,7 @@ When finished, system auto-runs `audit` and `report` endpoints.
 ---
 
 ## Next Steps
-1. Initialize Bedrock + AI SEO Tool theme repo.  
+1. Initialize Bedrock + Blackbird SEO Tool theme repo.  
 2. Install Composer dependencies.  
 3. Implement REST endpoints for crawl/audit/report.  
 4. Build queue processor (1 URL per cron).  

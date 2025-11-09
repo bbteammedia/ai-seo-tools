@@ -1,7 +1,7 @@
 <?php
-namespace AISEO\AI;
+namespace BBSEO\AI;
 
-use AISEO\Helpers\LLMContext;
+use BBSEO\Helpers\LLMContext;
 
 class Gemini
 {
@@ -337,8 +337,8 @@ TXT;
         $ctxKey         = self::getSectionString($sectionId, 'data_key') ?: null;
 
         $ctx = [];
-        if ($ctxKey && method_exists(\AISEO\Helpers\LLMContext::class, $ctxKey)) {
-            $ctx = \AISEO\Helpers\LLMContext::$ctxKey($data);
+        if ($ctxKey && method_exists(\BBSEO\Helpers\LLMContext::class, $ctxKey)) {
+            $ctx = \BBSEO\Helpers\LLMContext::$ctxKey($data);
         }
         $contextJson = json_encode($ctx, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 

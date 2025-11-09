@@ -1,4 +1,4 @@
-# AI SEO Tools — Modular Report Sections (Spec + Implementation Notes)
+# Blackbird SEO Tools — Modular Report Sections (Spec + Implementation Notes)
 
 > Deliverable: **Use this doc as the single source of truth** for implementing modular, reorderable report sections **under the main editor**. No sidebar panels. Store everything as post meta in DB. AI (Gemini) can prefill each section.  
 > Audience: your agent (Codex) + developers.
@@ -7,7 +7,7 @@
 
 ## 0) What we’re building (in plain English)
 
-- A **modular section system** for the **Report** CPT (`aiseo_report`).  
+- A **modular section system** for the **Report** CPT (`BBSEO_report`).  
 - Admin can **add/remove/reorder** sections (drag-and-drop) in a **full-width panel under the main editor**.  
 - Sections are **DB-persisted** as a single JSON meta field.  
 - The section list is **pre-filled** based on selected **Report Type** (General / Per Page / Technical).  
@@ -22,20 +22,20 @@
 
 ## 1) Data Model (DB fields)
 
-- **Post type:** `aiseo_report` (already defined in your system or from prior step)
+- **Post type:** `BBSEO_report` (already defined in your system or from prior step)
 - **Meta keys used** (existing + new):
-  - `_aiseo_report_type` — `general | per_page | technical`
-  - `_aiseo_project_slug` — project slug
-  - `_aiseo_page` — URL when `per_page` is selected
-  - `_aiseo_runs` — JSON array of run IDs for comparison
-  - `_aiseo_summary` — overall executive summary text (freeform)
-  - `_aiseo_top_actions` — JSON array of strings (top 3–10 actions)
-  - `_aiseo_meta_recos` — JSON array of objects (meta improvements)
-  - `_aiseo_tech_findings` — freeform technical notes
-  - `_aiseo_snapshot` — JSON of the data snapshot used for AI (optional)
-  - **`_aiseo_sections`** — **JSON array of section objects** (NEW; the modular system lives here)
+  - `_BBSEO_report_type` — `general | per_page | technical`
+  - `_BBSEO_project_slug` — project slug
+  - `_BBSEO_page` — URL when `per_page` is selected
+  - `_BBSEO_runs` — JSON array of run IDs for comparison
+  - `_BBSEO_summary` — overall executive summary text (freeform)
+  - `_BBSEO_top_actions` — JSON array of strings (top 3–10 actions)
+  - `_BBSEO_meta_recos` — JSON array of objects (meta improvements)
+  - `_BBSEO_tech_findings` — freeform technical notes
+  - `_BBSEO_snapshot` — JSON of the data snapshot used for AI (optional)
+  - **`_BBSEO_sections`** — **JSON array of section objects** (NEW; the modular system lives here)
 
-**Section object shape** (stored inside `_aiseo_sections`):
+**Section object shape** (stored inside `_BBSEO_sections`):
 ```json
 {
   "id": "overview_ab12cd",
@@ -56,11 +56,11 @@ A single helper returns the canonical **list of available section types** and th
 **File:** `app/Helpers/Sections.php`
 ```php
 <?php
-namespace AISEO\Helpers;
+namespace BBSEO\Helpers;
 
 class Sections
 {
-    const META_SECTIONS = '_aiseo_sections';
+    const META_SECTIONS = '_BBSEO_sections';
 
     public static function registry(): array
     {
@@ -130,11 +130,11 @@ It is **sortable** (drag handle), and includes **Add Section**, **Remove**, **AI
 **File:** `app/Admin/ReportSectionsUI.php`
 ```php
 <?php
-namespace AISEO\Admin;
+namespace BBSEO\Admin;
 
-use AISEO\PostTypes\Report;
-use AISEO\Helpers\Sections;
-use AISEO\Helpers\Storage;
+use BBSEO\PostTypes\Report;
+use BBSEO\Helpers\Sections;
+use BBSEO\Helpers\Storage;
 
 class ReportSectionsUI
 {
@@ -142,7 +142,7 @@ class ReportSectionsUI
     {
         add_action('edit_form_after_editor', [self::class, 'render']);
         add_action('save_post_' . Report::POST_TYPE, [self::class, 'save'], 10, 3);
-        add_action('wp_ajax_aiseo_sections_generate', [self::class,'generate_ai_for_section']);
+        add_action('wp_ajax_BBSEO_sections_generate', [self::class,'generate_ai_for_section']);
         add_action('admin_enqueue_scripts', [self::class,'assets']);
     }
 
@@ -155,7 +155,7 @@ class ReportSectionsUI
     public static function render(\WP_Post $post)
     {
         if ($post->post_type !== Report::POST_TYPE) return;
-        wp_nonce_field('aiseo_sections_nonce','aiseo_sections_nonce');
+        wp_nonce_field('BBSEO_sections_nonce','BBSEO_sections_nonce');
 
         $type = get_post_meta($post->ID, Report::META_TYPE, true) ?: 'general';
 
@@ -169,22 +169,22 @@ class ReportSectionsUI
         $registry = Sections::registry();
         ?>
         <style>
-          .aiseo-sections { margin-top: 16px; }
-          .aiseo-sections .section { border:1px solid #dcdcdc; border-radius:6px; padding:12px; margin-bottom:10px; background:#fff; }
-          .aiseo-sections .section .head { display:flex; align-items:center; justify-content:space-between; }
-          .aiseo-sections .section .type { font-weight:600; }
-          .aiseo-sections .section .controls button { margin-left:6px; }
-          .aiseo-sections .section textarea, .aiseo-sections .section input[type=text] { width:100%; }
-          .aiseo-sections .add-row { margin: 12px 0; }
-          .aiseo-sections .drag { cursor: move; opacity: .7; }
-          .aiseo-sections .reco small { color:#666; }
+          .BBSEO-sections { margin-top: 16px; }
+          .BBSEO-sections .section { border:1px solid #dcdcdc; border-radius:6px; padding:12px; margin-bottom:10px; background:#fff; }
+          .BBSEO-sections .section .head { display:flex; align-items:center; justify-content:space-between; }
+          .BBSEO-sections .section .type { font-weight:600; }
+          .BBSEO-sections .section .controls button { margin-left:6px; }
+          .BBSEO-sections .section textarea, .BBSEO-sections .section input[type=text] { width:100%; }
+          .BBSEO-sections .add-row { margin: 12px 0; }
+          .BBSEO-sections .drag { cursor: move; opacity: .7; }
+          .BBSEO-sections .reco small { color:#666; }
         </style>
 
-        <div class="postbox aiseo-sections">
+        <div class="postbox BBSEO-sections">
           <h2 class="hndle"><span>Report Sections</span></h2>
           <div class="inside">
 
-            <div id="aiseo-sections-list">
+            <div id="BBSEO-sections-list">
               <?php foreach ($sections as $idx => $sec): ?>
                 <div class="section" data-id="<?php echo esc_attr($sec['id']);?>">
                   <div class="head">
@@ -193,19 +193,19 @@ class ReportSectionsUI
                       <?php echo esc_html($registry[$sec['type']]['label'] ?? ucfirst($sec['type']));?>
                     </div>
                     <div class="controls">
-                      <button type="button" class="button aiseo-ai-one" data-id="<?php echo esc_attr($sec['id']);?>">AI</button>
-                      <button type="button" class="button button-link-delete aiseo-del" data-id="<?php echo esc_attr($sec['id']);?>">Remove</button>
+                      <button type="button" class="button BBSEO-ai-one" data-id="<?php echo esc_attr($sec['id']);?>">AI</button>
+                      <button type="button" class="button button-link-delete BBSEO-del" data-id="<?php echo esc_attr($sec['id']);?>">Remove</button>
                     </div>
                   </div>
                   <div class="body">
                     <label>Custom Title</label>
-                    <input type="text" name="aiseo_sections[<?php echo $idx;?>][title]" value="<?php echo esc_attr($sec['title']);?>">
-                    <input type="hidden" name="aiseo_sections[<?php echo $idx;?>][id]" value="<?php echo esc_attr($sec['id']);?>">
-                    <input type="hidden" name="aiseo_sections[<?php echo $idx;?>][type]" value="<?php echo esc_attr($sec['type']);?>">
-                    <textarea name="aiseo_sections[<?php echo $idx;?>][body]" rows="5" placeholder="Section narrative (editable)"><?php echo esc_textarea($sec['body']);?></textarea>
+                    <input type="text" name="BBSEO_sections[<?php echo $idx;?>][title]" value="<?php echo esc_attr($sec['title']);?>">
+                    <input type="hidden" name="BBSEO_sections[<?php echo $idx;?>][id]" value="<?php echo esc_attr($sec['id']);?>">
+                    <input type="hidden" name="BBSEO_sections[<?php echo $idx;?>][type]" value="<?php echo esc_attr($sec['type']);?>">
+                    <textarea name="BBSEO_sections[<?php echo $idx;?>][body]" rows="5" placeholder="Section narrative (editable)"><?php echo esc_textarea($sec['body']);?></textarea>
                     <div class="reco">
                       <label>Recommendations (one per line)</label>
-                      <textarea name="aiseo_sections[<?php echo $idx;?>][reco_raw]" rows="3"><?php echo esc_textarea(implode("\n", $sec['reco_list'] ?? []));?></textarea>
+                      <textarea name="BBSEO_sections[<?php echo $idx;?>][reco_raw]" rows="3"><?php echo esc_textarea(implode("\n", $sec['reco_list'] ?? []));?></textarea>
                       <small>Suggestions can be prefilled by AI or edited manually.</small>
                     </div>
                   </div>
@@ -214,14 +214,14 @@ class ReportSectionsUI
             </div>
 
             <div class="add-row">
-              <select id="aiseo-add-type">
+              <select id="BBSEO-add-type">
                 <option value="">Add Section…</option>
                 <?php foreach ($registry as $k => $r): ?>
                   <option value="<?php echo esc_attr($k);?>"><?php echo esc_html($r['label']);?></option>
                 <?php endforeach; ?>
               </select>
-              <button type="button" class="button" id="aiseo-add-btn">Add</button>
-              <button type="button" class="button button-primary" id="aiseo-ai-all">Generate AI for All Sections</button>
+              <button type="button" class="button" id="BBSEO-add-btn">Add</button>
+              <button type="button" class="button button-primary" id="BBSEO-ai-all">Generate AI for All Sections</button>
             </div>
 
           </div>
@@ -230,67 +230,67 @@ class ReportSectionsUI
         <script>
         (function($){
           // sortable
-          $('#aiseo-sections-list').sortable({
+          $('#BBSEO-sections-list').sortable({
             handle: '.drag',
             stop: function() { renumber(); }
           });
 
           function renumber(){
-            $('#aiseo-sections-list .section').each(function(i){
+            $('#BBSEO-sections-list .section').each(function(i){
               $(this).find('input, textarea').each(function(){
                 const name = $(this).attr('name');
                 if(!name) return;
-                const n = name.replace(/aiseo_sections\[\d+\]/, 'aiseo_sections['+i+']');
+                const n = name.replace(/BBSEO_sections\[\d+\]/, 'BBSEO_sections['+i+']');
                 $(this).attr('name', n);
               });
             });
           }
 
-          $('#aiseo-add-btn').on('click', function(){
-            const type = $('#aiseo-add-type').val();
+          $('#BBSEO-add-btn').on('click', function(){
+            const type = $('#BBSEO-add-type').val();
             if(!type) return;
-            const label = $('#aiseo-add-type option:selected').text();
+            const label = $('#BBSEO-add-type option:selected').text();
             const id = type + '_' + Math.random().toString(36).slice(2,8);
-            const idx = $('#aiseo-sections-list .section').length;
+            const idx = $('#BBSEO-sections-list .section').length;
             const html = `
               <div class="section" data-id="${id}">
                 <div class="head">
                   <div class="type"><span class="dashicons dashicons-move drag"></span>${label}</div>
                   <div class="controls">
-                    <button type="button" class="button aiseo-ai-one" data-id="${id}">AI</button>
-                    <button type="button" class="button button-link-delete aiseo-del" data-id="${id}">Remove</button>
+                    <button type="button" class="button BBSEO-ai-one" data-id="${id}">AI</button>
+                    <button type="button" class="button button-link-delete BBSEO-del" data-id="${id}">Remove</button>
                   </div>
                 </div>
                 <div class="body">
                   <label>Custom Title</label>
-                  <input type="text" name="aiseo_sections[${idx}][title]" value="${label}">
-                  <input type="hidden" name="aiseo_sections[${idx}][id]" value="${id}">
-                  <input type="hidden" name="aiseo_sections[${idx}][type]" value="${type}">
-                  <textarea name="aiseo_sections[${idx}][body]" rows="5" placeholder="Section narrative (editable)"></textarea>
+                  <input type="text" name="BBSEO_sections[${idx}][title]" value="${label}">
+                  <input type="hidden" name="BBSEO_sections[${idx}][id]" value="${id}">
+                  <input type="hidden" name="BBSEO_sections[${idx}][type]" value="${type}">
+                  <textarea name="BBSEO_sections[${idx}][body]" rows="5" placeholder="Section narrative (editable)"></textarea>
                   <div class="reco">
                     <label>Recommendations (one per line)</label>
-                    <textarea name="aiseo_sections[${idx}][reco_raw]" rows="3"></textarea>
+                    <textarea name="BBSEO_sections[${idx}][reco_raw]" rows="3"></textarea>
                     <small>Suggestions can be prefilled by AI or edited manually.</small>
                   </div>
                 </div>
               </div>`;
-            $('#aiseo-sections-list').append(html);
+            $('#BBSEO-sections-list').append(html);
           });
 
-          $(document).on('click','.aiseo-del', function(){
+          $(document).on('click','.BBSEO-del', function(){
             $(this).closest('.section').remove();
             renumber();
           });
 
           // AI: one section
-          $(document).on('click','.aiseo-ai-one', function(){
+          $(document).on('click','.BBSEO-ai-one', function(){
             const secId = $(this).data('id');
             aiForSection(secId);
           });
 
           // AI: all sections
-          $('#aiseo-ai-all').on('click', function(){
-            $('#aiseo-sections-list .section').each(function(){
+          $('#BBSEO-ai-all').on('click', function(){
+            $('#BBSEO-sections-list .section').each(function(){
               const secId = $(this).data('id');
               aiForSection(secId);
             });
@@ -298,17 +298,17 @@ class ReportSectionsUI
 
           function aiForSection(secId){
             const form = $(document.forms['post']);
-            const type = form.querySelector('select[name=aiseo_report_type]').value;
-            const project = form.querySelector('select[name=aiseo_project_slug]').value;
-            const page = form.querySelector('input[name=aiseo_page]')?.value || '';
-            const runs = form.querySelector('input[name=aiseo_runs]')?.value || '[]';
+            const type = form.querySelector('select[name=BBSEO_report_type]').value;
+            const project = form.querySelector('select[name=BBSEO_project_slug]').value;
+            const page = form.querySelector('input[name=BBSEO_page]')?.value || '';
+            const runs = form.querySelector('input[name=BBSEO_runs]')?.value || '[]';
 
             $.post(ajaxurl, {
-              action: 'aiseo_sections_generate',
+              action: 'BBSEO_sections_generate',
               post_id: <?php echo (int)$post->ID;?>,
               section_id: secId,
               type, project, page, runs,
-              _wpnonce: '<?php echo wp_create_nonce('aiseo_ai_sections_'.$post->ID);?>'
+              _wpnonce: '<?php echo wp_create_nonce('BBSEO_ai_sections_'.$post->ID);?>'
             }, function(res){
               if(res && res.success){
                 const $wrap = $('.section[data-id="'+secId+'"]');
@@ -326,10 +326,10 @@ class ReportSectionsUI
 
     public static function save($postId, $post, $update)
     {
-        if (!isset($_POST['aiseo_sections_nonce']) || !wp_verify_nonce($_POST['aiseo_sections_nonce'],'aiseo_sections_nonce')) return;
+        if (!isset($_POST['BBSEO_sections_nonce']) || !wp_verify_nonce($_POST['BBSEO_sections_nonce'],'BBSEO_sections_nonce')) return;
         if (!current_user_can('edit_post',$postId)) return;
 
-        $raw = $_POST['aiseo_sections'] ?? null;
+        $raw = $_POST['BBSEO_sections'] ?? null;
         if (!is_array($raw)) return;
 
         $out = [];
@@ -350,7 +350,7 @@ class ReportSectionsUI
     {
         $postId = intval($_POST['post_id'] ?? 0);
         if (!$postId || !current_user_can('edit_post',$postId)) wp_send_json_error(['msg'=>'perm']);
-        check_ajax_referer('aiseo_ai_sections_'.$postId);
+        check_ajax_referer('BBSEO_ai_sections_'.$postId);
 
         const sectionId = sanitize_text_field($_POST['section_id'] ?? '');
         $type    = sanitize_text_field($_POST['type'] ?? 'general');
@@ -358,8 +358,8 @@ class ReportSectionsUI
         $page    = esc_url_raw($_POST['page'] ?? '');
         $runsArr = json_decode(stripslashes($_POST['runs'] ?? '[]'), true) ?: [];
 
-        $data = \AISEO\Helpers\DataLoader::forReport($type, $project, $runsArr, $page);
-        $bodyReco = \AISEO\AI\Gemini::summarizeSection($type, $data, $sectionId);
+        $data = \BBSEO\Helpers\DataLoader::forReport($type, $project, $runsArr, $page);
+        $bodyReco = \BBSEO\AI\Gemini::summarizeSection($type, $data, $sectionId);
         if (!is_array($bodyReco)) wp_send_json_error(['msg'=>'ai_failed']);
 
         wp_send_json_success($bodyReco);
@@ -377,7 +377,7 @@ Extend your Gemini helper with a section-specific method. You will later replace
 **File:** `app/AI/Gemini.php` (add this method)
 ```php
 <?php
-namespace AISEO\AI;
+namespace BBSEO\AI;
 
 class Gemini {
   public static function summarizeSection(string $type, array $data, string $sectionId): array {
@@ -431,11 +431,11 @@ class Gemini {
 - [ ] Add files: `Sections.php`, `ReportSectionsUI.php`; extend `Gemini.php`.  
 - [ ] Add bootstrap line:  
   ```php
-  add_action('init', ['AISEO\Admin\ReportSectionsUI', 'boot']);
+  add_action('init', ['BBSEO\Admin\ReportSectionsUI', 'boot']);
   ```
 - [ ] Verify jQuery UI Sortable loads in admin (no CSP issues).  
 - [ ] On **new Report**, sections auto-populate based on `type`.  
-- [ ] **Save** preserves order and fields to `_aiseo_sections` as JSON.  
+- [ ] **Save** preserves order and fields to `_BBSEO_sections` as JSON.  
 - [ ] **AI (per-section/All)** triggers AJAX → fills body + reco list.  
 - [ ] Ensure `DataLoader::forReport(...)` exists and works.  
 
@@ -443,7 +443,7 @@ class Gemini {
 
 ## 6) Rendering (front-end/PDF) — when you’re ready
 
-- Read `_aiseo_sections` (JSON) → sort by `order` (or use array order).  
+- Read `_BBSEO_sections` (JSON) → sort by `order` (or use array order).  
 - Loop sections and render `title`, `body`, and `reco_list` as bullet points.  
 - Respect user edits (do not recompute at render).  
 - For PDF: pipe the rendered HTML to dompdf like your report template.
@@ -453,8 +453,8 @@ class Gemini {
 ## 7) Security & Permissions
 
 - All saves are behind `edit_post` checks + nonces for:
-  - `aiseo_sections_nonce` (form submit)
-  - `aiseo_ai_sections_{postId}` (AJAX)
+  - `BBSEO_sections_nonce` (form submit)
+  - `BBSEO_ai_sections_{postId}` (AJAX)
 - Sanitization:
   - `title`, `type`, `id` via `sanitize_text_field()`
   - `body` via `wp_kses_post()`
@@ -465,7 +465,7 @@ class Gemini {
 ## 8) Performance Notes
 
 - Sections are small JSON; post meta is OK.  
-- For very large reports, you may split into multiple rows (e.g., `_aiseo_sections_1`, `_aiseo_sections_2`), but not needed now.  
+- For very large reports, you may split into multiple rows (e.g., `_BBSEO_sections_1`, `_BBSEO_sections_2`), but not needed now.  
 - Debounce “AI for All” if your real Gemini calls are slow; show a progress toast per section.
 
 ---
@@ -495,7 +495,7 @@ class Gemini {
 
 > Read `docs/report-modular-sections-spec.md`.  
 > Implement `app/Helpers/Sections.php`, `app/Admin/ReportSectionsUI.php`, and extend `app/AI/Gemini.php` with `summarizeSection()`.  
-> Wire with `add_action('init', ['AISEO\Admin\ReportSectionsUI', 'boot']);`  
+> Wire with `add_action('init', ['BBSEO\Admin\ReportSectionsUI', 'boot']);`  
 > Keep the fields under the main editor, not in a sidebar.  
 > Use jQuery UI Sortable for ordering.  
-> Save to `_aiseo_sections` exactly as specified.
+> Save to `_BBSEO_sections` exactly as specified.

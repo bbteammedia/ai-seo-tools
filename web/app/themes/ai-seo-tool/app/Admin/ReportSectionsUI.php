@@ -1,11 +1,11 @@
 <?php
-namespace AISEO\Admin;
+namespace BBSEO\Admin;
 
-use AISEO\PostTypes\Report;
-use AISEO\Helpers\Sections;
-use AISEO\Helpers\DataLoader;
-use AISEO\Helpers\ReportMetrics;
-use AISEO\AI\Gemini;
+use BBSEO\PostTypes\Report;
+use BBSEO\Helpers\Sections;
+use BBSEO\Helpers\DataLoader;
+use BBSEO\Helpers\ReportMetrics;
+use BBSEO\AI\Gemini;
 
 class ReportSectionsUI
 {
@@ -13,8 +13,8 @@ class ReportSectionsUI
     {
         add_action('add_meta_boxes', [self::class, 'registerMetaBox']);
         add_action('save_post_' . Report::POST_TYPE, [self::class, 'save'], 10, 3);
-        add_action('wp_ajax_aiseo_sections_generate', [self::class, 'generateAiForSection']);
-        add_action('wp_ajax_aiseo_refresh_sections', [self::class, 'refreshSectionsData']);
+        add_action('wp_ajax_BBSEO_sections_generate', [self::class, 'generateAiForSection']);
+        add_action('wp_ajax_BBSEO_refresh_sections', [self::class, 'refreshSectionsData']);
         add_action('admin_enqueue_scripts', [self::class, 'assets']);
     }
 
@@ -37,7 +37,7 @@ class ReportSectionsUI
     public static function registerMetaBox(): void
     {
         add_meta_box(
-            'aiseo_report_sections',
+            'BBSEO_report_sections',
             'Report Sections',
             [self::class, 'render'],
             Report::POST_TYPE,
@@ -52,7 +52,7 @@ class ReportSectionsUI
             return;
         }
 
-        wp_nonce_field('aiseo_sections_nonce', 'aiseo_sections_nonce');
+        wp_nonce_field('BBSEO_sections_nonce', 'BBSEO_sections_nonce');
 
         $type = get_post_meta($post->ID, Report::META_TYPE, true) ?: 'general';
         $project = get_post_meta($post->ID, Report::META_PROJECT, true) ?: '';
@@ -69,7 +69,7 @@ class ReportSectionsUI
         
         $sections = self::prepareSections($sectionsRaw, $type, $post);
         $registry = Sections::registry();
-        $nonce = wp_create_nonce('aiseo_ai_sections_' . $post->ID);
+        $nonce = wp_create_nonce('BBSEO_ai_sections_' . $post->ID);
 
         $hasData = false;
         foreach ($sections as $sectionCheck) {
@@ -82,42 +82,42 @@ class ReportSectionsUI
 
         ?>
         <style>
-            .aiseo-sections { margin-top: 16px; }
-            .aiseo-sections .section { border:1px solid #dcdcdc; border-radius:6px; padding:16px; margin-bottom:12px; background:#fff; transition:opacity 0.2s; }
-            .aiseo-sections .section.loading { opacity:0.65; }
-            .aiseo-sections .section .head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-            .aiseo-sections .section .type { font-weight:600; display:flex; align-items:center; gap:8px; }
-            .aiseo-sections .section .controls { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-            .aiseo-sections .section .controls .order { display:flex; align-items:center; gap:6px; font-weight:500; }
-            .aiseo-sections .section .controls .order span { font-size:12px; text-transform:uppercase; letter-spacing:0.05em; color:#64748b; }
-            .aiseo-sections .section .controls .order input { width:64px; }
-            .aiseo-sections .section .controls .visibility { display:flex; align-items:center; gap:6px; font-weight:500; }
-            .aiseo-sections .section .metrics { margin-top:12px; }
-            .aiseo-sections .section .metrics-table { width:100%; border-collapse:collapse; margin:0; font-size:13px; }
-            .aiseo-sections .section .metrics-table th,
-            .aiseo-sections .section .metrics-table td { padding:8px 10px; border-bottom:1px solid #e5e7eb; text-align:left; }
-            .aiseo-sections .section .metrics-table th { background:#f8fafc; text-transform:uppercase; font-size:12px; letter-spacing:0.04em; color:#475569; }
-            .aiseo-sections .section .metrics-empty { font-style:italic; color:#64748b; margin:8px 0 0; }
-            .aiseo-sections .section .metrics-note { font-size:12px; color:#64748b; margin-top:6px; }
-            .aiseo-sections .section .editor { margin-top:12px; }
-            .aiseo-sections .section .reco { margin-top:12px; }
-            .aiseo-sections .section .reco textarea { width:100%; min-height:90px; }
-            .aiseo-sections .toolbar { display:flex; justify-content:flex-end; margin-bottom:12px; }
-            .aiseo-sections .no-data { margin-bottom:12px; font-style:italic; color:#64748b; }
+            .BBSEO-sections { margin-top: 16px; }
+            .BBSEO-sections .section { border:1px solid #dcdcdc; border-radius:6px; padding:16px; margin-bottom:12px; background:#fff; transition:opacity 0.2s; }
+            .BBSEO-sections .section.loading { opacity:0.65; }
+            .BBSEO-sections .section .head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+            .BBSEO-sections .section .type { font-weight:600; display:flex; align-items:center; gap:8px; }
+            .BBSEO-sections .section .controls { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+            .BBSEO-sections .section .controls .order { display:flex; align-items:center; gap:6px; font-weight:500; }
+            .BBSEO-sections .section .controls .order span { font-size:12px; text-transform:uppercase; letter-spacing:0.05em; color:#64748b; }
+            .BBSEO-sections .section .controls .order input { width:64px; }
+            .BBSEO-sections .section .controls .visibility { display:flex; align-items:center; gap:6px; font-weight:500; }
+            .BBSEO-sections .section .metrics { margin-top:12px; }
+            .BBSEO-sections .section .metrics-table { width:100%; border-collapse:collapse; margin:0; font-size:13px; }
+            .BBSEO-sections .section .metrics-table th,
+            .BBSEO-sections .section .metrics-table td { padding:8px 10px; border-bottom:1px solid #e5e7eb; text-align:left; }
+            .BBSEO-sections .section .metrics-table th { background:#f8fafc; text-transform:uppercase; font-size:12px; letter-spacing:0.04em; color:#475569; }
+            .BBSEO-sections .section .metrics-empty { font-style:italic; color:#64748b; margin:8px 0 0; }
+            .BBSEO-sections .section .metrics-note { font-size:12px; color:#64748b; margin-top:6px; }
+            .BBSEO-sections .section .editor { margin-top:12px; }
+            .BBSEO-sections .section .reco { margin-top:12px; }
+            .BBSEO-sections .section .reco textarea { width:100%; min-height:90px; }
+            .BBSEO-sections .toolbar { display:flex; justify-content:flex-end; margin-bottom:12px; }
+            .BBSEO-sections .no-data { margin-bottom:12px; font-style:italic; color:#64748b; }
         </style>
-        <div class="aiseo-sections">
+        <div class="BBSEO-sections">
             <?php if (!$hasData): ?>
                 <p class="no-data">Connect a project and run a crawl to populate the metric tables. Sections remain editable while data is loading.</p>
             <?php endif; ?>
             <div class="toolbar">
-                <button type="button" class="button button-secondary" id="aiseo-ai-all">Generate AI for All Sections</button>
+                <button type="button" class="button button-secondary" id="BBSEO-ai-all">Generate AI for All Sections</button>
             </div>
-            <div id="aiseo-sections-list">
+            <div id="BBSEO-sections-list">
                 <?php foreach ($sections as $idx => $sec): ?>
                     <?php
                         $typeKey = $sec['type'] ?? '';
                         $label = $registry[$typeKey]['label'] ?? ($sec['title'] ?: ucfirst(str_replace('_', ' ', (string) $typeKey)));
-                        $editorId = 'aiseo_section_' . $idx . '_body';
+                        $editorId = 'BBSEO_section_' . $idx . '_body';
                         $visible = (bool) ($sec['visible'] ?? true);
                         $metrics = is_array($sec['metrics'] ?? null) ? $sec['metrics'] : [];
                         $hasMetricsContent = self::hasMetricContent($metrics);
@@ -139,17 +139,17 @@ class ReportSectionsUI
                             <div class="controls">
                                 <label class="order">
                                     <span>Order</span>
-                                    <input type="number" min="0" max="15" step="1" name="aiseo_sections[<?php echo esc_attr($idx); ?>][order]" value="<?php echo esc_attr($orderValue); ?>">
+                                    <input type="number" min="0" max="15" step="1" name="BBSEO_sections[<?php echo esc_attr($idx); ?>][order]" value="<?php echo esc_attr($orderValue); ?>">
                                 </label>
                                 <label class="visibility">
-                                    <input type="hidden" name="aiseo_sections[<?php echo esc_attr($idx); ?>][visible]" value="0">
-                                    <input type="checkbox" name="aiseo_sections[<?php echo esc_attr($idx); ?>][visible]" value="1" <?php checked($visible); ?>>
+                                    <input type="hidden" name="BBSEO_sections[<?php echo esc_attr($idx); ?>][visible]" value="0">
+                                    <input type="checkbox" name="BBSEO_sections[<?php echo esc_attr($idx); ?>][visible]" value="1" <?php checked($visible); ?>>
                                     Show section
                                 </label>
-                                <button type="button" class="button aiseo-ai-one" data-id="<?php echo esc_attr($sec['id']); ?>">AI</button>
+                                <button type="button" class="button BBSEO-ai-one" data-id="<?php echo esc_attr($sec['id']); ?>">AI</button>
                             </div>
                         </div>
-                        <input type="hidden" name="aiseo_sections[<?php echo esc_attr($idx); ?>][metrics_json]" value="<?php echo esc_attr($metricsJson); ?>">
+                        <input type="hidden" name="BBSEO_sections[<?php echo esc_attr($idx); ?>][metrics_json]" value="<?php echo esc_attr($metricsJson); ?>">
                         <?php if (!$suppressMetrics && $hasMetricsContent): ?>
                             <div class="metrics">
                                 <?php self::renderMetricsTable($metrics); ?>
@@ -161,7 +161,7 @@ class ReportSectionsUI
                                 $sec['body'] ?? '',
                                 $editorId,
                                 [
-                                    'textarea_name' => "aiseo_sections[{$idx}][body]",
+                                    'textarea_name' => "BBSEO_sections[{$idx}][body]",
                                     'textarea_rows' => 8,
                                     'editor_height' => 180,
                                     'media_buttons' => false,
@@ -171,12 +171,12 @@ class ReportSectionsUI
                         </div>
                         <div class="reco">
                             <label><strong>Additional Recommendations (one per line)</strong></label>
-                            <textarea name="aiseo_sections[<?php echo esc_attr($idx); ?>][reco_raw]" rows="6"><?php echo esc_textarea(implode("\n", $recoList)); ?></textarea>
+                            <textarea name="BBSEO_sections[<?php echo esc_attr($idx); ?>][reco_raw]" rows="6"><?php echo esc_textarea(implode("\n", $recoList)); ?></textarea>
                             <small>Additional Recommendations for AI context.</small>
                         </div>
-                        <input type="hidden" name="aiseo_sections[<?php echo esc_attr($idx); ?>][title]" value="<?php echo esc_attr($sec['title']); ?>">
-                        <input type="hidden" name="aiseo_sections[<?php echo esc_attr($idx); ?>][id]" value="<?php echo esc_attr($sec['id']); ?>">
-                        <input type="hidden" name="aiseo_sections[<?php echo esc_attr($idx); ?>][type]" value="<?php echo esc_attr($typeKey); ?>">
+                        <input type="hidden" name="BBSEO_sections[<?php echo esc_attr($idx); ?>][title]" value="<?php echo esc_attr($sec['title']); ?>">
+                        <input type="hidden" name="BBSEO_sections[<?php echo esc_attr($idx); ?>][id]" value="<?php echo esc_attr($sec['id']); ?>">
+                        <input type="hidden" name="BBSEO_sections[<?php echo esc_attr($idx); ?>][type]" value="<?php echo esc_attr($typeKey); ?>">
                     </div>
                 <?php endforeach; ?>
             </div>
@@ -214,18 +214,18 @@ class ReportSectionsUI
                     return;
                 }
 
-                const $section = $('.aiseo-sections .section[data-id="' + sectionId + '"]');
+                const $section = $('.BBSEO-sections .section[data-id="' + sectionId + '"]');
                 const editorId = $section.data('editor');
 
-                const type = form.querySelector('[name="aiseo_report_type"]')?.value || 'general';
-                const project = form.querySelector('[name="aiseo_project_slug"]')?.value || '';
-                const page = form.querySelector('[name="aiseo_page"]')?.value || '';
-                const runs = form.querySelector('[name="aiseo_runs"]')?.value || '[]';
+                const type = form.querySelector('[name="BBSEO_report_type"]')?.value || 'general';
+                const project = form.querySelector('[name="BBSEO_project_slug"]')?.value || '';
+                const page = form.querySelector('[name="BBSEO_page"]')?.value || '';
+                const runs = form.querySelector('[name="BBSEO_runs"]')?.value || '[]';
 
                 $section.addClass('loading');
 
                 $.post(ajaxurl, {
-                    action: 'aiseo_sections_generate',
+                    action: 'BBSEO_sections_generate',
                     post_id: postId,
                     section_id: sectionId,
                     type: type,
@@ -247,12 +247,12 @@ class ReportSectionsUI
                 });
             }
 
-            $(document).on('click', '.aiseo-ai-one', function(){
+            $(document).on('click', '.BBSEO-ai-one', function(){
                 aiForSection($(this).data('id'));
             });
 
-            $('#aiseo-ai-all').on('click', function(){
-                $('.aiseo-sections .section').each(function(){
+            $('#BBSEO-ai-all').on('click', function(){
+                $('.BBSEO-sections .section').each(function(){
                     aiForSection($(this).data('id'));
                 });
             });
@@ -636,7 +636,7 @@ class ReportSectionsUI
         if (wp_is_post_autosave($postId) || wp_is_post_revision($postId)) return;
         if (!current_user_can('edit_post', $postId)) return;
 
-        if (!isset($_POST['aiseo_sections']) || !is_array($_POST['aiseo_sections'])) {
+        if (!isset($_POST['BBSEO_sections']) || !is_array($_POST['BBSEO_sections'])) {
             return;
         }
 
@@ -647,7 +647,7 @@ class ReportSectionsUI
         }
 
 
-        foreach ($_POST['aiseo_sections'] as $idx => $row) {
+        foreach ($_POST['BBSEO_sections'] as $idx => $row) {
 
             $recoRaw = $row['reco_raw'] ?? '';
             if (is_array($recoRaw)) {
@@ -699,7 +699,7 @@ class ReportSectionsUI
             wp_send_json_error(['msg' => 'permission_denied']);
         }
 
-        check_ajax_referer('aiseo_refresh_sections_' . $postId);
+        check_ajax_referer('BBSEO_refresh_sections_' . $postId);
 
         // --- Sanitize input ---
         $type     = sanitize_text_field($_POST['type'] ?? 'general');
@@ -762,7 +762,7 @@ class ReportSectionsUI
             wp_send_json_error(['msg' => 'permission_denied']);
         }
 
-        check_ajax_referer('aiseo_ai_sections_' . $postId);
+        check_ajax_referer('BBSEO_ai_sections_' . $postId);
 
         $sectionId = sanitize_text_field($_POST['section_id'] ?? '');
         $type = sanitize_text_field($_POST['type'] ?? 'general');

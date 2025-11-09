@@ -1,8 +1,8 @@
 <?php
-namespace AISEO\Analytics;
+namespace BBSEO\Analytics;
 
-use AISEO\Analytics\Store as AnalyticsStore;
-use AISEO\Helpers\Storage;
+use BBSEO\Analytics\Store as AnalyticsStore;
+use BBSEO\Helpers\Storage;
 
 class SearchConsole
 {

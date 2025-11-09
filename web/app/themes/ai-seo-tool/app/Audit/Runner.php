@@ -1,7 +1,7 @@
 <?php
-namespace AISEO\Audit;
+namespace BBSEO\Audit;
 
-use AISEO\Helpers\Storage;
+use BBSEO\Helpers\Storage;
 
 class Runner
 {

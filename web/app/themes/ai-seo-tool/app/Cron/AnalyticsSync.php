@@ -1,13 +1,13 @@
 <?php
-namespace AISEO\Cron;
+namespace BBSEO\Cron;
 
-use AISEO\Analytics\GoogleAnalytics;
-use AISEO\Analytics\SearchConsole;
-use AISEO\PostTypes\Project;
+use BBSEO\Analytics\GoogleAnalytics;
+use BBSEO\Analytics\SearchConsole;
+use BBSEO\PostTypes\Project;
 
 class AnalyticsSync
 {
-    public const EVENT = 'aiseo_daily_ga_sync';
+    public const EVENT = 'BBSEO_daily_ga_sync';
 
     public static function init(): void
     {

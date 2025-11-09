@@ -1,7 +1,7 @@
 <?php
-namespace AISEO\Crawl;
+namespace BBSEO\Crawl;
 
-use AISEO\PostTypes\Project;
+use BBSEO\PostTypes\Project;
 use Psr\Http\Message\UriInterface;
 use Spatie\Crawler\CrawlProfiles\CrawlProfile;
 

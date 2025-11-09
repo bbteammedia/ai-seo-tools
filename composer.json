@@ -32,7 +32,7 @@
   ],
   "autoload": {
     "psr-4": {
-      "AISEO\\": "web/app/themes/ai-seo-tool/app/"
+      "BBSEO\\": "web/app/themes/ai-seo-tool/app/"
     }
   },
   "require": {

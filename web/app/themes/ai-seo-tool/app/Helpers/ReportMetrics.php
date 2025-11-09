@@ -1,5 +1,5 @@
 <?php
-namespace AISEO\Helpers;
+namespace BBSEO\Helpers;
 
 class ReportMetrics
 {

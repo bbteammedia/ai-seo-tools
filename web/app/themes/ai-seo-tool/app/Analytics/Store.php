@@ -1,7 +1,7 @@
 <?php
-namespace AISEO\Analytics;
+namespace BBSEO\Analytics;
 
-use AISEO\Helpers\Storage;
+use BBSEO\Helpers\Storage;
 
 class Store
 {

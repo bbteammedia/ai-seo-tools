@@ -1,5 +1,5 @@
 <?php
-namespace AISEO\Helpers;
+namespace BBSEO\Helpers;
 
 class Http
 {
@@ -23,7 +23,7 @@ class Http
     public static function validate_token($request): bool
     {
         $token = $request->get_param('key');
-        $expected = getenv('AISEO_SECURE_TOKEN') ?: '';
+        $expected = getenv('BBSEO_SECURE_TOKEN') ?: '';
         return $expected && hash_equals($expected, (string) $token);
     }
 }

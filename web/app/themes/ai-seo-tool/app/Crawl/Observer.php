@@ -1,5 +1,5 @@
 <?php
-namespace AISEO\Crawl;
+namespace BBSEO\Crawl;
 
 use GuzzleHttp\Exception\RequestException;
 use Psr\Http\Message\ResponseInterface;

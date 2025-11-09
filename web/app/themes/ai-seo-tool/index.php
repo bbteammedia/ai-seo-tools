@@ -1,6 +1,6 @@
 <?php
 /**
- * Minimal fallback index template for the AI SEO Tool theme.
+ * Minimal fallback index template for the Blackbird SEO Tool theme.
  */
 ?><!doctype html>
 <html <?php language_attributes(); ?>>

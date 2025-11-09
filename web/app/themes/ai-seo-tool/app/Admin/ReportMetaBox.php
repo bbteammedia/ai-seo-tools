@@ -1,8 +1,8 @@
 <?php
-namespace AISEO\Admin;
+namespace BBSEO\Admin;
 
-use AISEO\PostTypes\Report;
-use AISEO\Helpers\Storage;
+use BBSEO\PostTypes\Report;
+use BBSEO\Helpers\Storage;
 
 class ReportMetaBox
 {
@@ -16,7 +16,7 @@ class ReportMetaBox
     public static function add(): void
     {
         add_meta_box(
-            'aiseo_report_settings',
+            'BBSEO_report_settings',
             'Report Settings',
             [self::class, 'render'],
             Report::POST_TYPE,
@@ -27,7 +27,7 @@ class ReportMetaBox
 
     public static function render(\WP_Post $post): void
     {
-        wp_nonce_field('aiseo_report_nonce', 'aiseo_report_nonce');
+        wp_nonce_field('BBSEO_report_nonce', 'BBSEO_report_nonce');
 
         $type = get_post_meta($post->ID, Report::META_TYPE, true) ?: 'general';
         $project = get_post_meta($post->ID, Report::META_PROJECT, true) ?: '';
@@ -43,14 +43,14 @@ class ReportMetaBox
         }
         ?>
         <style>
-            .aiseo-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-            .aiseo-grid .full { grid-column:1 / -1; }
-            .aiseo-grid textarea { min-height:120px; }
+            .BBSEO-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+            .BBSEO-grid .full { grid-column:1 / -1; }
+            .BBSEO-grid textarea { min-height:120px; }
         </style>
-        <div class="aiseo-grid">
+        <div class="BBSEO-grid">
             <div>
                 <label><strong>Report Type</strong></label><br/>
-                <select name="aiseo_report_type" id="aiseo_report_type">
+                <select name="BBSEO_report_type" id="BBSEO_report_type">
                     <option value="general" <?php selected($type, 'general'); ?>>Website General SEO Audit</option>
                     <option value="per_page" <?php selected($type, 'per_page'); ?>>Website SEO Audit per Page</option>
                     <option value="technical" <?php selected($type, 'technical'); ?>>Technical SEO</option>
@@ -58,7 +58,7 @@ class ReportMetaBox
             </div>
             <div>
                 <label><strong>Project</strong></label><br/>
-                <select name="aiseo_project_slug" id="aiseo_project_slug">
+                <select name="BBSEO_project_slug" id="BBSEO_project_slug">
                     <option value="">- select -</option>
                     <?php foreach ($projects as $p): ?>
                         <option value="<?php echo esc_attr($p); ?>" <?php selected($project, $p); ?>><?php echo esc_html($p); ?></option>
@@ -66,41 +66,41 @@ class ReportMetaBox
                 </select>
             </div>
 
-            <div class="full" id="aiseo_per_page_row" style="<?php echo $type === 'per_page' ? '' : 'display:none'; ?>">
+            <div class="full" id="BBSEO_per_page_row" style="<?php echo $type === 'per_page' ? '' : 'display:none'; ?>">
                 <label><strong>Page URL</strong></label><br/>
-                <input type="url" class="widefat" name="aiseo_page" value="<?php echo esc_attr($page); ?>" placeholder="https://example.com/page" />
+                <input type="url" class="widefat" name="BBSEO_page" value="<?php echo esc_attr($page); ?>" placeholder="https://example.com/page" />
                 <p class="description">For per-page reports, specify the target page URL.</p>
             </div>
 
             <div class="full">
                 <label><strong>Runs (for compare)</strong></label>
-                <input type="text" class="widefat" name="aiseo_runs" value="<?php echo esc_attr(wp_json_encode($runs)); ?>" placeholder='["RUN_ID_A","RUN_ID_B"]' />
+                <input type="text" class="widefat" name="BBSEO_runs" value="<?php echo esc_attr(wp_json_encode($runs)); ?>" placeholder='["RUN_ID_A","RUN_ID_B"]' />
                 <p class="description">Leave empty to use the latest run. For General/Technical you can add multiple run IDs to compare.</p>
-                <button type="button" class="button button-secondary" id="aiseo-refresh-data">Refresh Data</button>
-                <p class="description" id="aiseo-refresh-status">Pulls metrics from storage based on the selected project, runs, and report type.</p>
+                <button type="button" class="button button-secondary" id="BBSEO-refresh-data">Refresh Data</button>
+                <p class="description" id="BBSEO-refresh-status">Pulls metrics from storage based on the selected project, runs, and report type.</p>
             </div>
         </div>
         <script>
         (function($){
             const refreshState = {
-                nonce: '<?php echo esc_js(wp_create_nonce('aiseo_refresh_sections_' . $post->ID)); ?>',
+                nonce: '<?php echo esc_js(wp_create_nonce('BBSEO_refresh_sections_' . $post->ID)); ?>',
                 postId: <?php echo (int) $post->ID; ?>,
             };
 
             function togglePage(){
-                const type = $('#aiseo_report_type').val();
+                const type = $('#BBSEO_report_type').val();
                 if (type === 'per_page') {
-                    $('#aiseo_per_page_row').show();
+                    $('#BBSEO_per_page_row').show();
                 } else {
-                    $('#aiseo_per_page_row').hide();
+                    $('#BBSEO_per_page_row').hide();
                 }
             }
 
-            $('#aiseo_report_type').on('change', togglePage);
+            $('#BBSEO_report_type').on('change', togglePage);
             togglePage();
 
-            const $refreshButton = $('#aiseo-refresh-data');
-            const $status = $('#aiseo-refresh-status');
+            const $refreshButton = $('#BBSEO-refresh-data');
+            const $status = $('#BBSEO-refresh-status');
 
             function setStatus(message, isError = false){
                 if (!$status.length) {
@@ -127,10 +127,10 @@ class ReportMetaBox
                         setStatus('Editor form missing. Reload the page and try again.', true);
                         return;
                     }
-                    const type = form.querySelector('[name="aiseo_report_type"]')?.value || 'general';
-                    const project = form.querySelector('[name="aiseo_project_slug"]')?.value || '';
-                    const page = form.querySelector('[name="aiseo_page"]')?.value || '';
-                    const runs = form.querySelector('[name="aiseo_runs"]')?.value || '[]';
+                    const type = form.querySelector('[name="BBSEO_report_type"]')?.value || 'general';
+                    const project = form.querySelector('[name="BBSEO_project_slug"]')?.value || '';
+                    const page = form.querySelector('[name="BBSEO_page"]')?.value || '';
+                    const runs = form.querySelector('[name="BBSEO_runs"]')?.value || '[]';
 
                     if (!project) {
                         setStatus('Select a project before refreshing data.', true);
@@ -141,7 +141,7 @@ class ReportMetaBox
                     $refreshButton.prop('disabled', true).addClass('updating-message');
 
                     $.post(ajaxurl, {
-                        action: 'aiseo_refresh_sections',
+                        action: 'BBSEO_refresh_sections',
                         post_id: refreshState.postId,
                         _wpnonce: refreshState.nonce,
                         type: type,
@@ -180,11 +180,11 @@ class ReportMetaBox
         if (wp_is_post_autosave($postId) || wp_is_post_revision($postId)) return;
         if (!current_user_can('edit_post', $postId)) return;
 
-        update_post_meta($postId, Report::META_TYPE, sanitize_text_field($_POST['aiseo_report_type'] ?? 'general'));
-        update_post_meta($postId, Report::META_PROJECT, sanitize_text_field($_POST['aiseo_project_slug'] ?? ''));
-        update_post_meta($postId, Report::META_PAGE, esc_url_raw($_POST['aiseo_page'] ?? ''));
+        update_post_meta($postId, Report::META_TYPE, sanitize_text_field($_POST['BBSEO_report_type'] ?? 'general'));
+        update_post_meta($postId, Report::META_PROJECT, sanitize_text_field($_POST['BBSEO_project_slug'] ?? ''));
+        update_post_meta($postId, Report::META_PAGE, esc_url_raw($_POST['BBSEO_page'] ?? ''));
 
-        $runs = json_decode(stripslashes($_POST['aiseo_runs'] ?? '[]'), true);
+        $runs = json_decode(stripslashes($_POST['BBSEO_runs'] ?? '[]'), true);
         $runs = is_array($runs) ? array_values(array_map('sanitize_text_field', $runs)) : [];
         update_post_meta($postId, Report::META_RUNS, wp_json_encode($runs));
 

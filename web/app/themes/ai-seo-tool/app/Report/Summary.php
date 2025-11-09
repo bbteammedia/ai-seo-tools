@@ -1,7 +1,7 @@
 <?php
-namespace AISEO\Report;
+namespace BBSEO\Report;
 
-use AISEO\Helpers\Storage;
+use BBSEO\Helpers\Storage;
 
 class Summary
 {

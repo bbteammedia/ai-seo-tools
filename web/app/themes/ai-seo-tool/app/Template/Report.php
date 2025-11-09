@@ -1,7 +1,7 @@
 <?php
-namespace AISEO\Template;
+namespace BBSEO\Template;
 
-use AISEO\PostTypes\Report as ReportPostType;
+use BBSEO\PostTypes\Report as ReportPostType;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 
@@ -22,18 +22,18 @@ class Report
 
     public static function addRewriteRule(): void
     {
-        add_rewrite_rule('^ai-seo-report/([^/]+)/?$', 'index.php?aiseo_report=$matches[1]', 'top');
+        add_rewrite_rule('^ai-seo-report/([^/]+)/?$', 'index.php?BBSEO_report=$matches[1]', 'top');
     }
 
     public static function registerQueryVar(array $vars): array
     {
-        $vars[] = 'aiseo_report';
+        $vars[] = 'BBSEO_report';
         return $vars;
     }
 
     public static function loadTemplate(string $template): string
     {
-        $project = get_query_var('aiseo_report');
+        $project = get_query_var('BBSEO_report');
         if (!$project) {
             return $template;
         }
@@ -67,7 +67,7 @@ class Report
         }
 
         setup_postdata($reportPost);
-        $GLOBALS['aiseo_report_post'] = $reportPost;
+        $GLOBALS['BBSEO_report_post'] = $reportPost;
         status_header(200);
 
         $format = isset($_GET['format']) ? sanitize_key($_GET['format']) : '';

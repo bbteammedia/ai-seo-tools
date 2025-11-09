@@ -1,8 +1,8 @@
 <?php
-namespace AISEO\Crawl;
+namespace BBSEO\Crawl;
 
-use AISEO\Helpers\Storage;
-use AISEO\PostTypes\Project;
+use BBSEO\Helpers\Storage;
+use BBSEO\PostTypes\Project;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\UriInterface;
 use Spatie\Crawler\Crawler;
@@ -38,7 +38,7 @@ class Worker
                 'image/webp',
                 'image/svg+xml'
             ])
-            ->setUserAgent('AISEO-Bot/0.1');
+            ->setUserAgent('BBSEO-Bot/0.1');
 
         try {
             $crawler->startCrawling($url);
@@ -168,7 +168,7 @@ class Worker
             'timeout' => 20,
             'allow_redirects' => false,
             'headers' => [
-                'User-Agent' => 'AISEO-Bot/0.1',
+                'User-Agent' => 'BBSEO-Bot/0.1',
                 'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             ],
         ];
@@ -176,7 +176,7 @@ class Worker
 
     private static function resolveVerifyOption()
     {
-        $env = getenv('AISEO_HTTP_VERIFY_TLS');
+        $env = getenv('BBSEO_HTTP_VERIFY_TLS');
         if (is_string($env) && $env !== '') {
             $value = strtolower(trim($env));
             if (in_array($value, ['0', 'false', 'off', 'no'], true)) {

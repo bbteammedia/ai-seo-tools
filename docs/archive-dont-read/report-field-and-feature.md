@@ -8,16 +8,16 @@ This spec describes the live implementation of the Report editor (WP admin), the
 
 | UI control | Meta key | Notes |
 |---|---|---|
-| Report Type | `_aiseo_report_type` | `general`, `technical`, `per_page` (per-page is treated as “Content Audit” in docs/spec). |
-| Project | `_aiseo_project_slug` | Populated from `Storage::baseDir()` folders. |
-| Page URL | `_aiseo_page` | Only shown for `per_page`. |
-| Runs | `_aiseo_runs` | JSON array of run IDs; sanitized on save. |
-| Executive Summary | `_aiseo_summary` | Synced from the `executive_summary` section. |
-| Top Actions | `_aiseo_top_actions` | Synced from the `top_actions` section (`reco_list`). |
-| Meta Recommendations | `_aiseo_meta_recos` | Synced from the `meta_recommendations` section (`meta_list`). |
-| Technical Findings | `_aiseo_tech_findings` | Synced from the `technical_findings` section. |
-| Report Snapshot | `_aiseo_snapshot` | JSON payload from `DataLoader::forReport()`. |
-| Modular Sections | `_aiseo_sections` | JSON array of section objects (see §3). |
+| Report Type | `_BBSEO_report_type` | `general`, `technical`, `per_page` (per-page is treated as “Content Audit” in docs/spec). |
+| Project | `_BBSEO_project_slug` | Populated from `Storage::baseDir()` folders. |
+| Page URL | `_BBSEO_page` | Only shown for `per_page`. |
+| Runs | `_BBSEO_runs` | JSON array of run IDs; sanitized on save. |
+| Executive Summary | `_BBSEO_summary` | Synced from the `executive_summary` section. |
+| Top Actions | `_BBSEO_top_actions` | Synced from the `top_actions` section (`reco_list`). |
+| Meta Recommendations | `_BBSEO_meta_recos` | Synced from the `meta_recommendations` section (`meta_list`). |
+| Technical Findings | `_BBSEO_tech_findings` | Synced from the `technical_findings` section. |
+| Report Snapshot | `_BBSEO_snapshot` | JSON payload from `DataLoader::forReport()`. |
+| Modular Sections | `_BBSEO_sections` | JSON array of section objects (see §3). |
 
 The legacy “Generate AI Summary” control is retired; each section now has its own AI button. When a section is saved, its content is mirrored into the backing post meta listed above so existing consumers keep working.
 
@@ -25,7 +25,7 @@ The legacy “Generate AI Summary” control is retired; each section now has it
 
 ## 2. Section Editor (ReportSectionsUI)
 
-- Fixed list of sections defined in `AISEO\Helpers\Sections::registry()`.
+- Fixed list of sections defined in `BBSEO\Helpers\Sections::registry()`.
 - Each section row renders:
   - **Show section** checkbox (persisted as `visible` in the section object).
   - Manual order input (`order`, 0–15) that sets the render priority.
@@ -35,13 +35,13 @@ The legacy “Generate AI Summary” control is retired; each section now has it
   - `top_actions` and `recommendations` expose a textarea for one-action-per-line (`reco_list`).
   - `meta_recommendations` exposes a JSON textarea (`meta_list`) for URL/title/description rows.
 - “Generate AI for All Sections” loops through every section and triggers the AJAX helper sequentially.
-- Section-level visibility replaces the legacy `_aiseo_summary_visible` toggle.
+- Section-level visibility replaces the legacy `_BBSEO_summary_visible` toggle.
 
 The editor no longer supports ad-hoc add/remove; order is fixed by the registry and persisted via the `order` field.
 
 ---
 
-## 3. Section Object Schema (`_aiseo_sections`)
+## 3. Section Object Schema (`_BBSEO_sections`)
 
 ```json
 {
@@ -85,7 +85,7 @@ Legacy keys (`performance_issues`, `technical_seo`, `onpage_meta_heading`, `onpa
 
 ## 5. Metrics Reference
 
-`AISEO\Helpers\ReportMetrics::build($type, $snapshot)` compiles the data used for admin previews and the public template tables.
+`BBSEO\Helpers\ReportMetrics::build($type, $snapshot)` compiles the data used for admin previews and the public template tables.
 Narrative-only sections (`executive_summary`, `top_actions`, `meta_recommendations`, `technical_findings`) intentionally return empty metric sets and rely on their saved content for rendering.
 
 ### 5.1 Overview Metrics
@@ -142,7 +142,7 @@ Displays referring domains, total backlinks, new/lost links, average toxic score
 
 ## 6. Front-End Rendering (`templates/report.php`)
 
-1. Loads `_aiseo_snapshot` (or recomputes via `DataLoader`).
+1. Loads `_BBSEO_snapshot` (or recomputes via `DataLoader`).
 2. Builds section metrics via `ReportMetrics::build()`.
 3. Filters out sections where `visible` is falsy.
 4. Renders each section in order:
@@ -158,7 +158,7 @@ All tables reuse the `table.metrics` styling; helper classes `.metrics-empty` an
 
 ## 7. AI Hooks
 
-- **Section-level AI**: `wp_ajax_aiseo_sections_generate` calls `Gemini::summarizeSection($type, $data, $sectionId)` and updates both admin editor (TinyMCE) and recommendation textarea.
+- **Section-level AI**: `wp_ajax_BBSEO_sections_generate` calls `Gemini::summarizeSection($type, $data, $sectionId)` and updates both admin editor (TinyMCE) and recommendation textarea.
 - **Label mapping**: `Gemini::labelForSection()` now understands the new section prefixes while still handling legacy IDs.
 
 ---
@@ -172,5 +172,5 @@ All tables reuse the `table.metrics` styling; helper classes `.metrics-empty` an
 
 ---
 
-**Maintainers:** AI SEO Tools / Blackbird Media  
+**Maintainers:** Blackbird SEO Tools / Blackbird Media  
 **Last updated:** 2025-02-06 (Codex implementation sync)

@@ -1,18 +1,18 @@
 <?php
-namespace AISEO\Rest;
+namespace BBSEO\Rest;
 
 use WP_REST_Request;
-use AISEO\Helpers\Http;
-use AISEO\Helpers\RunId;
-use AISEO\Helpers\Storage;
-use AISEO\Crawl\Queue;
-use AISEO\Crawl\Worker;
-use AISEO\Audit\Runner as AuditRunner;
-use AISEO\Report\Builder as ReportBuilder;
-use AISEO\Report\Summary;
-use AISEO\Analytics\Dispatcher as AnalyticsDispatcher;
-use AISEO\Analytics\Store as AnalyticsStore;
-use AISEO\PostTypes\Project;
+use BBSEO\Helpers\Http;
+use BBSEO\Helpers\RunId;
+use BBSEO\Helpers\Storage;
+use BBSEO\Crawl\Queue;
+use BBSEO\Crawl\Worker;
+use BBSEO\Audit\Runner as AuditRunner;
+use BBSEO\Report\Builder as ReportBuilder;
+use BBSEO\Report\Summary;
+use BBSEO\Analytics\Dispatcher as AnalyticsDispatcher;
+use BBSEO\Analytics\Store as AnalyticsStore;
+use BBSEO\PostTypes\Project;
 
 class Routes
 {

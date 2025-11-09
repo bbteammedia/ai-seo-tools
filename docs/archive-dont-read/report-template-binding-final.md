@@ -1,4 +1,4 @@
-# AI SEO Tools — Report Template Binding & Data Sources (Final Spec)
+# Blackbird SEO Tools — Report Template Binding & Data Sources (Final Spec)
 
 **This spec matches your current setup exactly.**  
 - **Frontend template:** `web/app/themes/ai-seo-tool/templates/report.php`  
@@ -37,7 +37,7 @@ For project `{project}` and a selected `{run}` (or latest when none is set), loa
 
 ```php
 <?php
-namespace AISEO\Helpers;
+namespace BBSEO\Helpers;
 
 class DataLoader {
   public static function forReport(string $type, string $project, array $runs = [], string $pageUrl=''): array
@@ -110,17 +110,17 @@ class DataLoader {
 
 ```php
 <?php
-use AISEO\Helpers\DataLoader;
-use AISEO\Helpers\Sections;
+use BBSEO\Helpers\DataLoader;
+use BBSEO\Helpers\Sections;
 
 // Resolve the report post by slug from router
 $report = get_queried_object(); // or your router sets $report_id
 $post_id = is_object($report) ? $report->ID : get_the_ID();
 
-$project = get_post_meta($post_id, '_aiseo_project_slug', true);
-$type    = get_post_meta($post_id, '_aiseo_report_type', true) ?: 'general';
-$runs    = json_decode(get_post_meta($post_id, '_aiseo_runs', true) ?: '[]', true) ?: [];
-$pageUrl = get_post_meta($post_id, '_aiseo_page', true) ?: '';
+$project = get_post_meta($post_id, '_BBSEO_project_slug', true);
+$type    = get_post_meta($post_id, '_BBSEO_report_type', true) ?: 'general';
+$runs    = json_decode(get_post_meta($post_id, '_BBSEO_runs', true) ?: '[]', true) ?: [];
+$pageUrl = get_post_meta($post_id, '_BBSEO_page', true) ?: '';
 
 // Load unified data set
 $data = DataLoader::forReport($type, $project, $runs, $pageUrl);
@@ -133,8 +133,8 @@ foreach ($data['runs'] as $r) {
 }
 
 // Editor fields
-$execSummary = get_post_meta($post_id, '_aiseo_summary', true);
-$topActions  = json_decode(get_post_meta($post_id, '_aiseo_top_actions', true) ?: '[]', true);
+$execSummary = get_post_meta($post_id, '_BBSEO_summary', true);
+$topActions  = json_decode(get_post_meta($post_id, '_BBSEO_top_actions', true) ?: '[]', true);
 
 // Sections from DB (order + show respected)
 $sections = json_decode(get_post_meta($post_id, Sections::META_SECTIONS, true) ?: '[]', true);
@@ -176,21 +176,21 @@ Add right after your sections markup:
 
 ```php
 <script>
-window.aiseoReportPostId = <?php echo (int)$post->ID;?>;
-window.aiseoSectionsNonce = '<?php echo esc_js( wp_create_nonce('aiseo_ai_sections_'.$post->ID) );?>';
+window.BBSEOReportPostId = <?php echo (int)$post->ID;?>;
+window.BBSEOSectionsNonce = '<?php echo esc_js( wp_create_nonce('BBSEO_ai_sections_'.$post->ID) );?>';
 </script>
 <script>
 (function($){
-  const $list = $('#aiseo-sections-list');
+  const $list = $('#BBSEO-sections-list');
   if (!$list.length) return;
 
   function getSettings(){
-    let runsVal = $('input[name="aiseo_runs"]').val() || '[]';
+    let runsVal = $('input[name="BBSEO_runs"]').val() || '[]';
     try { JSON.parse(runsVal); } catch(e){ runsVal = '[]'; }
     return {
-      type: $('select[name="aiseo_report_type"]').val() || 'general',
-      project: $('select[name="aiseo_project_slug"]').val() || '',
-      page: $('input[name="aiseo_page"]').val() || '',
+      type: $('select[name="BBSEO_report_type"]').val() || 'general',
+      project: $('select[name="BBSEO_project_slug"]').val() || '',
+      page: $('input[name="BBSEO_page"]').val() || '',
       runs: runsVal
     };
   }
@@ -198,11 +198,11 @@ window.aiseoSectionsNonce = '<?php echo esc_js( wp_create_nonce('aiseo_ai_sectio
   function aiForSection(id){
     const s = getSettings();
     $.post(ajaxurl, {
-      action: 'aiseo_sections_generate',
-      post_id: window.aiseoReportPostId,
+      action: 'BBSEO_sections_generate',
+      post_id: window.BBSEOReportPostId,
       section_id: id,
       type: s.type, project: s.project, page: s.page, runs: s.runs,
-      _wpnonce: window.aiseoSectionsNonce
+      _wpnonce: window.BBSEOSectionsNonce
     }).done(function(res){
       if(res && res.success){
         const $wrap = $('.section[data-id="'+id+'"]');
@@ -214,8 +214,8 @@ window.aiseoSectionsNonce = '<?php echo esc_js( wp_create_nonce('aiseo_ai_sectio
     }).fail(function(xhr){ alert('AJAX '+xhr.status); console.error(xhr.responseText); });
   }
 
-  $(document).on('click','.aiseo-ai-one', function(){ aiForSection($(this).data('id')); });
-  $('#aiseo-ai-all').on('click', function(){
+  $(document).on('click','.BBSEO-ai-one', function(){ aiForSection($(this).data('id')); });
+  $('#BBSEO-ai-all').on('click', function(){
     $list.find('.section').each(function(){ aiForSection($(this).data('id')); });
   });
 })(jQuery);
@@ -226,10 +226,10 @@ window.aiseoSectionsNonce = '<?php echo esc_js( wp_create_nonce('aiseo_ai_sectio
 
 ```php
 <?php
-add_action('wp_ajax_aiseo_sections_generate', function(){
+add_action('wp_ajax_BBSEO_sections_generate', function(){
   $postId = intval($_POST['post_id'] ?? 0);
   if (!$postId || !current_user_can('edit_post',$postId)) wp_send_json_error(['msg'=>'perm']);
-  check_ajax_referer('aiseo_ai_sections_'.$postId);
+  check_ajax_referer('BBSEO_ai_sections_'.$postId);
 
   $sectionId = sanitize_text_field($_POST['section_id'] ?? '');
   $type    = sanitize_text_field($_POST['type'] ?? 'general');
@@ -237,11 +237,11 @@ add_action('wp_ajax_aiseo_sections_generate', function(){
   $page    = esc_url_raw($_POST['page'] ?? '');
   $runsArr = json_decode(stripslashes($_POST['runs'] ?? '[]'), true) ?: [];
 
-  $data = \AISEO\Helpers\DataLoader::forReport($type, $project, $runsArr, $page);
+  $data = \BBSEO\Helpers\DataLoader::forReport($type, $project, $runsArr, $page);
 
   // Call your AI; provide a deterministic fallback so UI shows something
-  if (method_exists('\AISEO\AI\Gemini','summarizeSection')) {
-    $resp = \AISEO\AI\Gemini::summarizeSection($type, $data, $sectionId);
+  if (method_exists('\BBSEO\AI\Gemini','summarizeSection')) {
+    $resp = \BBSEO\AI\Gemini::summarizeSection($type, $data, $sectionId);
   } else {
     $sum = $data['runs'][0]['summary'] ?? [];
     $resp = [
@@ -256,7 +256,7 @@ add_action('wp_ajax_aiseo_sections_generate', function(){
 ```
 
 **Common pitfalls fixed here**
-- Nonce creation `wp_create_nonce('aiseo_ai_sections_'.$post->ID)` matches `check_ajax_referer('aiseo_ai_sections_'.$postId)`
+- Nonce creation `wp_create_nonce('BBSEO_ai_sections_'.$post->ID)` matches `check_ajax_referer('BBSEO_ai_sections_'.$postId)`
 - Uses `ajaxurl` in admin; adds console logging on failure.
 
 ---

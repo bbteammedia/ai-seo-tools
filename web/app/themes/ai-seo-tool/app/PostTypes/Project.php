@@ -1,22 +1,22 @@
 <?php
-namespace AISEO\PostTypes;
+namespace BBSEO\PostTypes;
 
-use AISEO\Analytics\GoogleAnalytics;
-use AISEO\Analytics\SearchConsole;
-use AISEO\Helpers\Storage;
+use BBSEO\Analytics\GoogleAnalytics;
+use BBSEO\Analytics\SearchConsole;
+use BBSEO\Helpers\Storage;
 
 class Project
 {
-    public const META_BASE_URL = '_aiseo_project_base_url';
-    public const META_SCHEDULE = '_aiseo_project_schedule';
-    public const META_LAST_RUN = '_aiseo_project_last_run';
-    public const POST_TYPE = 'aiseo_project';
+    public const META_BASE_URL = '_BBSEO_project_base_url';
+    public const META_SCHEDULE = '_BBSEO_project_schedule';
+    public const META_LAST_RUN = '_BBSEO_project_last_run';
+    public const POST_TYPE = 'BBSEO_project';
 
     public static function register(): void
     {
         $labels = [
-            'name' => __('AI SEO Projects', 'ai-seo-tool'),
-            'singular_name' => __('AI SEO Project', 'ai-seo-tool'),
+            'name' => __('Blackbird SEO Projects', 'ai-seo-tool'),
+            'singular_name' => __('Blackbird SEO Project', 'ai-seo-tool'),
             'add_new_item' => __('Add New SEO Project', 'ai-seo-tool'),
             'edit_item' => __('Edit SEO Project', 'ai-seo-tool'),
             'new_item' => __('New SEO Project', 'ai-seo-tool'),
@@ -72,10 +72,10 @@ class Project
     public static function addMetaBoxes(): void
     {
         add_meta_box(
-            'aiseo_project_details',
+            'BBSEO_project_details',
             __('Project Details', 'ai-seo-tool'),
             [self::class, 'renderMetaBox'],
-            'aiseo_project',
+            'BBSEO_project',
             'normal',
             'default'
         );
@@ -83,7 +83,7 @@ class Project
 
     public static function renderMetaBox($post): void
     {
-        wp_nonce_field('aiseo_project_meta', 'aiseo_project_meta_nonce');
+        wp_nonce_field('BBSEO_project_meta', 'BBSEO_project_meta_nonce');
         $baseUrl = get_post_meta($post->ID, self::META_BASE_URL, true);
         $schedule = get_post_meta($post->ID, self::META_SCHEDULE, true) ?: 'manual';
         $lastRun = (int) get_post_meta($post->ID, self::META_LAST_RUN, true);
@@ -122,23 +122,23 @@ class Project
         $gscConnected = $gaConnected && !empty($gscProperty);
         $clientConfigured = GoogleAnalytics::clientId() && GoogleAnalytics::clientSecret();
         $connectUrl = $slug ? wp_nonce_url(add_query_arg([
-            'action' => 'aiseo_ga_connect',
+            'action' => 'BBSEO_ga_connect',
             'project' => $slug,
-        ], admin_url('admin-post.php')), 'aiseo_ga_connect_' . $slug) : '';
+        ], admin_url('admin-post.php')), 'BBSEO_ga_connect_' . $slug) : '';
         $disconnectUrl = $slug ? wp_nonce_url(add_query_arg([
-            'action' => 'aiseo_ga_disconnect',
+            'action' => 'BBSEO_ga_disconnect',
             'project' => $slug,
-        ], admin_url('admin-post.php')), 'aiseo_ga_disconnect_' . $slug) : '';
+        ], admin_url('admin-post.php')), 'BBSEO_ga_disconnect_' . $slug) : '';
         $gaSyncUrl = $slug ? wp_nonce_url(add_query_arg([
-            'action' => 'aiseo_ga_sync',
+            'action' => 'BBSEO_ga_sync',
             'project' => $slug,
             'type' => 'ga',
-        ], admin_url('admin-post.php')), 'aiseo_ga_sync_' . $slug . '_ga') : '';
+        ], admin_url('admin-post.php')), 'BBSEO_ga_sync_' . $slug . '_ga') : '';
         $gscSyncUrl = $slug ? wp_nonce_url(add_query_arg([
-            'action' => 'aiseo_ga_sync',
+            'action' => 'BBSEO_ga_sync',
             'project' => $slug,
             'type' => 'gsc',
-        ], admin_url('admin-post.php')), 'aiseo_ga_sync_' . $slug . '_gsc') : '';
+        ], admin_url('admin-post.php')), 'BBSEO_ga_sync_' . $slug . '_gsc') : '';
         ?>
         <?php if (isset($_GET['ga_notice'])): ?>
             <?php $notice = sanitize_text_field($_GET['ga_notice']); ?>
@@ -157,13 +157,13 @@ class Project
             <?php endif; ?>
         <?php endif; ?>
         <p>
-            <label for="aiseo_project_base_url"><strong><?php esc_html_e('Primary Site URL', 'ai-seo-tool'); ?></strong></label>
-            <input type="url" name="aiseo_project_base_url" id="aiseo_project_base_url" class="widefat" value="<?php echo esc_attr($baseUrl); ?>" placeholder="https://example.com" />
+            <label for="BBSEO_project_base_url"><strong><?php esc_html_e('Primary Site URL', 'ai-seo-tool'); ?></strong></label>
+            <input type="url" name="BBSEO_project_base_url" id="BBSEO_project_base_url" class="widefat" value="<?php echo esc_attr($baseUrl); ?>" placeholder="https://example.com" />
             <small class="description"><?php esc_html_e('Used as the starting point for crawls and reports.', 'ai-seo-tool'); ?></small>
         </p>
         <p>
-            <label for="aiseo_project_schedule"><strong><?php esc_html_e('Crawl Schedule', 'ai-seo-tool'); ?></strong></label>
-            <select name="aiseo_project_schedule" id="aiseo_project_schedule" class="widefat">
+            <label for="BBSEO_project_schedule"><strong><?php esc_html_e('Crawl Schedule', 'ai-seo-tool'); ?></strong></label>
+            <select name="BBSEO_project_schedule" id="BBSEO_project_schedule" class="widefat">
                 <?php foreach (self::scheduleOptions() as $key => $label): ?>
                     <option value="<?php echo esc_attr($key); ?>" <?php selected($schedule, $key); ?>><?php echo esc_html($label); ?></option>
                 <?php endforeach; ?>
@@ -184,11 +184,11 @@ class Project
         <hr />
         <h2><?php esc_html_e('Google Analytics', 'ai-seo-tool'); ?></h2>
         <?php if (!$clientConfigured): ?>
-            <p class="notice notice-warning"><?php esc_html_e('Set AISEO_GA_CLIENT_ID and AISEO_GA_CLIENT_SECRET in your environment to enable Google Analytics sync.', 'ai-seo-tool'); ?></p>
+            <p class="notice notice-warning"><?php esc_html_e('Set BBSEO_GA_CLIENT_ID and BBSEO_GA_CLIENT_SECRET in your environment to enable Google Analytics sync.', 'ai-seo-tool'); ?></p>
         <?php endif; ?>
         <p>
-            <label for="aiseo_ga_property_id"><strong><?php esc_html_e('GA Property ID (GA4)', 'ai-seo-tool'); ?></strong></label>
-            <input type="text" name="aiseo_ga_property_id" id="aiseo_ga_property_id" class="widefat" value="<?php echo esc_attr($gaPropertyId); ?>" placeholder="properties/123456789" />
+            <label for="BBSEO_ga_property_id"><strong><?php esc_html_e('GA Property ID (GA4)', 'ai-seo-tool'); ?></strong></label>
+            <input type="text" name="BBSEO_ga_property_id" id="BBSEO_ga_property_id" class="widefat" value="<?php echo esc_attr($gaPropertyId); ?>" placeholder="properties/123456789" />
             <small class="description"><?php esc_html_e('Use the full resource name (e.g. properties/123456789).', 'ai-seo-tool'); ?></small>
         </p>
         <?php if ($slug): ?>
@@ -214,35 +214,35 @@ class Project
             <fieldset>
                 <legend><?php esc_html_e('GA Sync Settings', 'ai-seo-tool'); ?></legend>
                 <p>
-                    <label for="aiseo_ga_range"><strong><?php esc_html_e('Date Range', 'ai-seo-tool'); ?></strong></label>
-                    <select name="aiseo_ga_range" id="aiseo_ga_range" class="widefat">
+                    <label for="BBSEO_ga_range"><strong><?php esc_html_e('Date Range', 'ai-seo-tool'); ?></strong></label>
+                    <select name="BBSEO_ga_range" id="BBSEO_ga_range" class="widefat">
                         <?php foreach (GoogleAnalytics::rangeOptions() as $value => $label): ?>
                             <option value="<?php echo esc_attr($value); ?>" <?php selected($gaRange, $value); ?>><?php echo esc_html($label); ?></option>
                         <?php endforeach; ?>
                     </select>
                     <small class="description"><?php esc_html_e('Choose the range used when syncing Google Analytics data.', 'ai-seo-tool'); ?></small>
                 </p>
-                <div class="aiseo-ga-custom-range" style="<?php echo $gaRange === 'custom' ? '' : 'display:none;'; ?>">
+                <div class="BBSEO-ga-custom-range" style="<?php echo $gaRange === 'custom' ? '' : 'display:none;'; ?>">
                     <p>
-                        <label for="aiseo_ga_custom_start"><strong><?php esc_html_e('Custom Start Date', 'ai-seo-tool'); ?></strong></label>
-                        <input type="date" name="aiseo_ga_custom_start" id="aiseo_ga_custom_start" value="<?php echo esc_attr($gaCustomStart); ?>" class="regular-text" />
+                        <label for="BBSEO_ga_custom_start"><strong><?php esc_html_e('Custom Start Date', 'ai-seo-tool'); ?></strong></label>
+                        <input type="date" name="BBSEO_ga_custom_start" id="BBSEO_ga_custom_start" value="<?php echo esc_attr($gaCustomStart); ?>" class="regular-text" />
                     </p>
                     <p>
-                        <label for="aiseo_ga_custom_end"><strong><?php esc_html_e('Custom End Date', 'ai-seo-tool'); ?></strong></label>
-                        <input type="date" name="aiseo_ga_custom_end" id="aiseo_ga_custom_end" value="<?php echo esc_attr($gaCustomEnd); ?>" class="regular-text" />
+                        <label for="BBSEO_ga_custom_end"><strong><?php esc_html_e('Custom End Date', 'ai-seo-tool'); ?></strong></label>
+                        <input type="date" name="BBSEO_ga_custom_end" id="BBSEO_ga_custom_end" value="<?php echo esc_attr($gaCustomEnd); ?>" class="regular-text" />
                     </p>
                 </div>
                 <p>
                     <strong><?php esc_html_e('Metrics to Sync', 'ai-seo-tool'); ?></strong><br>
                     <small class="description"><?php esc_html_e('Select the metrics you want to collect for this project.', 'ai-seo-tool'); ?></small>
                 </p>
-                <div class="aiseo-ga-metric-groups">
+                <div class="BBSEO-ga-metric-groups">
                     <?php foreach (GoogleAnalytics::metricGroups() as $group => $items): ?>
                         <fieldset style="margin-bottom:10px;">
                             <legend><?php echo esc_html($items['label']); ?></legend>
                             <?php foreach ($items['metrics'] as $metric => $label): ?>
                                 <label style="display:block;">
-                                    <input type="checkbox" name="aiseo_ga_metrics[]" value="<?php echo esc_attr($metric); ?>" <?php checked(in_array($metric, $gaMetrics, true)); ?> />
+                                    <input type="checkbox" name="BBSEO_ga_metrics[]" value="<?php echo esc_attr($metric); ?>" <?php checked(in_array($metric, $gaMetrics, true)); ?> />
                                     <?php echo esc_html($label); ?>
                                 </label>
                             <?php endforeach; ?>
@@ -253,8 +253,8 @@ class Project
             <hr />
             <h2><?php esc_html_e('Google Search Console', 'ai-seo-tool'); ?></h2>
             <p>
-                <label for="aiseo_gsc_property"><strong><?php esc_html_e('Search Console Property', 'ai-seo-tool'); ?></strong></label>
-                <input type="text" name="aiseo_gsc_property" id="aiseo_gsc_property" class="widefat" value="<?php echo esc_attr($gscProperty); ?>" placeholder="https://example.com/ or sc-domain:example.com" />
+                <label for="BBSEO_gsc_property"><strong><?php esc_html_e('Search Console Property', 'ai-seo-tool'); ?></strong></label>
+                <input type="text" name="BBSEO_gsc_property" id="BBSEO_gsc_property" class="widefat" value="<?php echo esc_attr($gscProperty); ?>" placeholder="https://example.com/ or sc-domain:example.com" />
                 <small class="description"><?php esc_html_e('Enter the verified property URL (URL prefix) or domain property identifier (e.g. sc-domain:example.com).', 'ai-seo-tool'); ?></small>
             </p>
             <p>
@@ -277,32 +277,32 @@ class Project
                     <fieldset>
                         <legend><?php esc_html_e('Search Console Sync Settings', 'ai-seo-tool'); ?></legend>
                         <p>
-                            <label for="aiseo_gsc_range"><strong><?php esc_html_e('Date Range', 'ai-seo-tool'); ?></strong></label>
-                            <select name="aiseo_gsc_range" id="aiseo_gsc_range" class="widefat">
+                            <label for="BBSEO_gsc_range"><strong><?php esc_html_e('Date Range', 'ai-seo-tool'); ?></strong></label>
+                            <select name="BBSEO_gsc_range" id="BBSEO_gsc_range" class="widefat">
                                 <?php foreach (GoogleAnalytics::rangeOptions() as $value => $label): ?>
                                     <option value="<?php echo esc_attr($value); ?>" <?php selected($gscRange, $value); ?>><?php echo esc_html($label); ?></option>
                                 <?php endforeach; ?>
                             </select>
                             <small class="description"><?php esc_html_e('Choose the range used when syncing Search Console data.', 'ai-seo-tool'); ?></small>
                         </p>
-                        <div class="aiseo-gsc-custom-range" style="<?php echo $gscRange === 'custom' ? '' : 'display:none;'; ?>">
+                        <div class="BBSEO-gsc-custom-range" style="<?php echo $gscRange === 'custom' ? '' : 'display:none;'; ?>">
                             <p>
-                                <label for="aiseo_gsc_custom_start"><strong><?php esc_html_e('Custom Start Date', 'ai-seo-tool'); ?></strong></label>
-                                <input type="date" name="aiseo_gsc_custom_start" id="aiseo_gsc_custom_start" value="<?php echo esc_attr($gscCustomStart); ?>" class="regular-text" />
+                                <label for="BBSEO_gsc_custom_start"><strong><?php esc_html_e('Custom Start Date', 'ai-seo-tool'); ?></strong></label>
+                                <input type="date" name="BBSEO_gsc_custom_start" id="BBSEO_gsc_custom_start" value="<?php echo esc_attr($gscCustomStart); ?>" class="regular-text" />
                             </p>
                             <p>
-                                <label for="aiseo_gsc_custom_end"><strong><?php esc_html_e('Custom End Date', 'ai-seo-tool'); ?></strong></label>
-                                <input type="date" name="aiseo_gsc_custom_end" id="aiseo_gsc_custom_end" value="<?php echo esc_attr($gscCustomEnd); ?>" class="regular-text" />
+                                <label for="BBSEO_gsc_custom_end"><strong><?php esc_html_e('Custom End Date', 'ai-seo-tool'); ?></strong></label>
+                                <input type="date" name="BBSEO_gsc_custom_end" id="BBSEO_gsc_custom_end" value="<?php echo esc_attr($gscCustomEnd); ?>" class="regular-text" />
                             </p>
                         </div>
                         <p>
                             <strong><?php esc_html_e('Metrics to Sync', 'ai-seo-tool'); ?></strong><br>
                             <small class="description"><?php esc_html_e('Select the metrics you want to collect from Search Console.', 'ai-seo-tool'); ?></small>
                         </p>
-                        <div class="aiseo-gsc-metrics">
+                        <div class="BBSEO-gsc-metrics">
                             <?php foreach (SearchConsole::metricOptions() as $metric => $label): ?>
                                 <label style="display:block;">
-                                    <input type="checkbox" name="aiseo_gsc_metrics[]" value="<?php echo esc_attr($metric); ?>" <?php checked(in_array($metric, $gscMetrics, true)); ?> />
+                                    <input type="checkbox" name="BBSEO_gsc_metrics[]" value="<?php echo esc_attr($metric); ?>" <?php checked(in_array($metric, $gscMetrics, true)); ?> />
                                     <?php echo esc_html($label); ?>
                                 </label>
                             <?php endforeach; ?>
@@ -320,11 +320,11 @@ class Project
                     $target.slideUp();
                 }
             }
-            $('#aiseo_ga_range').on('change', function(){
-                toggleRange($(this), $('.aiseo-ga-custom-range'));
+            $('#BBSEO_ga_range').on('change', function(){
+                toggleRange($(this), $('.BBSEO-ga-custom-range'));
             }).trigger('change');
-            $('#aiseo_gsc_range').on('change', function(){
-                toggleRange($(this), $('.aiseo-gsc-custom-range'));
+            $('#BBSEO_gsc_range').on('change', function(){
+                toggleRange($(this), $('.BBSEO-gsc-custom-range'));
             }).trigger('change');
         })(jQuery);
         </script>
@@ -333,7 +333,7 @@ class Project
 
     public static function saveMeta(int $postId, $post): void
     {
-        if (!isset($_POST['aiseo_project_meta_nonce']) || !wp_verify_nonce($_POST['aiseo_project_meta_nonce'], 'aiseo_project_meta')) {
+        if (!isset($_POST['BBSEO_project_meta_nonce']) || !wp_verify_nonce($_POST['BBSEO_project_meta_nonce'], 'BBSEO_project_meta')) {
             return;
         }
 
@@ -349,14 +349,14 @@ class Project
             return;
         }
 
-        $value = isset($_POST['aiseo_project_base_url']) ? esc_url_raw($_POST['aiseo_project_base_url']) : '';
+        $value = isset($_POST['BBSEO_project_base_url']) ? esc_url_raw($_POST['BBSEO_project_base_url']) : '';
         if ($value) {
             update_post_meta($postId, self::META_BASE_URL, $value);
         } else {
             delete_post_meta($postId, self::META_BASE_URL);
         }
 
-        $schedule = isset($_POST['aiseo_project_schedule']) ? self::sanitizeSchedule($_POST['aiseo_project_schedule']) : 'manual';
+        $schedule = isset($_POST['BBSEO_project_schedule']) ? self::sanitizeSchedule($_POST['BBSEO_project_schedule']) : 'manual';
         update_post_meta($postId, self::META_SCHEDULE, $schedule);
 
         // After saving META_BASE_URL and META_SCHEDULE:
@@ -378,16 +378,16 @@ class Project
         if ($baseUrl) { $seed[] = $baseUrl; }
         $config['seed_urls'] = array_values(array_unique(array_filter($seed)));
 
-        $gaPropertyId = isset($_POST['aiseo_ga_property_id']) ? sanitize_text_field($_POST['aiseo_ga_property_id']) : '';
-        $gaRange = isset($_POST['aiseo_ga_range']) ? sanitize_text_field($_POST['aiseo_ga_range']) : 'last_30_days';
-        $gaCustomStart = isset($_POST['aiseo_ga_custom_start']) ? sanitize_text_field($_POST['aiseo_ga_custom_start']) : '';
-        $gaCustomEnd = isset($_POST['aiseo_ga_custom_end']) ? sanitize_text_field($_POST['aiseo_ga_custom_end']) : '';
-        $gaMetrics = isset($_POST['aiseo_ga_metrics']) && is_array($_POST['aiseo_ga_metrics']) ? array_map('sanitize_text_field', $_POST['aiseo_ga_metrics']) : GoogleAnalytics::defaultMetrics();
-        $gscProperty = isset($_POST['aiseo_gsc_property']) ? sanitize_text_field($_POST['aiseo_gsc_property']) : '';
-        $gscRange = isset($_POST['aiseo_gsc_range']) ? sanitize_text_field($_POST['aiseo_gsc_range']) : 'last_30_days';
-        $gscCustomStart = isset($_POST['aiseo_gsc_custom_start']) ? sanitize_text_field($_POST['aiseo_gsc_custom_start']) : '';
-        $gscCustomEnd = isset($_POST['aiseo_gsc_custom_end']) ? sanitize_text_field($_POST['aiseo_gsc_custom_end']) : '';
-        $gscMetrics = isset($_POST['aiseo_gsc_metrics']) && is_array($_POST['aiseo_gsc_metrics']) ? array_map('sanitize_text_field', $_POST['aiseo_gsc_metrics']) : SearchConsole::defaultMetrics();
+        $gaPropertyId = isset($_POST['BBSEO_ga_property_id']) ? sanitize_text_field($_POST['BBSEO_ga_property_id']) : '';
+        $gaRange = isset($_POST['BBSEO_ga_range']) ? sanitize_text_field($_POST['BBSEO_ga_range']) : 'last_30_days';
+        $gaCustomStart = isset($_POST['BBSEO_ga_custom_start']) ? sanitize_text_field($_POST['BBSEO_ga_custom_start']) : '';
+        $gaCustomEnd = isset($_POST['BBSEO_ga_custom_end']) ? sanitize_text_field($_POST['BBSEO_ga_custom_end']) : '';
+        $gaMetrics = isset($_POST['BBSEO_ga_metrics']) && is_array($_POST['BBSEO_ga_metrics']) ? array_map('sanitize_text_field', $_POST['BBSEO_ga_metrics']) : GoogleAnalytics::defaultMetrics();
+        $gscProperty = isset($_POST['BBSEO_gsc_property']) ? sanitize_text_field($_POST['BBSEO_gsc_property']) : '';
+        $gscRange = isset($_POST['BBSEO_gsc_range']) ? sanitize_text_field($_POST['BBSEO_gsc_range']) : 'last_30_days';
+        $gscCustomStart = isset($_POST['BBSEO_gsc_custom_start']) ? sanitize_text_field($_POST['BBSEO_gsc_custom_start']) : '';
+        $gscCustomEnd = isset($_POST['BBSEO_gsc_custom_end']) ? sanitize_text_field($_POST['BBSEO_gsc_custom_end']) : '';
+        $gscMetrics = isset($_POST['BBSEO_gsc_metrics']) && is_array($_POST['BBSEO_gsc_metrics']) ? array_map('sanitize_text_field', $_POST['BBSEO_gsc_metrics']) : SearchConsole::defaultMetrics();
         if (!$gaMetrics) {
             $gaMetrics = GoogleAnalytics::defaultMetrics();
         }

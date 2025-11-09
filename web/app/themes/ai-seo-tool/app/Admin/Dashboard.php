@@ -1,18 +1,18 @@
 <?php
-namespace AISEO\Admin;
+namespace BBSEO\Admin;
 
-use AISEO\Helpers\RunId;
-use AISEO\Helpers\Storage;
-use AISEO\Crawl\Queue;
-use AISEO\PostTypes\Project;
+use BBSEO\Helpers\RunId;
+use BBSEO\Helpers\Storage;
+use BBSEO\Crawl\Queue;
+use BBSEO\PostTypes\Project;
 
 class Dashboard
 {
     public static function register(): void
     {
         add_menu_page(
-            __('AI SEO Dashboard', 'ai-seo-tool'),
-            __('AI SEO', 'ai-seo-tool'),
+            __('Blackbird SEO Dashboard', 'ai-seo-tool'),
+            __('Blackbird SEO', 'ai-seo-tool'),
             'manage_options',
             'ai-seo-dashboard',
             [self::class, 'render'],
@@ -23,7 +23,7 @@ class Dashboard
 
     public static function registerActions(): void
     {
-        add_action('admin_post_aiseo_run_crawl', [self::class, 'handleManualRun']);
+        add_action('admin_post_BBSEO_run_crawl', [self::class, 'handleManualRun']);
     }
 
     public static function render(): void
@@ -35,8 +35,8 @@ class Dashboard
         $projects = self::getProjects();
         ?>
         <div class="wrap">
-            <h1><?php esc_html_e('AI SEO Projects', 'ai-seo-tool'); ?></h1>
-            <?php if (isset($_GET['aiseo_notice'])): $notice = sanitize_text_field($_GET['aiseo_notice']); ?>
+            <h1><?php esc_html_e('Blackbird SEO Projects', 'ai-seo-tool'); ?></h1>
+            <?php if (isset($_GET['BBSEO_notice'])): $notice = sanitize_text_field($_GET['BBSEO_notice']); ?>
                 <?php if ($notice === 'run'): ?>
                     <div class="notice notice-success is-dismissible"><p><?php esc_html_e('Crawl queued. Cron will begin shortly.', 'ai-seo-tool'); ?></p></div>
                 <?php elseif ($notice === 'run_fail'): ?>
@@ -44,7 +44,7 @@ class Dashboard
                 <?php endif; ?>
             <?php endif; ?>
             <?php if (!$projects): ?>
-                <p><?php esc_html_e('No AI SEO projects found. Create one under AI SEO Projects → Add New.', 'ai-seo-tool'); ?></p>
+                <p><?php esc_html_e('No Blackbird SEO projects found. Create one under Blackbird SEO Projects → Add New.', 'ai-seo-tool'); ?></p>
                 <?php return; ?>
             <?php endif; ?>
             <table class="widefat striped">
@@ -166,10 +166,10 @@ class Dashboard
     {
         $url = admin_url('admin-post.php');
         $url = add_query_arg([
-            'action' => 'aiseo_run_crawl',
+            'action' => 'BBSEO_run_crawl',
             'project' => sanitize_title($slug),
         ], $url);
-        return wp_nonce_url($url, 'aiseo_run_crawl_' . $slug);
+        return wp_nonce_url($url, 'BBSEO_run_crawl_' . $slug);
     }
 
     public static function handleManualRun(): void
@@ -179,7 +179,7 @@ class Dashboard
         }
 
         $slug = isset($_GET['project']) ? sanitize_title($_GET['project']) : '';
-        check_admin_referer('aiseo_run_crawl_' . $slug);
+        check_admin_referer('BBSEO_run_crawl_' . $slug);
 
         // Ensure project folder & config
         Storage::ensureProject($slug);
@@ -193,12 +193,12 @@ class Dashboard
 
         // Build seed list: config seed_urls + Base URL meta
         $urls = is_array($config['seed_urls'] ?? null) ? $config['seed_urls'] : [];
-        $base = \AISEO\PostTypes\Project::getBaseUrl($slug);
+        $base = \BBSEO\PostTypes\Project::getBaseUrl($slug);
         if ($base) { $urls[] = $base; }
         $urls = array_values(array_unique(array_filter(array_map('esc_url_raw', $urls))));
 
         if (empty($urls)) {
-            wp_safe_redirect(add_query_arg('aiseo_notice', 'run_fail', admin_url('admin.php?page=ai-seo-dashboard')));
+            wp_safe_redirect(add_query_arg('BBSEO_notice', 'run_fail', admin_url('admin.php?page=ai-seo-dashboard')));
             exit;
         }
 
@@ -206,7 +206,7 @@ class Dashboard
         Queue::init($slug, $urls, $runId);          // creates runs/{runId}/queue + meta.json
         Storage::setLatestRun($slug, $runId);
 
-        wp_safe_redirect(add_query_arg('aiseo_notice', 'run', admin_url('admin.php?page=ai-seo-dashboard')));
+        wp_safe_redirect(add_query_arg('BBSEO_notice', 'run', admin_url('admin.php?page=ai-seo-dashboard')));
         exit;
     }
 

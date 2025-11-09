@@ -1,7 +1,7 @@
 <?php
-namespace AISEO\Admin;
+namespace BBSEO\Admin;
 
-use AISEO\PostTypes\Report as ReportPostType;
+use BBSEO\PostTypes\Report as ReportPostType;
 
 class ReportAdminList
 {
@@ -21,13 +21,13 @@ class ReportAdminList
         $viewUrl = self::reportUrl($post);
         $pdfUrl = self::reportUrl($post, true);
 
-        $actions['aiseo_view'] = sprintf(
+        $actions['BBSEO_view'] = sprintf(
             '<a href="%s" target="_blank" rel="noopener">%s</a>',
             esc_url($viewUrl),
             esc_html__('View Report', 'ai-seo-tool')
         );
 
-        $actions['aiseo_pdf'] = sprintf(
+        $actions['BBSEO_pdf'] = sprintf(
             '<a href="%s">%s</a>',
             esc_url($pdfUrl),
             esc_html__('Download PDF', 'ai-seo-tool')
@@ -38,13 +38,13 @@ class ReportAdminList
 
     public static function addColumns(array $columns): array
     {
-        $columns['aiseo_report_links'] = __('Report Links', 'ai-seo-tool');
+        $columns['BBSEO_report_links'] = __('Report Links', 'ai-seo-tool');
         return $columns;
     }
 
     public static function renderColumn(string $column, int $postId): void
     {
-        if ($column !== 'aiseo_report_links') {
+        if ($column !== 'BBSEO_report_links') {
             return;
         }
 

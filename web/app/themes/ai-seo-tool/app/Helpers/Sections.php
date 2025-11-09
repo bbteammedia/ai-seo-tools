@@ -1,9 +1,9 @@
 <?php
-namespace AISEO\Helpers;
+namespace BBSEO\Helpers;
 
 class Sections
 {
-    public const META_SECTIONS = '_aiseo_sections';
+    public const META_SECTIONS = '_BBSEO_sections';
 
     /**
      * Canonical registry of supported section types.

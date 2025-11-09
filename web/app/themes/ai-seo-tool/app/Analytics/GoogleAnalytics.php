@@ -1,8 +1,8 @@
 <?php
-namespace AISEO\Analytics;
+namespace BBSEO\Analytics;
 
-use AISEO\Analytics\Store as AnalyticsStore;
-use AISEO\Helpers\Storage;
+use BBSEO\Analytics\Store as AnalyticsStore;
+use BBSEO\Helpers\Storage;
 
 class GoogleAnalytics
 {
@@ -17,17 +17,17 @@ class GoogleAnalytics
 
     public static function clientId(): string
     {
-        return trim((string) getenv('AISEO_GA_CLIENT_ID'));
+        return trim((string) getenv('BBSEO_GA_CLIENT_ID'));
     }
 
     public static function clientSecret(): string
     {
-        return trim((string) getenv('AISEO_GA_CLIENT_SECRET'));
+        return trim((string) getenv('BBSEO_GA_CLIENT_SECRET'));
     }
 
     public static function redirectUri(): string
     {
-        return admin_url('admin-post.php?action=aiseo_ga_callback');
+        return admin_url('admin-post.php?action=BBSEO_ga_callback');
     }
 
     public static function authorizationUrl(string $project, string $state): string

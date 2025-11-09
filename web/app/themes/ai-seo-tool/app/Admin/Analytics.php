@@ -1,18 +1,18 @@
 <?php
-namespace AISEO\Admin;
+namespace BBSEO\Admin;
 
-use AISEO\Analytics\GoogleAnalytics;
-use AISEO\Analytics\SearchConsole;
-use AISEO\PostTypes\Project;
+use BBSEO\Analytics\GoogleAnalytics;
+use BBSEO\Analytics\SearchConsole;
+use BBSEO\PostTypes\Project;
 
 class Analytics
 {
     public static function bootstrap(): void
     {
-        add_action('admin_post_aiseo_ga_connect', [self::class, 'startConnect']);
-        add_action('admin_post_aiseo_ga_disconnect', [self::class, 'disconnect']);
-        add_action('admin_post_aiseo_ga_sync', [self::class, 'manualSync']);
-        add_action('admin_post_aiseo_ga_callback', [self::class, 'handleCallback']);
+        add_action('admin_post_BBSEO_ga_connect', [self::class, 'startConnect']);
+        add_action('admin_post_BBSEO_ga_disconnect', [self::class, 'disconnect']);
+        add_action('admin_post_BBSEO_ga_sync', [self::class, 'manualSync']);
+        add_action('admin_post_BBSEO_ga_callback', [self::class, 'handleCallback']);
     }
 
     public static function startConnect(): void
@@ -21,7 +21,7 @@ class Analytics
 
         $project = isset($_GET['project']) ? sanitize_title($_GET['project']) : '';
         $nonce = $_GET['_wpnonce'] ?? '';
-        if (!$project || !wp_verify_nonce($nonce, 'aiseo_ga_connect_' . $project)) {
+        if (!$project || !wp_verify_nonce($nonce, 'BBSEO_ga_connect_' . $project)) {
             wp_die(__('Invalid request.', 'ai-seo-tool'));
         }
 
@@ -30,7 +30,7 @@ class Analytics
         }
 
         $state = wp_generate_uuid4();
-        set_transient('aiseo_ga_state_' . $state, [
+        set_transient('BBSEO_ga_state_' . $state, [
             'project' => $project,
             'created' => time(),
         ], 15 * MINUTE_IN_SECONDS);
@@ -49,11 +49,11 @@ class Analytics
         $code = isset($_GET['code']) ? sanitize_text_field($_GET['code']) : '';
         $error = isset($_GET['error']) ? sanitize_text_field($_GET['error']) : '';
 
-        $payload = $state ? get_transient('aiseo_ga_state_' . $state) : null;
+        $payload = $state ? get_transient('BBSEO_ga_state_' . $state) : null;
         if (!$payload || !is_array($payload)) {
             wp_die(__('OAuth state mismatch. Please try connecting again.', 'ai-seo-tool'));
         }
-        delete_transient('aiseo_ga_state_' . $state);
+        delete_transient('BBSEO_ga_state_' . $state);
 
         $project = $payload['project'] ?? '';
         $redirect = self::projectEditLink($project);
@@ -82,7 +82,7 @@ class Analytics
         self::assertManageCapabilities();
         $project = isset($_GET['project']) ? sanitize_title($_GET['project']) : '';
         $nonce = $_GET['_wpnonce'] ?? '';
-        if (!$project || !wp_verify_nonce($nonce, 'aiseo_ga_disconnect_' . $project)) {
+        if (!$project || !wp_verify_nonce($nonce, 'BBSEO_ga_disconnect_' . $project)) {
             wp_die(__('Invalid request.', 'ai-seo-tool'));
         }
 
@@ -97,8 +97,8 @@ class Analytics
         $project = isset($_GET['project']) ? sanitize_title($_GET['project']) : '';
         $nonce = $_GET['_wpnonce'] ?? '';
         $type = isset($_GET['type']) ? sanitize_key($_GET['type']) : 'ga';
-        $expectedNonce = $type === 'gsc' ? 'aiseo_ga_sync_' . $project . '_gsc' : 'aiseo_ga_sync_' . $project . '_ga';
-        if (!$project || (!wp_verify_nonce($nonce, $expectedNonce) && !wp_verify_nonce($nonce, 'aiseo_ga_sync_' . $project))) {
+        $expectedNonce = $type === 'gsc' ? 'BBSEO_ga_sync_' . $project . '_gsc' : 'BBSEO_ga_sync_' . $project . '_ga';
+        if (!$project || (!wp_verify_nonce($nonce, $expectedNonce) && !wp_verify_nonce($nonce, 'BBSEO_ga_sync_' . $project))) {
             wp_die(__('Invalid request.', 'ai-seo-tool'));
         }
 

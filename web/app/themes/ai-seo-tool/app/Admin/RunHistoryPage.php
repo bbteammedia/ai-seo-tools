@@ -1,7 +1,7 @@
 <?php
-namespace AISEO\Admin;
+namespace BBSEO\Admin;
 
-use AISEO\Helpers\Storage;
+use BBSEO\Helpers\Storage;
 
 class RunHistoryPage
 {

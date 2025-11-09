@@ -1,11 +1,11 @@
 <?php
-namespace AISEO\Helpers;
+namespace BBSEO\Helpers;
 
 class Storage
 {
     public static function baseDir(): string
     {
-        $dir = getenv('AISEO_STORAGE_DIR');
+        $dir = getenv('BBSEO_STORAGE_DIR');
         return $dir ?: get_theme_file_path('storage/projects');
     }
 

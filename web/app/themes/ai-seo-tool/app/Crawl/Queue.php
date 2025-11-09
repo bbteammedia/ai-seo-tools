@@ -1,7 +1,7 @@
 <?php
-namespace AISEO\Crawl;
+namespace BBSEO\Crawl;
 
-use AISEO\Helpers\Storage;
+use BBSEO\Helpers\Storage;
 
 class Queue
 {

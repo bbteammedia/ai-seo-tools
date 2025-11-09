@@ -1,6 +1,6 @@
-# AI SEO Tools
+# Blackbird SEO Tools
 
-AI SEO Tools is an AI-assisted technical SEO automation suite packaged as a WordPress Bedrock theme. It crawls any site on a shared host, audits every URL, merges Search Console + GA4 metrics, asks Gemini for narrative summaries, and publishes shareable WordPress reports (HTML + PDF) for each client project.
+Blackbird SEO Tools is an AI-assisted technical SEO automation suite packaged as a WordPress Bedrock theme. It crawls any site on a shared host, audits every URL, merges Search Console + GA4 metrics, asks Gemini for narrative summaries, and publishes shareable WordPress reports (HTML + PDF) for each client project.
 
 ## Highlights
 - Queue-based crawler built with Spatie Crawler + Guzzle that stores every page as JSON and survives shared-host limits.
@@ -12,10 +12,10 @@ AI SEO Tools is an AI-assisted technical SEO automation suite packaged as a Word
 
 ## Stack & Layout
 - **Bedrock** WordPress skeleton (`web/wp`) with the custom theme in `web/app/themes/ai-seo-tool`.
-- **PHP 8.1+** with Composer autoloading (`AISEO\\` namespace).
+- **PHP 8.1+** with Composer autoloading (`BBSEO\\` namespace).
 - **Key packages**: `spatie/crawler`, `symfony/dom-crawler`, `guzzlehttp/guzzle`, `dompdf/dompdf`, `vlucas/phpdotenv`, `laravel/pint`.
 - **Frontend**: Bootstrap utility classes + Alpine.js snippets inside `templates/`.
-- **Storage**: JSON files under `AISEO_STORAGE_DIR` (default `web/app/themes/ai-seo-tool/storage/projects`).
+- **Storage**: JSON files under `BBSEO_STORAGE_DIR` (default `web/app/themes/ai-seo-tool/storage/projects`).
 
 ```
 web/app/themes/ai-seo-tool/
@@ -41,41 +41,41 @@ web/app/themes/ai-seo-tool/
    ```bash
    composer install
    ```
-2. Copy `.env.example` → `.env` and fill WordPress + AI SEO variables (see table below). Generate salts via https://roots.io/salts.html.
+2. Copy `.env.example` → `.env` and fill WordPress + Blackbird SEO variables (see table below). Generate salts via https://roots.io/salts.html.
 3. Create the database defined in `.env`.
 4. Install WordPress (example):
    ```bash
    vendor/bin/wp core install \
      --url="https://seo.local" \
-     --title="AI SEO" \
+     --title="Blackbird SEO" \
      --admin_user=admin --admin_email=you@example.com --admin_password=secret
    ```
 5. Activate the theme: `vendor/bin/wp theme activate ai-seo-tool`.
-6. Visit **AI SEO → Projects** in wp-admin, add a project (slug becomes the storage key), and optionally set a crawl schedule.
+6. Visit **Blackbird SEO → Projects** in wp-admin, add a project (slug becomes the storage key), and optionally set a crawl schedule.
 7. Ensure `DISABLE_WP_CRON` is false (or wire a real cron hitting `wp cron event run --due-now`) so the queue drains automatically.
 
 ### Environment variables
 | Variable | Purpose |
 | --- | --- |
-| `AISEO_SECURE_TOKEN` | Required `key` parameter for every REST call/cron ping.
-| `AISEO_STORAGE_DIR` | Overrides where project JSON (config, runs, analytics) is stored.
+| `BBSEO_SECURE_TOKEN` | Required `key` parameter for every REST call/cron ping.
+| `BBSEO_STORAGE_DIR` | Overrides where project JSON (config, runs, analytics) is stored.
 | `GEMINI_API_KEY` | Enables AI sections + summaries.
-| `AISEO_HTTP_VERIFY_TLS` | Set to `false` when crawling staging hosts with self-signed certs.
-| `AISEO_DISABLE_CRON` | `true` to pause the WP-Cron queue runner (useful locally).
-| `AISEO_STEPS_PER_TICK` | How many queued URLs to process per cron tick (default 50).
-| `AISEO_GA_CLIENT_ID`, `AISEO_GA_CLIENT_SECRET` | OAuth credentials for GA4/Search Console connectors.
+| `BBSEO_HTTP_VERIFY_TLS` | Set to `false` when crawling staging hosts with self-signed certs.
+| `BBSEO_DISABLE_CRON` | `true` to pause the WP-Cron queue runner (useful locally).
+| `BBSEO_STEPS_PER_TICK` | How many queued URLs to process per cron tick (default 50).
+| `BBSEO_GA_CLIENT_ID`, `BBSEO_GA_CLIENT_SECRET` | OAuth credentials for GA4/Search Console connectors.
 
 Standard Bedrock variables (`DB_*`, `WP_ENV`, `WP_HOME`, `WP_SITEURL`, salts, etc.) remain unchanged.
 
 ## How the pipeline works
-1. **Projects** (`aiseo_project` CPT) define primary URL, crawl schedule (manual/weekly/monthly), and analytics options.
+1. **Projects** (`BBSEO_project` CPT) define primary URL, crawl schedule (manual/weekly/monthly), and analytics options.
 2. **Queue**: `start-crawl` seeds `.todo` files under `storage/projects/<slug>/runs/<run>/queue`.
-3. **Drain**: `AISEO\Cron\Scheduler` consumes `AISEO_STEPS_PER_TICK` URLs per minute, or you can hit the REST `crawl-step` endpoint from an external monitor.
+3. **Drain**: `BBSEO\Cron\Scheduler` consumes `BBSEO_STEPS_PER_TICK` URLs per minute, or you can hit the REST `crawl-step` endpoint from an external monitor.
 4. **Audit & Report**: once the queue is empty the worker runs `Audit\Runner`, `Report\Builder`, `Report\Summary`, appends time-series, syncs analytics, and renders report snapshots.
-5. **Reports**: each project can map to an `aiseo_report` CPT. Public URLs live at `/ai-seo-report/<project>` with on-demand PDF export (`?format=pdf`).
+5. **Reports**: each project can map to an `BBSEO_report` CPT. Public URLs live at `/ai-seo-report/<project>` with on-demand PDF export (`?format=pdf`).
 
 ### REST API
-All endpoints live under `/wp-json/ai-seo-tool/v1/*` and require `?key=AISEO_SECURE_TOKEN`.
+All endpoints live under `/wp-json/ai-seo-tool/v1/*` and require `?key=BBSEO_SECURE_TOKEN`.
 
 | Endpoint | Method | Description |
 | --- | --- | --- |
@@ -92,11 +92,11 @@ Example `crawl-step` using curl:
 curl "https://example.com/wp-json/ai-seo-tool/v1/crawl-step" \
   --get \
   --data-urlencode "project=petalo-cakery" \
-  --data-urlencode "key=$AISEO_SECURE_TOKEN"
+  --data-urlencode "key=$BBSEO_SECURE_TOKEN"
 ```
 
 ## Admin workflow
-- **Dashboard** (`AI SEO → Dashboard`): shows projects, latest run status, queue counts, quick links to reports, manual run button, and run history.
+- **Dashboard** (`Blackbird SEO → Dashboard`): shows projects, latest run status, queue counts, quick links to reports, manual run button, and run history.
 - **Run History**: lists every run stored in `storage/projects/<slug>/runs/*` with PDF export shortcuts.
 - **Reports CPT**: choose project + run(s), reorder/rename AI sections, toggle visibility, and store legacy summaries.
 - **Section prompts**: editing files under `templates/prompt/*.json` adjusts the structure, temperature, and schema for Gemini responses per section.
@@ -124,7 +124,7 @@ storage/projects/<slug>/
 │   └── analytics/ga.json / gsc.json
 └── timeseries.json             # crawl summary history
 ```
-Set `AISEO_STORAGE_DIR` to move this tree outside the theme (recommended in production).
+Set `BBSEO_STORAGE_DIR` to move this tree outside the theme (recommended in production).
 
 ## Reports & AI sections
 - `Report\Builder` assembles crawl/audit summaries, top issues, analytics snapshots, and project metadata.
@@ -132,9 +132,9 @@ Set `AISEO_STORAGE_DIR` to move this tree outside the theme (recommended in prod
 - The public template (`templates/report.php`) renders HTML cards, charts, AI copy, and meta recommendations plus a Dompdf export. Sample artifacts live in `docs/current-report.html` and `docs/report-template.html`.
 
 ## Automation & cron control
-- Default worker: WordPress cron event `aiseo_minutely_drain` defined in `AISEO\Cron\Scheduler`.
-- To offload to an external monitor, disable WP cron (`AISEO_DISABLE_CRON=true`) and hit `/crawl-step` every minute from UptimeRobot, BetterUptime, etc. One request = one URL processed.
-- `AISEO_STEPS_PER_TICK` and the `.todo` queue ensure long crawls do not exhaust memory/time limits.
+- Default worker: WordPress cron event `BBSEO_minutely_drain` defined in `BBSEO\Cron\Scheduler`.
+- To offload to an external monitor, disable WP cron (`BBSEO_DISABLE_CRON=true`) and hit `/crawl-step` every minute from UptimeRobot, BetterUptime, etc. One request = one URL processed.
+- `BBSEO_STEPS_PER_TICK` and the `.todo` queue ensure long crawls do not exhaust memory/time limits.
 
 ## Development & QA
 - Code style: `composer lint` (runs Laravel Pint) and `composer lint:fix`.

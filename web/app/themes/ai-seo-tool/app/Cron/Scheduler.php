@@ -1,18 +1,18 @@
 <?php
-namespace AISEO\Cron;
+namespace BBSEO\Cron;
 
-use AISEO\Helpers\RunId;
-use AISEO\Helpers\Storage;
-use AISEO\Crawl\Queue;
-use AISEO\Crawl\Worker;
-use AISEO\Audit\Runner as AuditRunner;
-use AISEO\Report\Builder as ReportBuilder;
-use AISEO\Report\Summary;
-use AISEO\Analytics\Dispatcher as AnalyticsDispatcher;
+use BBSEO\Helpers\RunId;
+use BBSEO\Helpers\Storage;
+use BBSEO\Crawl\Queue;
+use BBSEO\Crawl\Worker;
+use BBSEO\Audit\Runner as AuditRunner;
+use BBSEO\Report\Builder as ReportBuilder;
+use BBSEO\Report\Summary;
+use BBSEO\Analytics\Dispatcher as AnalyticsDispatcher;
 
 class Scheduler
 {
-    public const EVENT = 'aiseo_minutely_drain';
+    public const EVENT = 'BBSEO_minutely_drain';
 
     public static function registerSchedules($schedules)
     {
@@ -42,7 +42,7 @@ class Scheduler
 
     public static function drain(): void
     {
-        $envDisabled = getenv('AISEO_DISABLE_CRON');
+        $envDisabled = getenv('BBSEO_DISABLE_CRON');
         if (is_string($envDisabled) && strtolower(trim($envDisabled)) === 'true') {
             return;
         }
@@ -52,7 +52,7 @@ class Scheduler
             return;
         }
 
-        $stepsPerTick = (int) (getenv('AISEO_STEPS_PER_TICK') ?: 50);
+        $stepsPerTick = (int) (getenv('BBSEO_STEPS_PER_TICK') ?: 50);
         if ($stepsPerTick <= 0) {
             $stepsPerTick = 50;
         }
@@ -128,7 +128,7 @@ class Scheduler
 
         // 2) Ensure all CPT slugs are present (even if config.json absent yet)
         $posts = get_posts([
-            'post_type' => \AISEO\PostTypes\Project::POST_TYPE,
+            'post_type' => \BBSEO\PostTypes\Project::POST_TYPE,
             'post_status' => 'publish',
             'posts_per_page' => -1,
             'fields' => 'ids',
@@ -139,8 +139,8 @@ class Scheduler
                 Storage::ensureProject($slug);
                 $cfgPath = Storage::projectDir($slug) . '/config.json';
                 if (!is_file($cfgPath)) {
-                    $schedule = \AISEO\PostTypes\Project::getSchedule($slug);
-                    $baseUrl  = \AISEO\PostTypes\Project::getBaseUrl($slug);
+                    $schedule = \BBSEO\PostTypes\Project::getSchedule($slug);
+                    $baseUrl  = \BBSEO\PostTypes\Project::getBaseUrl($slug);
                     $config = [
                         'enabled' => true,
                         'frequency' => $schedule ?: 'manual',
