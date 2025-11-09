@@ -737,7 +737,6 @@ class ReportSectionsUI
             $storedSections = [];
         }
 
-
         $sections         = self::prepareSections($storedSections, $type, $post);
         $metricsBySection = ReportMetrics::build($type, $data);
 

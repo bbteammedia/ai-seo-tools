@@ -62,7 +62,7 @@ class RunHistoryPage
         echo '<h1>Run History – ' . esc_html($project) . '</h1>';
         echo '<p><a href="' . esc_url(admin_url('admin.php?page=ai-seo-dashboard')) . '">&larr; Back to Dashboard</a></p>';
         echo '<table class="widefat fixed striped">';
-        echo '<thead><tr><th>Run ID</th><th>Started</th><th>Pages</th><th>2xx</th><th>3xx</th><th>4xx</th><th>5xx</th><th>Issues</th><th>Actions</th></tr></thead><tbody>';
+        echo '<thead><tr><th>Run ID</th><th>Started</th><th>Pages</th><th>2xx</th><th>3xx</th><th>4xx</th><th>5xx</th><th>Issues</th></tr></thead><tbody>';
 
         foreach ($runs as $r) {
             // Use the same report URL structure as the dashboard
@@ -79,8 +79,6 @@ class RunHistoryPage
             echo '<td>' . esc_html($r['s4']) . '</td>';
             echo '<td>' . esc_html($r['s5']) . '</td>';
             echo '<td>' . esc_html($r['issues']) . '</td>';
-            echo '<td><a class="button button-small" href="' . esc_url($repUrl) . '" target="_blank">View Report</a> ';
-            echo '<a class="button button-small" href="' . esc_url($pdfUrl) . '">Export PDF</a></td>';
             echo '</tr>';
         }
         if (!$runs) echo '<tr><td colspan="9"><em>No runs found.</em></td></tr>';

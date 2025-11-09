@@ -85,9 +85,7 @@ class Dashboard
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <a class="button button-primary" href="<?php echo esc_url(self::reportLink($project['slug'], $summary['run_id'])); ?>" target="_blank" rel="noopener"><?php esc_html_e('View Report', 'ai-seo-tool'); ?></a>
-                                <a class="button" href="<?php echo esc_url(self::manualCrawlUrl($project['slug'])); ?>"><?php esc_html_e('Run Crawl Now', 'ai-seo-tool'); ?></a>
-                                <a class="button" href="<?php echo esc_url(self::historyLink($project['slug'])); ?>"><?php esc_html_e('Run History', 'ai-seo-tool'); ?></a>
+                                <a class="button button-primary" href="<?php echo esc_url(self::manualCrawlUrl($project['slug'])); ?>"><?php esc_html_e('Run Crawl Now', 'ai-seo-tool'); ?></a>
                             </td>
                         </tr>
                     <?php endforeach; ?>
