@@ -300,30 +300,6 @@ class Worker
         $h1Count = count($headings['h1'] ?? []);
         $h1Text  = $h1Count > 0 ? ($headings['h1'][0] ?? '') : '';
 
-        // --- Images -------------------------------------------------------------
-        $images = $crawler->filter('img')->each(function (DomCrawler $node) use ($url) {
-            $src = $node->attr('src') ?? '';
-            $alt = trim($node->attr('alt') ?? '');
-            $src = self::absolutizeUrl($src, $url);
-            $loading = strtolower((string) ($node->attr('loading') ?? ''));
-            $width   = $node->attr('width') ?? null;
-            $height  = $node->attr('height') ?? null;
-
-            return [
-                'src'     => $src,
-                'alt'     => $alt,
-                'loading' => $loading,
-                'width'   => $width,
-                'height'  => $height,
-            ];
-        });
-        $imagesSummary = [
-            'total'          => count($images),
-            'missing_alt'    => count(array_filter($images, fn ($i) => ($i['alt'] ?? '') === '')),
-            'lazy'           => count(array_filter($images, fn ($i) => ($i['loading'] ?? '') === 'lazy')),
-            'no_dimensions'  => count(array_filter($images, fn ($i) => empty($i['width']) || empty($i['height']))),
-        ];
-
         // --- Links --------------------------------------------------------------
         $internalLinks = [];
         $externalLinks = [];
@@ -408,6 +384,57 @@ class Worker
             'og:image'       => isset($openGraph['og:image']),
             'twitter:card'   => $twitterCard,
         ];
+
+        // --- Images -------------------------------------------------------------
+        $imagelinks = [];
+        $images = $crawler->filter('img')->each(function (DomCrawler $node) use ($url) {
+            $src = $node->attr('src') ?? '';
+
+            // handle data-src / data-srcset for lazy-loaded images when src is empty or using base64
+            if (($src === '' || str_starts_with($src, 'data:')) && $node->attr('data-src')) {
+                $src = $node->attr('data-src');
+            } elseif (($src === '' || str_starts_with($src, 'data:')) && $node->attr('data-srcset')) {
+                // take the first URL from data-srcset
+                $srcset = $node->attr('data-srcset');
+                $parts = explode(',', $srcset);
+                if (count($parts) > 0) {
+                    $first = trim($parts[0]);
+                    $srcParts = preg_split('/\s+/', $first);
+                    if (count($srcParts) > 0) {
+                        $src = $srcParts[0];
+                    }
+                }
+            }
+
+
+            $alt = trim($node->attr('alt') ?? '');
+            $src = self::absolutizeUrl($src, $url);
+            $loading = strtolower((string) ($node->attr('loading') ?? ''));
+            $width   = $node->attr('width') ?? null;
+            $height  = $node->attr('height') ?? null;
+
+            return [
+                'src'     => $src,
+                'alt'     => $alt,
+                'loading' => $loading,
+                'width'   => $width,
+                'height'  => $height,
+            ];
+        });
+
+        $imagelinks = array_map(
+            fn ($img) => $img['src'],
+            array_filter($images, fn ($img) => !empty($img['src']))
+        );
+        
+        $imagesSummary = [
+            'total'          => count($images),
+            'missing_alt'    => count(array_filter($images, fn ($i) => ($i['alt'] ?? '') === '')),
+            'lazy'           => count(array_filter($images, fn ($i) => ($i['loading'] ?? '') === 'lazy')),
+            'no_dimensions'  => count(array_filter($images, fn ($i) => empty($i['width']) || empty($i['height']))),
+        ];
+
+        $uniqueInternal = array_values(array_unique(array_merge($uniqueInternal, $imagelinks)));
 
         // --- Build summary text (for AI) ---------------------------------------
         $summary = sprintf(
