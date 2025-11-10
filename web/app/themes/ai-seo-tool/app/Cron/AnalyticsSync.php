@@ -7,7 +7,7 @@ use BBSEO\PostTypes\Project;
 
 class AnalyticsSync
 {
-    public const EVENT = 'BBSEO_daily_ga_sync';
+    public const EVENT = 'bbseo_daily_ga_sync';
 
     public static function init(): void
     {

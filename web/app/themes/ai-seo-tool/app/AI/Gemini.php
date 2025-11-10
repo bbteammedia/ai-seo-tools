@@ -325,7 +325,7 @@ Rules:
 - Never invent URLs or stats that are not in the data.
 - Use plain text (no markdown, bullet prefixes, or HTML).
 Report type: {$type}
-High level stats: pages={$stats['pages']} issues={$stats['issues']} 4xx={$stats['status4xx']} 5xx={$stats['status5xx']}
+High level stats: pages={$stats['pages']} images={$stats['images']} errors={$stats['errors']} issues={$stats['issues']} 4xx={$stats['status4xx']} 5xx={$stats['status5xx']}
 TXT;
 
         return $instructions . "\n\nDATA (JSON):\n" . $context;
@@ -410,6 +410,8 @@ TXT;
     {
         $runs = $data['runs'] ?? [];
         $pages = 0;
+        $images = 0;
+        $errors = 0;
         $issues = 0;
         $status4xx = 0;
         $status5xx = 0;
@@ -417,6 +419,8 @@ TXT;
         foreach ($runs as $run) {
             $summary = $run['summary'] ?? [];
             $pages += (int) ($summary['pages'] ?? count($run['pages'] ?? []));
+            $images += (int) ($summary['images'] ?? count($run['images'] ?? []));
+            $errors += (int) ($summary['errors'] ?? count($run['errors'] ?? []));
             $issues += (int) ($summary['issues']['total'] ?? 0);
             $status4xx += (int) ($summary['status']['4xx'] ?? 0);
             $status5xx += (int) ($summary['status']['5xx'] ?? 0);
@@ -424,6 +428,8 @@ TXT;
 
         return [
             'pages' => $pages,
+            'images' => $images,
+            'errors' => $errors,
             'issues' => $issues,
             'status4xx' => $status4xx,
             'status5xx' => $status5xx,

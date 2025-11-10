@@ -27,7 +27,7 @@ class GoogleAnalytics
 
     public static function redirectUri(): string
     {
-        return admin_url('admin-post.php?action=BBSEO_ga_callback');
+        return admin_url('admin-post.php?action=bbseo_ga_callback');
     }
 
     public static function authorizationUrl(string $project, string $state): string

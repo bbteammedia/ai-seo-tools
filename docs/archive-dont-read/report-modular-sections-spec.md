@@ -24,18 +24,18 @@
 
 - **Post type:** `BBSEO_report` (already defined in your system or from prior step)
 - **Meta keys used** (existing + new):
-  - `_BBSEO_report_type` — `general | per_page | technical`
-  - `_BBSEO_project_slug` — project slug
-  - `_BBSEO_page` — URL when `per_page` is selected
-  - `_BBSEO_runs` — JSON array of run IDs for comparison
-  - `_BBSEO_summary` — overall executive summary text (freeform)
-  - `_BBSEO_top_actions` — JSON array of strings (top 3–10 actions)
-  - `_BBSEO_meta_recos` — JSON array of objects (meta improvements)
-  - `_BBSEO_tech_findings` — freeform technical notes
-  - `_BBSEO_snapshot` — JSON of the data snapshot used for AI (optional)
-  - **`_BBSEO_sections`** — **JSON array of section objects** (NEW; the modular system lives here)
+  - `_bbseo_report_type` — `general | per_page | technical`
+  - `_bbseo_project_slug` — project slug
+  - `_bbseo_page` — URL when `per_page` is selected
+  - `_bbseo_runs` — JSON array of run IDs for comparison
+  - `_bbseo_summary` — overall executive summary text (freeform)
+  - `_bbseo_top_actions` — JSON array of strings (top 3–10 actions)
+  - `_bbseo_meta_recos` — JSON array of objects (meta improvements)
+  - `_bbseo_tech_findings` — freeform technical notes
+  - `_bbseo_snapshot` — JSON of the data snapshot used for AI (optional)
+  - **`_bbseo_sections`** — **JSON array of section objects** (NEW; the modular system lives here)
 
-**Section object shape** (stored inside `_BBSEO_sections`):
+**Section object shape** (stored inside `_bbseo_sections`):
 ```json
 {
   "id": "overview_ab12cd",
@@ -60,7 +60,7 @@ namespace BBSEO\Helpers;
 
 class Sections
 {
-    const META_SECTIONS = '_BBSEO_sections';
+    const META_SECTIONS = '_bbseo_sections';
 
     public static function registry(): array
     {
@@ -142,7 +142,7 @@ class ReportSectionsUI
     {
         add_action('edit_form_after_editor', [self::class, 'render']);
         add_action('save_post_' . Report::POST_TYPE, [self::class, 'save'], 10, 3);
-        add_action('wp_ajax_BBSEO_sections_generate', [self::class,'generate_ai_for_section']);
+        add_action('wp_ajax_bbseo_sections_generate', [self::class,'generate_ai_for_section']);
         add_action('admin_enqueue_scripts', [self::class,'assets']);
     }
 
@@ -155,7 +155,7 @@ class ReportSectionsUI
     public static function render(\WP_Post $post)
     {
         if ($post->post_type !== Report::POST_TYPE) return;
-        wp_nonce_field('BBSEO_sections_nonce','BBSEO_sections_nonce');
+        wp_nonce_field('bbseo_sections_nonce','bbseo_sections_nonce');
 
         $type = get_post_meta($post->ID, Report::META_TYPE, true) ?: 'general';
 
@@ -169,22 +169,22 @@ class ReportSectionsUI
         $registry = Sections::registry();
         ?>
         <style>
-          .BBSEO-sections { margin-top: 16px; }
-          .BBSEO-sections .section { border:1px solid #dcdcdc; border-radius:6px; padding:12px; margin-bottom:10px; background:#fff; }
-          .BBSEO-sections .section .head { display:flex; align-items:center; justify-content:space-between; }
-          .BBSEO-sections .section .type { font-weight:600; }
-          .BBSEO-sections .section .controls button { margin-left:6px; }
-          .BBSEO-sections .section textarea, .BBSEO-sections .section input[type=text] { width:100%; }
-          .BBSEO-sections .add-row { margin: 12px 0; }
-          .BBSEO-sections .drag { cursor: move; opacity: .7; }
-          .BBSEO-sections .reco small { color:#666; }
+          .bbseo-sections { margin-top: 16px; }
+          .bbseo-sections .section { border:1px solid #dcdcdc; border-radius:6px; padding:12px; margin-bottom:10px; background:#fff; }
+          .bbseo-sections .section .head { display:flex; align-items:center; justify-content:space-between; }
+          .bbseo-sections .section .type { font-weight:600; }
+          .bbseo-sections .section .controls button { margin-left:6px; }
+          .bbseo-sections .section textarea, .bbseo-sections .section input[type=text] { width:100%; }
+          .bbseo-sections .add-row { margin: 12px 0; }
+          .bbseo-sections .drag { cursor: move; opacity: .7; }
+          .bbseo-sections .reco small { color:#666; }
         </style>
 
-        <div class="postbox BBSEO-sections">
+        <div class="postbox bbseo-sections">
           <h2 class="hndle"><span>Report Sections</span></h2>
           <div class="inside">
 
-            <div id="BBSEO-sections-list">
+            <div id="bbseo-sections-list">
               <?php foreach ($sections as $idx => $sec): ?>
                 <div class="section" data-id="<?php echo esc_attr($sec['id']);?>">
                   <div class="head">
@@ -193,19 +193,19 @@ class ReportSectionsUI
                       <?php echo esc_html($registry[$sec['type']]['label'] ?? ucfirst($sec['type']));?>
                     </div>
                     <div class="controls">
-                      <button type="button" class="button BBSEO-ai-one" data-id="<?php echo esc_attr($sec['id']);?>">AI</button>
-                      <button type="button" class="button button-link-delete BBSEO-del" data-id="<?php echo esc_attr($sec['id']);?>">Remove</button>
+                      <button type="button" class="button bbseo-ai-one" data-id="<?php echo esc_attr($sec['id']);?>">AI</button>
+                      <button type="button" class="button button-link-delete bbseo-del" data-id="<?php echo esc_attr($sec['id']);?>">Remove</button>
                     </div>
                   </div>
                   <div class="body">
                     <label>Custom Title</label>
-                    <input type="text" name="BBSEO_sections[<?php echo $idx;?>][title]" value="<?php echo esc_attr($sec['title']);?>">
-                    <input type="hidden" name="BBSEO_sections[<?php echo $idx;?>][id]" value="<?php echo esc_attr($sec['id']);?>">
-                    <input type="hidden" name="BBSEO_sections[<?php echo $idx;?>][type]" value="<?php echo esc_attr($sec['type']);?>">
-                    <textarea name="BBSEO_sections[<?php echo $idx;?>][body]" rows="5" placeholder="Section narrative (editable)"><?php echo esc_textarea($sec['body']);?></textarea>
+                    <input type="text" name="bbseo_sections[<?php echo $idx;?>][title]" value="<?php echo esc_attr($sec['title']);?>">
+                    <input type="hidden" name="bbseo_sections[<?php echo $idx;?>][id]" value="<?php echo esc_attr($sec['id']);?>">
+                    <input type="hidden" name="bbseo_sections[<?php echo $idx;?>][type]" value="<?php echo esc_attr($sec['type']);?>">
+                    <textarea name="bbseo_sections[<?php echo $idx;?>][body]" rows="5" placeholder="Section narrative (editable)"><?php echo esc_textarea($sec['body']);?></textarea>
                     <div class="reco">
                       <label>Recommendations (one per line)</label>
-                      <textarea name="BBSEO_sections[<?php echo $idx;?>][reco_raw]" rows="3"><?php echo esc_textarea(implode("\n", $sec['reco_list'] ?? []));?></textarea>
+                      <textarea name="bbseo_sections[<?php echo $idx;?>][reco_raw]" rows="3"><?php echo esc_textarea(implode("\n", $sec['reco_list'] ?? []));?></textarea>
                       <small>Suggestions can be prefilled by AI or edited manually.</small>
                     </div>
                   </div>
@@ -214,14 +214,14 @@ class ReportSectionsUI
             </div>
 
             <div class="add-row">
-              <select id="BBSEO-add-type">
+              <select id="bbseo-add-type">
                 <option value="">Add Section…</option>
                 <?php foreach ($registry as $k => $r): ?>
                   <option value="<?php echo esc_attr($k);?>"><?php echo esc_html($r['label']);?></option>
                 <?php endforeach; ?>
               </select>
-              <button type="button" class="button" id="BBSEO-add-btn">Add</button>
-              <button type="button" class="button button-primary" id="BBSEO-ai-all">Generate AI for All Sections</button>
+              <button type="button" class="button" id="bbseo-add-btn">Add</button>
+              <button type="button" class="button button-primary" id="bbseo-ai-all">Generate AI for All Sections</button>
             </div>
 
           </div>
@@ -230,67 +230,67 @@ class ReportSectionsUI
         <script>
         (function($){
           // sortable
-          $('#BBSEO-sections-list').sortable({
+          $('#bbseo-sections-list').sortable({
             handle: '.drag',
             stop: function() { renumber(); }
           });
 
           function renumber(){
-            $('#BBSEO-sections-list .section').each(function(i){
+            $('#bbseo-sections-list .section').each(function(i){
               $(this).find('input, textarea').each(function(){
                 const name = $(this).attr('name');
                 if(!name) return;
-                const n = name.replace(/BBSEO_sections\[\d+\]/, 'BBSEO_sections['+i+']');
+                const n = name.replace(/BBSEO_sections\[\d+\]/, 'bbseo_sections['+i+']');
                 $(this).attr('name', n);
               });
             });
           }
 
-          $('#BBSEO-add-btn').on('click', function(){
-            const type = $('#BBSEO-add-type').val();
+          $('#bbseo-add-btn').on('click', function(){
+            const type = $('#bbseo-add-type').val();
             if(!type) return;
-            const label = $('#BBSEO-add-type option:selected').text();
+            const label = $('#bbseo-add-type option:selected').text();
             const id = type + '_' + Math.random().toString(36).slice(2,8);
-            const idx = $('#BBSEO-sections-list .section').length;
+            const idx = $('#bbseo-sections-list .section').length;
             const html = `
               <div class="section" data-id="${id}">
                 <div class="head">
                   <div class="type"><span class="dashicons dashicons-move drag"></span>${label}</div>
                   <div class="controls">
-                    <button type="button" class="button BBSEO-ai-one" data-id="${id}">AI</button>
-                    <button type="button" class="button button-link-delete BBSEO-del" data-id="${id}">Remove</button>
+                    <button type="button" class="button bbseo-ai-one" data-id="${id}">AI</button>
+                    <button type="button" class="button button-link-delete bbseo-del" data-id="${id}">Remove</button>
                   </div>
                 </div>
                 <div class="body">
                   <label>Custom Title</label>
-                  <input type="text" name="BBSEO_sections[${idx}][title]" value="${label}">
-                  <input type="hidden" name="BBSEO_sections[${idx}][id]" value="${id}">
-                  <input type="hidden" name="BBSEO_sections[${idx}][type]" value="${type}">
-                  <textarea name="BBSEO_sections[${idx}][body]" rows="5" placeholder="Section narrative (editable)"></textarea>
+                  <input type="text" name="bbseo_sections[${idx}][title]" value="${label}">
+                  <input type="hidden" name="bbseo_sections[${idx}][id]" value="${id}">
+                  <input type="hidden" name="bbseo_sections[${idx}][type]" value="${type}">
+                  <textarea name="bbseo_sections[${idx}][body]" rows="5" placeholder="Section narrative (editable)"></textarea>
                   <div class="reco">
                     <label>Recommendations (one per line)</label>
-                    <textarea name="BBSEO_sections[${idx}][reco_raw]" rows="3"></textarea>
+                    <textarea name="bbseo_sections[${idx}][reco_raw]" rows="3"></textarea>
                     <small>Suggestions can be prefilled by AI or edited manually.</small>
                   </div>
                 </div>
               </div>`;
-            $('#BBSEO-sections-list').append(html);
+            $('#bbseo-sections-list').append(html);
           });
 
-          $(document).on('click','.BBSEO-del', function(){
+          $(document).on('click','.bbseo-del', function(){
             $(this).closest('.section').remove();
             renumber();
           });
 
           // AI: one section
-          $(document).on('click','.BBSEO-ai-one', function(){
+          $(document).on('click','.bbseo-ai-one', function(){
             const secId = $(this).data('id');
             aiForSection(secId);
           });
 
           // AI: all sections
-          $('#BBSEO-ai-all').on('click', function(){
-            $('#BBSEO-sections-list .section').each(function(){
+          $('#bbseo-ai-all').on('click', function(){
+            $('#bbseo-sections-list .section').each(function(){
               const secId = $(this).data('id');
               aiForSection(secId);
             });
@@ -304,11 +304,11 @@ class ReportSectionsUI
             const runs = form.querySelector('input[name=BBSEO_runs]')?.value || '[]';
 
             $.post(ajaxurl, {
-              action: 'BBSEO_sections_generate',
+              action: 'bbseo_sections_generate',
               post_id: <?php echo (int)$post->ID;?>,
               section_id: secId,
               type, project, page, runs,
-              _wpnonce: '<?php echo wp_create_nonce('BBSEO_ai_sections_'.$post->ID);?>'
+              _wpnonce: '<?php echo wp_create_nonce('bbseo_ai_sections_'.$post->ID);?>'
             }, function(res){
               if(res && res.success){
                 const $wrap = $('.section[data-id="'+secId+'"]');
@@ -326,10 +326,10 @@ class ReportSectionsUI
 
     public static function save($postId, $post, $update)
     {
-        if (!isset($_POST['BBSEO_sections_nonce']) || !wp_verify_nonce($_POST['BBSEO_sections_nonce'],'BBSEO_sections_nonce')) return;
+        if (!isset($_POST['bbseo_sections_nonce']) || !wp_verify_nonce($_POST['bbseo_sections_nonce'],'bbseo_sections_nonce')) return;
         if (!current_user_can('edit_post',$postId)) return;
 
-        $raw = $_POST['BBSEO_sections'] ?? null;
+        $raw = $_POST['bbseo_sections'] ?? null;
         if (!is_array($raw)) return;
 
         $out = [];
@@ -350,7 +350,7 @@ class ReportSectionsUI
     {
         $postId = intval($_POST['post_id'] ?? 0);
         if (!$postId || !current_user_can('edit_post',$postId)) wp_send_json_error(['msg'=>'perm']);
-        check_ajax_referer('BBSEO_ai_sections_'.$postId);
+        check_ajax_referer('bbseo_ai_sections_'.$postId);
 
         const sectionId = sanitize_text_field($_POST['section_id'] ?? '');
         $type    = sanitize_text_field($_POST['type'] ?? 'general');
@@ -435,7 +435,7 @@ class Gemini {
   ```
 - [ ] Verify jQuery UI Sortable loads in admin (no CSP issues).  
 - [ ] On **new Report**, sections auto-populate based on `type`.  
-- [ ] **Save** preserves order and fields to `_BBSEO_sections` as JSON.  
+- [ ] **Save** preserves order and fields to `_bbseo_sections` as JSON.  
 - [ ] **AI (per-section/All)** triggers AJAX → fills body + reco list.  
 - [ ] Ensure `DataLoader::forReport(...)` exists and works.  
 
@@ -443,7 +443,7 @@ class Gemini {
 
 ## 6) Rendering (front-end/PDF) — when you’re ready
 
-- Read `_BBSEO_sections` (JSON) → sort by `order` (or use array order).  
+- Read `_bbseo_sections` (JSON) → sort by `order` (or use array order).  
 - Loop sections and render `title`, `body`, and `reco_list` as bullet points.  
 - Respect user edits (do not recompute at render).  
 - For PDF: pipe the rendered HTML to dompdf like your report template.
@@ -465,7 +465,7 @@ class Gemini {
 ## 8) Performance Notes
 
 - Sections are small JSON; post meta is OK.  
-- For very large reports, you may split into multiple rows (e.g., `_BBSEO_sections_1`, `_BBSEO_sections_2`), but not needed now.  
+- For very large reports, you may split into multiple rows (e.g., `_bbseo_sections_1`, `_bbseo_sections_2`), but not needed now.  
 - Debounce “AI for All” if your real Gemini calls are slow; show a progress toast per section.
 
 ---
@@ -498,4 +498,4 @@ class Gemini {
 > Wire with `add_action('init', ['BBSEO\Admin\ReportSectionsUI', 'boot']);`  
 > Keep the fields under the main editor, not in a sidebar.  
 > Use jQuery UI Sortable for ordering.  
-> Save to `_BBSEO_sections` exactly as specified.
+> Save to `_bbseo_sections` exactly as specified.

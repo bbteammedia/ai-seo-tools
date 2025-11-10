@@ -42,12 +42,14 @@ class DataLoader
                     'provider' => self::read($dir . '/backlinks/provider.json'),
                 ],
                 'pages' => [],
+                'images' => [],
+                'errors' => [],
             ];
 
             if ($type === 'per_page' && $pageUrl) {
                 $pf = $dir . '/pages/' . md5($pageUrl) . '.json';
                 $runPack['pages'] = is_file($pf) ? [self::read($pf) ?: []] : [];
-            }
+            } 
 
             $out['runs'][] = $runPack;
         }

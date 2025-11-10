@@ -102,7 +102,7 @@ For each processed URL:
   - Missing OG tags or structured data.
 - Summaries include total pages, status distribution, per-issue counts.
 - `ReportBuilder` merges audit summary + crawl stats, surfaces top 10 issues, and writes `report.json`.
-- `templates/report.php` renders the JSON data for front-end viewing (`/ai-seo-report/{slug}`).
+- `templates/report.php` renders the JSON data for front-end viewing (`/report/{slug}`).
 
 ### 5. Admin dashboard (wp-admin → Blackbird SEO)
 

@@ -38,7 +38,7 @@ class Worker
                 'image/webp',
                 'image/svg+xml'
             ])
-            ->setUserAgent('BBSEO-Bot/0.1');
+            ->setUserAgent('bbseo-Bot/0.1');
 
         try {
             $crawler->startCrawling($url);
@@ -105,14 +105,22 @@ class Worker
                 'first_paragraph' => $parsed['first_paragraph'],
             ]);
             $discovered = $parsed['internal_urls'];
+
+            $pfile = $dirs['pages'] . '/' . md5($url) . '.json';
+            Storage::writeJson($pfile, $page);
         } elseif (self::isPdf($contentType)) {
             $page['pdf_info'] = self::analyzePdf($body, $url);
+            $pfile = $dirs['pages'] . '/' . md5($url) . '.json';
+            Storage::writeJson($pfile, $page);
         } elseif (self::isImage($contentType)) {
             $page['image_info'] = self::analyzeImage($body, $url, $contentType);
+            $ifile = $dirs['images'] . '/' . md5($url) . '.json';
+            Storage::writeJson($ifile, $page);
+        } else {
+            // Other asset types can be handled here if needed
+            $pfile = $dirs['pages'] . '/' . md5($url) . '.json';
+            Storage::writeJson($pfile, $page);
         }
-
-        $pfile = $dirs['pages'] . '/' . md5($url) . '.json';
-        Storage::writeJson($pfile, $page);
 
         if (!empty($discovered)) {
             Queue::enqueue($project, $discovered, $runId);
@@ -151,8 +159,8 @@ class Worker
             'error' => $exception ? $exception->getMessage() : 'request failed',
         ];
 
-        $pfile = $dirs['pages'] . '/' . md5($page['url']) . '.json';
-        Storage::writeJson($pfile, $page);
+        $efile = $dirs['errors'] . '/' . md5($page['url']) . '.json';
+        Storage::writeJson($efile, $page);
 
         self::touchMeta($dirs['base'], ['last_processed_at' => gmdate('c')]);
 
@@ -168,7 +176,7 @@ class Worker
             'timeout' => 20,
             'allow_redirects' => false,
             'headers' => [
-                'User-Agent' => 'BBSEO-Bot/0.1',
+                'User-Agent' => 'bbseo-Bot/0.1',
                 'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             ],
         ];

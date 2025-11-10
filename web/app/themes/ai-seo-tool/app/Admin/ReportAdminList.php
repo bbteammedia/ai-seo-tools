@@ -21,13 +21,13 @@ class ReportAdminList
         $viewUrl = self::reportUrl($post);
         $pdfUrl = self::reportUrl($post, true);
 
-        $actions['BBSEO_view'] = sprintf(
+        $actions['bbseo_view'] = sprintf(
             '<a href="%s" target="_blank" rel="noopener">%s</a>',
             esc_url($viewUrl),
             esc_html__('View Report', 'ai-seo-tool')
         );
 
-        $actions['BBSEO_pdf'] = sprintf(
+        $actions['bbseo_pdf'] = sprintf(
             '<a href="%s">%s</a>',
             esc_url($pdfUrl),
             esc_html__('Download PDF', 'ai-seo-tool')
@@ -38,13 +38,13 @@ class ReportAdminList
 
     public static function addColumns(array $columns): array
     {
-        $columns['BBSEO_report_links'] = __('Report Links', 'ai-seo-tool');
+        $columns['bbseo_report_links'] = __('Report Links', 'ai-seo-tool');
         return $columns;
     }
 
     public static function renderColumn(string $column, int $postId): void
     {
-        if ($column !== 'BBSEO_report_links') {
+        if ($column !== 'bbseo_report_links') {
             return;
         }
 
@@ -71,7 +71,7 @@ class ReportAdminList
 
     private static function reportUrl(\WP_Post $post, bool $pdf = false): string
     {
-        $url = home_url('ai-seo-report/' . $post->post_name);
+        $url = home_url('report/' . $post->post_name);
         if ($pdf) {
             $url = add_query_arg('format', 'pdf', $url);
         }

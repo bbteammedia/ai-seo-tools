@@ -22,18 +22,18 @@ class Report
 
     public static function addRewriteRule(): void
     {
-        add_rewrite_rule('^ai-seo-report/([^/]+)/?$', 'index.php?BBSEO_report=$matches[1]', 'top');
+        add_rewrite_rule('^report/([^/]+)/?$', 'index.php?bbseo_report=$matches[1]', 'top');
     }
 
     public static function registerQueryVar(array $vars): array
     {
-        $vars[] = 'BBSEO_report';
+        $vars[] = 'bbseo_report';
         return $vars;
     }
 
     public static function loadTemplate(string $template): string
     {
-        $project = get_query_var('BBSEO_report');
+        $project = get_query_var('bbseo_report');
         if (!$project) {
             return $template;
         }
@@ -67,7 +67,7 @@ class Report
         }
 
         setup_postdata($reportPost);
-        $GLOBALS['BBSEO_report_post'] = $reportPost;
+        $GLOBALS['bbseo_report_post'] = $reportPost;
         status_header(200);
 
         $format = isset($_GET['format']) ? sanitize_key($_GET['format']) : '';

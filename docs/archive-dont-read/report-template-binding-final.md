@@ -2,7 +2,7 @@
 
 **This spec matches your current setup exactly.**  
 - **Frontend template:** `web/app/themes/ai-seo-tool/templates/report.php`  
-- **Public URL:** `https://ai-seo-tools.box/ai-seo-report/{slug}` (your router should load `report.php` for this path)  
+- **Public URL:** `https://ai-seo-tools.box/report/{slug}` (your router should load `report.php` for this path)  
 - **Admin editing:** Report CPT + modular sections under the main editor
 
 It solves two issues you reported:
@@ -117,10 +117,10 @@ use BBSEO\Helpers\Sections;
 $report = get_queried_object(); // or your router sets $report_id
 $post_id = is_object($report) ? $report->ID : get_the_ID();
 
-$project = get_post_meta($post_id, '_BBSEO_project_slug', true);
-$type    = get_post_meta($post_id, '_BBSEO_report_type', true) ?: 'general';
-$runs    = json_decode(get_post_meta($post_id, '_BBSEO_runs', true) ?: '[]', true) ?: [];
-$pageUrl = get_post_meta($post_id, '_BBSEO_page', true) ?: '';
+$project = get_post_meta($post_id, '_bbseo_project_slug', true);
+$type    = get_post_meta($post_id, '_bbseo_report_type', true) ?: 'general';
+$runs    = json_decode(get_post_meta($post_id, '_bbseo_runs', true) ?: '[]', true) ?: [];
+$pageUrl = get_post_meta($post_id, '_bbseo_page', true) ?: '';
 
 // Load unified data set
 $data = DataLoader::forReport($type, $project, $runs, $pageUrl);
@@ -133,8 +133,8 @@ foreach ($data['runs'] as $r) {
 }
 
 // Editor fields
-$execSummary = get_post_meta($post_id, '_BBSEO_summary', true);
-$topActions  = json_decode(get_post_meta($post_id, '_BBSEO_top_actions', true) ?: '[]', true);
+$execSummary = get_post_meta($post_id, '_bbseo_summary', true);
+$topActions  = json_decode(get_post_meta($post_id, '_bbseo_top_actions', true) ?: '[]', true);
 
 // Sections from DB (order + show respected)
 $sections = json_decode(get_post_meta($post_id, Sections::META_SECTIONS, true) ?: '[]', true);
@@ -177,20 +177,20 @@ Add right after your sections markup:
 ```php
 <script>
 window.BBSEOReportPostId = <?php echo (int)$post->ID;?>;
-window.BBSEOSectionsNonce = '<?php echo esc_js( wp_create_nonce('BBSEO_ai_sections_'.$post->ID) );?>';
+window.BBSEOSectionsNonce = '<?php echo esc_js( wp_create_nonce('bbseo_ai_sections_'.$post->ID) );?>';
 </script>
 <script>
 (function($){
-  const $list = $('#BBSEO-sections-list');
+  const $list = $('#bbseo-sections-list');
   if (!$list.length) return;
 
   function getSettings(){
-    let runsVal = $('input[name="BBSEO_runs"]').val() || '[]';
+    let runsVal = $('input[name="bbseo_runs"]').val() || '[]';
     try { JSON.parse(runsVal); } catch(e){ runsVal = '[]'; }
     return {
-      type: $('select[name="BBSEO_report_type"]').val() || 'general',
-      project: $('select[name="BBSEO_project_slug"]').val() || '',
-      page: $('input[name="BBSEO_page"]').val() || '',
+      type: $('select[name="bbseo_report_type"]').val() || 'general',
+      project: $('select[name="bbseo_project_slug"]').val() || '',
+      page: $('input[name="bbseo_page"]').val() || '',
       runs: runsVal
     };
   }
@@ -198,7 +198,7 @@ window.BBSEOSectionsNonce = '<?php echo esc_js( wp_create_nonce('BBSEO_ai_sectio
   function aiForSection(id){
     const s = getSettings();
     $.post(ajaxurl, {
-      action: 'BBSEO_sections_generate',
+      action: 'bbseo_sections_generate',
       post_id: window.BBSEOReportPostId,
       section_id: id,
       type: s.type, project: s.project, page: s.page, runs: s.runs,
@@ -214,8 +214,8 @@ window.BBSEOSectionsNonce = '<?php echo esc_js( wp_create_nonce('BBSEO_ai_sectio
     }).fail(function(xhr){ alert('AJAX '+xhr.status); console.error(xhr.responseText); });
   }
 
-  $(document).on('click','.BBSEO-ai-one', function(){ aiForSection($(this).data('id')); });
-  $('#BBSEO-ai-all').on('click', function(){
+  $(document).on('click','.bbseo-ai-one', function(){ aiForSection($(this).data('id')); });
+  $('#bbseo-ai-all').on('click', function(){
     $list.find('.section').each(function(){ aiForSection($(this).data('id')); });
   });
 })(jQuery);
@@ -226,10 +226,10 @@ window.BBSEOSectionsNonce = '<?php echo esc_js( wp_create_nonce('BBSEO_ai_sectio
 
 ```php
 <?php
-add_action('wp_ajax_BBSEO_sections_generate', function(){
+add_action('wp_ajax_bbseo_sections_generate', function(){
   $postId = intval($_POST['post_id'] ?? 0);
   if (!$postId || !current_user_can('edit_post',$postId)) wp_send_json_error(['msg'=>'perm']);
-  check_ajax_referer('BBSEO_ai_sections_'.$postId);
+  check_ajax_referer('bbseo_ai_sections_'.$postId);
 
   $sectionId = sanitize_text_field($_POST['section_id'] ?? '');
   $type    = sanitize_text_field($_POST['type'] ?? 'general');
@@ -256,7 +256,7 @@ add_action('wp_ajax_BBSEO_sections_generate', function(){
 ```
 
 **Common pitfalls fixed here**
-- Nonce creation `wp_create_nonce('BBSEO_ai_sections_'.$post->ID)` matches `check_ajax_referer('BBSEO_ai_sections_'.$postId)`
+- Nonce creation `wp_create_nonce('bbseo_ai_sections_'.$post->ID)` matches `check_ajax_referer('bbseo_ai_sections_'.$postId)`
 - Uses `ajaxurl` in admin; adds console logging on failure.
 
 ---

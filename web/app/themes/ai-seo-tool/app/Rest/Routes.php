@@ -198,9 +198,13 @@ class Routes
         $runDir = Storage::runDir($project, $runId);
         $queueDir = $runDir . '/queue';
         $pagesDir = $runDir . '/pages';
+        $imagesDir = $runDir . '/images';
+        $errorsDir = $runDir . '/errors';
         $todos = glob($queueDir . '/*.todo');
         $done = glob($queueDir . '/*.done');
         $pages = glob($pagesDir . '/*.json');
+        $images = glob($imagesDir . '/*.json');
+        $errors = glob($errorsDir . '/*.json');
 
         return Http::ok([
             'project' => $project,
@@ -208,6 +212,8 @@ class Routes
             'queue_remaining' => count($todos),
             'queue_done' => count($done),
             'pages' => count($pages),
+            'images' => count($images),
+            'errors' => count($errors),
             'base_url' => Project::getBaseUrl($project),
         ]);
     }

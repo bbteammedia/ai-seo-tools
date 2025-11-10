@@ -3,7 +3,7 @@ use BBSEO\PostTypes\Report as ReportPostType;
 use BBSEO\Helpers\Sections;
 
 /** @var \WP_Post|null $report */
-$report = $GLOBALS['BBSEO_report_post'] ?? null;
+$report = $GLOBALS['bbseo_report_post'] ?? null;
 if (!$report instanceof \WP_Post) {
     status_header(404);
     echo '<h1>Report not found</h1>';

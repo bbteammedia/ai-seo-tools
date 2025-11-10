@@ -9,7 +9,12 @@ class Summary
     {
         $dir = Storage::runDir($project, $run);
         $pages = glob($dir . '/pages/*.json');
+        $images = glob($dir . '/images/*.json');
+        $errors = glob($dir . '/errors/*.json');
+
         $count = is_array($pages) ? count($pages) : 0;
+        $imagesCount = is_array($images) ? count($images) : 0;
+        $errorsCount = is_array($errors) ? count($errors) : 0;
 
         $statusBuckets = ['2xx' => 0, '3xx' => 0, '4xx' => 0, '5xx' => 0, 'other' => 0];
         $issuesTotal = 0;
@@ -44,6 +49,8 @@ class Summary
             'run_id' => $run,
             'generated' => gmdate('c'),
             'pages' => $count,
+            'images' => $imagesCount,
+            'errors' => $errorsCount,
             'status' => $statusBuckets,
             'issues' => [
                 'total' => $issuesTotal,
@@ -69,6 +76,8 @@ class Summary
             'run_id' => $summary['run_id'],
             'date' => $summary['generated'],
             'pages' => $summary['pages'],
+            'images' => $summary['images'],
+            'errors' => $summary['errors'],
             '2xx' => $summary['status']['2xx'],
             '3xx' => $summary['status']['3xx'],
             '4xx' => $summary['status']['4xx'],

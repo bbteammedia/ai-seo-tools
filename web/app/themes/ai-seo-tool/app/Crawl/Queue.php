@@ -46,6 +46,8 @@ class Queue
         $dirs = Storage::ensureRun($project, $runId);
         $qdir = $dirs['queue'];
         $pdir = $dirs['pages'];
+        $edir = $dirs['errors'];
+        $idir = $dirs['images'];
         $added = 0;
         foreach ($urls as $url) {
             $url = trim((string) $url);
@@ -56,7 +58,9 @@ class Queue
             $todo = $qdir . '/' . $hash . '.todo';
             $done = $qdir . '/' . $hash . '.done';
             $page = $pdir . '/' . $hash . '.json';
-            if (file_exists($todo) || file_exists($done) || file_exists($page)) {
+            $image = $idir . '/' . $hash . '.json';
+            $error = $edir . '/' . $hash . '.json';
+            if (file_exists($todo) || file_exists($done) || file_exists($page) || file_exists($image) || file_exists($error)) {
                 continue;
             }
             file_put_contents($todo, $url);

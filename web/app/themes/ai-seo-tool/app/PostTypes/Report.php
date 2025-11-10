@@ -3,17 +3,17 @@ namespace BBSEO\PostTypes;
 
 class Report
 {
-    public const POST_TYPE = 'BBSEO_report';
+    public const POST_TYPE = 'bbseo_report';
 
-    public const META_TYPE = '_BBSEO_report_type';
-    public const META_PROJECT = '_BBSEO_project_slug';
-    public const META_PAGE = '_BBSEO_page';
-    public const META_RUNS = '_BBSEO_runs';
-    public const META_SUMMARY = '_BBSEO_summary';
-    public const META_ACTIONS = '_BBSEO_top_actions';
-    public const META_META_RECO = '_BBSEO_meta_recos';
-    public const META_TECH = '_BBSEO_tech_findings';
-    public const META_SNAPSHOT = '_BBSEO_snapshot';
+    public const META_TYPE = '_bbseo_report_type';
+    public const META_PROJECT = '_bbseo_project_slug';
+    public const META_PAGE = '_bbseo_page';
+    public const META_RUNS = '_bbseo_runs';
+    public const META_SUMMARY = '_bbseo_summary';
+    public const META_ACTIONS = '_bbseo_top_actions';
+    public const META_META_RECO = '_bbseo_meta_recos';
+    public const META_TECH = '_bbseo_tech_findings';
+    public const META_SNAPSHOT = '_bbseo_snapshot';
 
     public static function registerPostType(): void
     {

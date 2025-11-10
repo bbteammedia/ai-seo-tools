@@ -16,7 +16,7 @@ class ReportMetaBox
     public static function add(): void
     {
         add_meta_box(
-            'BBSEO_report_settings',
+            'bbseo_report_settings',
             'Report Settings',
             [self::class, 'render'],
             Report::POST_TYPE,
@@ -27,7 +27,7 @@ class ReportMetaBox
 
     public static function render(\WP_Post $post): void
     {
-        wp_nonce_field('BBSEO_report_nonce', 'BBSEO_report_nonce');
+        wp_nonce_field('bbseo_report_nonce', 'bbseo_report_nonce');
 
         $type = get_post_meta($post->ID, Report::META_TYPE, true) ?: 'general';
         $project = get_post_meta($post->ID, Report::META_PROJECT, true) ?: '';
@@ -43,14 +43,14 @@ class ReportMetaBox
         }
         ?>
         <style>
-            .BBSEO-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-            .BBSEO-grid .full { grid-column:1 / -1; }
-            .BBSEO-grid textarea { min-height:120px; }
+            .bbseo-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+            .bbseo-grid .full { grid-column:1 / -1; }
+            .bbseo-grid textarea { min-height:120px; }
         </style>
-        <div class="BBSEO-grid">
+        <div class="bbseo-grid">
             <div>
                 <label><strong>Report Type</strong></label><br/>
-                <select name="BBSEO_report_type" id="BBSEO_report_type">
+                <select name="bbseo_report_type" id="bbseo_report_type">
                     <option value="general" <?php selected($type, 'general'); ?>>Website General SEO Audit</option>
                     <option value="per_page" <?php selected($type, 'per_page'); ?>>Website SEO Audit per Page</option>
                     <option value="technical" <?php selected($type, 'technical'); ?>>Technical SEO</option>
@@ -58,7 +58,7 @@ class ReportMetaBox
             </div>
             <div>
                 <label><strong>Project</strong></label><br/>
-                <select name="BBSEO_project_slug" id="BBSEO_project_slug">
+                <select name="bbseo_project_slug" id="bbseo_project_slug">
                     <option value="">- select -</option>
                     <?php foreach ($projects as $p): ?>
                         <option value="<?php echo esc_attr($p); ?>" <?php selected($project, $p); ?>><?php echo esc_html($p); ?></option>
@@ -66,24 +66,24 @@ class ReportMetaBox
                 </select>
             </div>
 
-            <div class="full" id="BBSEO_per_page_row" style="<?php echo $type === 'per_page' ? '' : 'display:none'; ?>">
+            <div class="full" id="bbseo_per_page_row" style="<?php echo $type === 'per_page' ? '' : 'display:none'; ?>">
                 <label><strong>Page URL</strong></label><br/>
-                <input type="url" class="widefat" name="BBSEO_page" value="<?php echo esc_attr($page); ?>" placeholder="https://example.com/page" />
+                <input type="url" class="widefat" name="bbseo_page" value="<?php echo esc_attr($page); ?>" placeholder="https://example.com/page" />
                 <p class="description">For per-page reports, specify the target page URL.</p>
             </div>
 
             <div class="full">
                 <label><strong>Runs (for compare)</strong></label>
-                <input type="text" class="widefat" name="BBSEO_runs" value="<?php echo esc_attr(wp_json_encode($runs)); ?>" placeholder='["RUN_ID_A","RUN_ID_B"]' />
+                <input type="text" class="widefat" name="bbseo_runs" value="<?php echo esc_attr(wp_json_encode($runs)); ?>" placeholder='["RUN_ID_A","RUN_ID_B"]' />
                 <p class="description">Leave empty to use the latest run. For General/Technical you can add multiple run IDs to compare.</p>
-                <button type="button" class="button button-secondary" id="BBSEO-refresh-data">Refresh Data</button>
-                <p class="description" id="BBSEO-refresh-status">Pulls metrics from storage based on the selected project, runs, and report type.</p>
+                <button type="button" class="button button-secondary" id="bbseo-refresh-data">Refresh Data</button>
+                <p class="description" id="bbseo-refresh-status">Pulls metrics from storage based on the selected project, runs, and report type.</p>
             </div>
         </div>
         <script>
         (function($){
             const refreshState = {
-                nonce: '<?php echo esc_js(wp_create_nonce('BBSEO_refresh_sections_' . $post->ID)); ?>',
+                nonce: '<?php echo esc_js(wp_create_nonce('bbseo_refresh_sections_' . $post->ID)); ?>',
                 postId: <?php echo (int) $post->ID; ?>,
             };
 
@@ -99,8 +99,8 @@ class ReportMetaBox
             $('#BBSEO_report_type').on('change', togglePage);
             togglePage();
 
-            const $refreshButton = $('#BBSEO-refresh-data');
-            const $status = $('#BBSEO-refresh-status');
+            const $refreshButton = $('#bbseo-refresh-data');
+            const $status = $('#bbseo-refresh-status');
 
             function setStatus(message, isError = false){
                 if (!$status.length) {
@@ -127,10 +127,10 @@ class ReportMetaBox
                         setStatus('Editor form missing. Reload the page and try again.', true);
                         return;
                     }
-                    const type = form.querySelector('[name="BBSEO_report_type"]')?.value || 'general';
-                    const project = form.querySelector('[name="BBSEO_project_slug"]')?.value || '';
-                    const page = form.querySelector('[name="BBSEO_page"]')?.value || '';
-                    const runs = form.querySelector('[name="BBSEO_runs"]')?.value || '[]';
+                    const type = form.querySelector('[name="bbseo_report_type"]')?.value || 'general';
+                    const project = form.querySelector('[name="bbseo_project_slug"]')?.value || '';
+                    const page = form.querySelector('[name="bbseo_page"]')?.value || '';
+                    const runs = form.querySelector('[name="bbseo_runs"]')?.value || '[]';
 
                     if (!project) {
                         setStatus('Select a project before refreshing data.', true);
@@ -141,7 +141,7 @@ class ReportMetaBox
                     $refreshButton.prop('disabled', true).addClass('updating-message');
 
                     $.post(ajaxurl, {
-                        action: 'BBSEO_refresh_sections',
+                        action: 'bbseo_refresh_sections',
                         post_id: refreshState.postId,
                         _wpnonce: refreshState.nonce,
                         type: type,
@@ -180,11 +180,11 @@ class ReportMetaBox
         if (wp_is_post_autosave($postId) || wp_is_post_revision($postId)) return;
         if (!current_user_can('edit_post', $postId)) return;
 
-        update_post_meta($postId, Report::META_TYPE, sanitize_text_field($_POST['BBSEO_report_type'] ?? 'general'));
-        update_post_meta($postId, Report::META_PROJECT, sanitize_text_field($_POST['BBSEO_project_slug'] ?? ''));
-        update_post_meta($postId, Report::META_PAGE, esc_url_raw($_POST['BBSEO_page'] ?? ''));
+        update_post_meta($postId, Report::META_TYPE, sanitize_text_field($_POST['bbseo_report_type'] ?? 'general'));
+        update_post_meta($postId, Report::META_PROJECT, sanitize_text_field($_POST['bbseo_project_slug'] ?? ''));
+        update_post_meta($postId, Report::META_PAGE, esc_url_raw($_POST['bbseo_page'] ?? ''));
 
-        $runs = json_decode(stripslashes($_POST['BBSEO_runs'] ?? '[]'), true);
+        $runs = json_decode(stripslashes($_POST['bbseo_runs'] ?? '[]'), true);
         $runs = is_array($runs) ? array_values(array_map('sanitize_text_field', $runs)) : [];
         update_post_meta($postId, Report::META_RUNS, wp_json_encode($runs));
 

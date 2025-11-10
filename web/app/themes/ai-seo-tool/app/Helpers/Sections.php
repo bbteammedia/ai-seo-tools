@@ -3,7 +3,7 @@ namespace BBSEO\Helpers;
 
 class Sections
 {
-    public const META_SECTIONS = '_BBSEO_sections';
+    public const META_SECTIONS = '_bbseo_sections';
 
     /**
      * Canonical registry of supported section types.

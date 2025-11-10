@@ -9,16 +9,16 @@
 **Post type:** `BBSEO_report`
 
 **Base meta (existing):**
-- `_BBSEO_report_type` → `general | per_page | technical`
-- `_BBSEO_project_slug` → e.g. `"blackbird"`
-- `_BBSEO_runs` → `["2025-11-06_13:12_1B7C", ...]` (JSON; use latest if empty)
-- `_BBSEO_page` → URL (only when `per_page`)
-- `_BBSEO_summary` → overall executive summary (string)
-- `_BBSEO_top_actions` → JSON array of strings
-- `_BBSEO_meta_recos` → JSON array of objects
-- `_BBSEO_tech_findings` → string
-- `_BBSEO_snapshot` → JSON snapshot used for AI
-- `_BBSEO_sections` → JSON array (modular sections; see below)
+- `_bbseo_report_type` → `general | per_page | technical`
+- `_bbseo_project_slug` → e.g. `"blackbird"`
+- `_bbseo_runs` → `["2025-11-06_13:12_1B7C", ...]` (JSON; use latest if empty)
+- `_bbseo_page` → URL (only when `per_page`)
+- `_bbseo_summary` → overall executive summary (string)
+- `_bbseo_top_actions` → JSON array of strings
+- `_bbseo_meta_recos` → JSON array of objects
+- `_bbseo_tech_findings` → string
+- `_bbseo_snapshot` → JSON snapshot used for AI
+- `_bbseo_sections` → JSON array (modular sections; see below)
 
 **Run storage (filesystem):**
 - `storage/projects/{project}/runs/{run}/summary.json`
@@ -36,7 +36,7 @@
 
 ## 2) Modular Sections (DB shape)
 
-Each section object inside `_BBSEO_sections`:
+Each section object inside `_bbseo_sections`:
 
 ```json
 {
@@ -69,13 +69,13 @@ Each section object inside `_BBSEO_sections`:
 - **Subtitle:** fixed label, e.g., `Website General SEO Audit` (or dynamic by type)
 - **Generated date:** `date_i18n( get_option('date_format') )`
 - **Pills:**
-  - **Project:** `_BBSEO_project_slug`
-  - **Runs:** if `_BBSEO_runs` empty → `Latest run`, else `N runs`
+  - **Project:** `_bbseo_project_slug`
+  - **Runs:** if `_bbseo_runs` empty → `Latest run`, else `N runs`
   - **Total Pages:** sum of `summary.pages` across selected runs (or latest)
   - **Total Issues:** sum of `summary.issues.total` across selected runs (or latest)
 
 ### Executive Summary
-- From `_BBSEO_summary`. If empty, show muted “No summary yet.”
+- From `_bbseo_summary`. If empty, show muted “No summary yet.”
 
 ### Key Metrics Snapshot (latest run)
 - Total Pages Crawled → `summary.pages`
@@ -89,7 +89,7 @@ Each section object inside `_BBSEO_sections`:
 > If a metric isn’t available, render `—` and a light hint like “Crawler data required”.
 
 ### Top Actions
-- `_BBSEO_top_actions` (array). If empty, hide section.
+- `_bbseo_top_actions` (array). If empty, hide section.
 
 ### Detailed Sections (iterate ordered, `show == true`)
 
@@ -138,8 +138,8 @@ use BBSEO\Helpers\Storage;
 use BBSEO\Helpers\Sections;
 
 $post_id = get_the_ID();
-$project = get_post_meta($post_id, '_BBSEO_project_slug', true);
-$runs = json_decode(get_post_meta($post_id, '_BBSEO_runs', true) ?: '[]', true);
+$project = get_post_meta($post_id, '_bbseo_project_slug', true);
+$runs = json_decode(get_post_meta($post_id, '_bbseo_runs', true) ?: '[]', true);
 if (!$runs) { $latest = Storage::getLatestRun($project); if ($latest) $runs = [$latest]; }
 
 // Load summaries
@@ -153,8 +153,8 @@ foreach ($runs as $run) {
 }
 $latestSum = end($summaries) ?: [];
 
-$exec = get_post_meta($post_id, '_BBSEO_summary', true);
-$actions = json_decode(get_post_meta($post_id, '_BBSEO_top_actions', true) ?: '[]', true);
+$exec = get_post_meta($post_id, '_bbseo_summary', true);
+$actions = json_decode(get_post_meta($post_id, '_bbseo_top_actions', true) ?: '[]', true);
 $sections = json_decode(get_post_meta($post_id, Sections::META_SECTIONS, true) ?: '[]', true);
 usort($sections, fn($a,$b)=>intval($a['order']??0)<=>intval($b['order']??0));
 
@@ -169,7 +169,7 @@ function dash($v){ return ($v === 0 || $v === '0') ? '0' : ($v ? esc_html($v) : 
 
 ## 5) Editor UX (to match screenshot)
 
-Per section in `_BBSEO_sections` edit UI:
+Per section in `_bbseo_sections` edit UI:
 - **Order** (number input; default 10, 20, 30…)
 - **Show section** (checkbox; default true)
 - **AI** per-section and **Generate AI for All** (fills `body` + `reco_list`)
@@ -201,7 +201,7 @@ Task: Write a concise {sectionLabel} paragraph (≤120 words) and 3–5 action b
 Output JSON: {"body":"...","reco_list":["...","..."]}
 ```
 
-Cache the last AI output in `_BBSEO_snapshot` or per-section if you want.
+Cache the last AI output in `_bbseo_snapshot` or per-section if you want.
 
 ---
 
@@ -219,7 +219,7 @@ If heavy, store these aggregates back into `summary.json` during finalize.
 
 ## 8) Frontend & PDF
 
-- Public view: `single-BBSEO_report.php` includes `templates/report-post.php`.
+- Public view: `single-bbseo_report.php` includes `templates/report-post.php`.
 - PDF export admin route: reuse same HTML and stream via dompdf.
 
 ---
@@ -235,7 +235,7 @@ If heavy, store these aggregates back into `summary.json` during finalize.
 ## 10) Acceptance Checklist
 
 - [ ] Header shows Project, Runs, Total Pages, Total Issues (correct sums).
-- [ ] Executive Summary binds to `_BBSEO_summary`.
+- [ ] Executive Summary binds to `_bbseo_summary`.
 - [ ] Key Metrics Snapshot reads latest `summary.json`; unknown metrics show `—`.
 - [ ] Top Actions displays bullets or hides when empty.
 - [ ] Detailed Sections render in saved order; respect **Show** flag.

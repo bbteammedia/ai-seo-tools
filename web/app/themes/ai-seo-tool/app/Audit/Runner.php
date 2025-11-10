@@ -9,6 +9,8 @@ class Runner
     {
         $dirs = Storage::ensureRun($project, $runId);
         $pdir = $dirs['pages'];
+        $idir = $dirs['images'];
+        $edir = $dirs['errors'];
         $audits = [];
         $issueCounts = [];
         $statusBuckets = [
@@ -44,12 +46,30 @@ class Runner
             ];
         }
 
+        $images = 0;
+        foreach (glob($idir . '/*.json') as $f) {
+            $imgData = Storage::readJson($f, []);
+            if (is_array($imgData)) {
+                $images += count($imgData);
+            }
+        }
+
+        $errors = 0;
+        foreach (glob($edir . '/*.json') as $f) {
+            $errorData = Storage::readJson($f, []);
+            if (is_array($errorData)) {
+                $errors += count($errorData);
+            }
+        }
+
         $out = [
             'run_id' => $runId,
             'project' => $project,
             'generated_at' => gmdate('c'),
             'summary' => [
                 'total_pages' => count($audits),
+                'total_images' => $images,
+                'total_errors' => $errors,
                 'status_buckets' => $statusBuckets,
                 'issue_counts' => $issueCounts,
             ],

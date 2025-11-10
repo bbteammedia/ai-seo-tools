@@ -72,7 +72,7 @@ Standard Bedrock variables (`DB_*`, `WP_ENV`, `WP_HOME`, `WP_SITEURL`, salts, et
 2. **Queue**: `start-crawl` seeds `.todo` files under `storage/projects/<slug>/runs/<run>/queue`.
 3. **Drain**: `BBSEO\Cron\Scheduler` consumes `BBSEO_STEPS_PER_TICK` URLs per minute, or you can hit the REST `crawl-step` endpoint from an external monitor.
 4. **Audit & Report**: once the queue is empty the worker runs `Audit\Runner`, `Report\Builder`, `Report\Summary`, appends time-series, syncs analytics, and renders report snapshots.
-5. **Reports**: each project can map to an `BBSEO_report` CPT. Public URLs live at `/ai-seo-report/<project>` with on-demand PDF export (`?format=pdf`).
+5. **Reports**: each project can map to an `BBSEO_report` CPT. Public URLs live at `/report/<project>` with on-demand PDF export (`?format=pdf`).
 
 ### REST API
 All endpoints live under `/wp-json/ai-seo-tool/v1/*` and require `?key=BBSEO_SECURE_TOKEN`.

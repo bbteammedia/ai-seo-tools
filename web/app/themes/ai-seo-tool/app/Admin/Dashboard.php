@@ -23,7 +23,7 @@ class Dashboard
 
     public static function registerActions(): void
     {
-        add_action('admin_post_BBSEO_run_crawl', [self::class, 'handleManualRun']);
+        add_action('admin_post_bbseo_run_crawl', [self::class, 'handleManualRun']);
     }
 
     public static function render(): void
@@ -36,7 +36,7 @@ class Dashboard
         ?>
         <div class="wrap">
             <h1><?php esc_html_e('Blackbird SEO Projects', 'ai-seo-tool'); ?></h1>
-            <?php if (isset($_GET['BBSEO_notice'])): $notice = sanitize_text_field($_GET['BBSEO_notice']); ?>
+            <?php if (isset($_GET['bbseo_notice'])): $notice = sanitize_text_field($_GET['bbseo_notice']); ?>
                 <?php if ($notice === 'run'): ?>
                     <div class="notice notice-success is-dismissible"><p><?php esc_html_e('Crawl queued. Cron will begin shortly.', 'ai-seo-tool'); ?></p></div>
                 <?php elseif ($notice === 'run_fail'): ?>
@@ -72,20 +72,34 @@ class Dashboard
                             <td>
                                 <?php if ($summary['run_id']): ?>
                                     <strong><?php echo esc_html($summary['run_id']); ?></strong><br />
-                                    <span class="description"><?php echo esc_html($summary['status']); ?></span>
+                                    <span class="description"><?php echo esc_html($summary['status']); ?></span><br />
+                                    <span class="description">
+                                        <?php
+                                        $remaining = self::calculateRemainingRunTime($summary);
+                                        if ($remaining !== null) {
+                                            printf(
+                                                _n('Approximately %d minute remaining', 'Approximately %d minutes remaining', $remaining, 'ai-seo-tool'),
+                                                $remaining
+                                            );
+                                        } else {
+                                            esc_html_e('No remaining items', 'ai-seo-tool');
+                                        }
+                                        ?>
+                                    </span>
                                 <?php else: ?>
                                     <em><?php esc_html_e('No runs yet', 'ai-seo-tool'); ?></em>
                                 <?php endif; ?>
                             </td>
                             <td>
                                 <?php if ($summary['run_id']): ?>
-                                    <?php printf(__('Todo: %d, Done: %d, Pages: %d', 'ai-seo-tool'), $summary['queue_remaining'], $summary['queue_done'], $summary['pages']); ?>
+                                    <?php printf(__('Todo: %d, Done: %d, Pages: %d, Images: %d, Errors: %d', 'ai-seo-tool'), $summary['queue_remaining'], $summary['queue_done'], $summary['pages'], $summary['images'], $summary['errors']); ?>
                                 <?php else: ?>
                                     -
                                 <?php endif; ?>
                             </td>
                             <td>
                                 <a class="button button-primary" href="<?php echo esc_url(self::manualCrawlUrl($project['slug'])); ?>"><?php esc_html_e('Run Crawl Now', 'ai-seo-tool'); ?></a>
+                                <a class="button" href="<?php echo esc_url(self::historyLink($project['slug'])); ?>"><?php esc_html_e('Crawl History', 'ai-seo-tool'); ?></a>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -113,41 +127,106 @@ class Dashboard
         }, $posts);
     }
 
+    // calculate remaining "run" time based on queue status, cron frequency, hits, etc.
+    private static function calculateRemainingRunTime(array $summary): ?int
+    {
+        if ($summary['queue_remaining'] === 0) {
+            return null;
+        }
+
+        $averagePerMinute = 30; // assume 30 pages per minute as a baseline
+        $estimation = 0;
+        // check the runs folder on the project to see if we can get a better estimate based on past runs
+        $runs = new \DirectoryIterator(Storage::runDir($summary['project'], '*'));
+        if ($runs) {
+            foreach ($runs as $run) {
+                if (!$run->isDir() || $run->isDot()) {
+                    continue;
+                }
+
+                $meta_file = Storage::runDir($summary['project'], $run->getFilename()) . '/meta.json';
+
+                if (!file_exists($meta_file)) {
+                    continue;
+                }
+
+                $meta = json_decode(file_get_contents($meta_file), true);
+                if (!isset($meta['summary'])) {
+                    continue;
+                }
+
+                $pagesDone = $meta['summary']['pages'] ?? 0;
+                $imagesDone = $meta['summary']['images'] ?? 0;
+                $errorsDone = $meta['summary']['errors'] ?? 0;
+                $totalItems = $pagesDone + $imagesDone + $errorsDone;
+                $startedAt = isset($meta['started_at']) ? strtotime($meta['started_at']) : null;
+                $completedAt = isset($meta['completed_at']) ? strtotime($meta['completed_at']) : null;
+
+                if ($startedAt && $completedAt) {
+                    $estimation = $completedAt - $startedAt;
+                    break;
+                } elseif ($totalItems > 0) {
+                    $estimation = ($totalItems / $averagePerMinute) * 60;
+                    break;
+                } else {
+                    continue;
+                }
+            }
+        }
+
+        if ($estimation === 0) {
+            $estimation = ($summary['queue_done'] + $summary['queue_remaining']) / $averagePerMinute * 60;
+        }
+
+        $remainingMinutes = (int) ceil(($estimation / ($summary['queue_done'] + $summary['queue_remaining'])) * $summary['queue_remaining'] / 60);
+        return $remainingMinutes;
+    }
+
     private static function loadSummary(string $project): array
     {
         $runId = Storage::getLatestRun($project);
         if (!$runId) {
             return [
+                'project' => $project,
                 'run_id' => null,
                 'status' => __('Pending', 'ai-seo-tool'),
                 'queue_remaining' => 0,
                 'queue_done' => 0,
                 'pages' => 0,
+                'images' => 0,
+                'errors' => 0,
             ];
         }
         $runDir = Storage::runDir($project, $runId);
         $queueDir = $runDir . '/queue';
         $pagesDir = $runDir . '/pages';
+        $imagesDir = $runDir . '/images';
+        $errorsDir = $runDir . '/errors';
         $todos = glob($queueDir . '/*.todo');
         $done = glob($queueDir . '/*.done');
         $pages = glob($pagesDir . '/*.json');
+        $images = glob($imagesDir . '/*.json');
+        $errors = glob($errorsDir . '/*.json');
         $status = __('Processing', 'ai-seo-tool');
         if (empty($todos)) {
             $status = __('Completed', 'ai-seo-tool');
         }
         return [
+            'project' => $project,
             'run_id' => $runId,
             'status' => $status,
             'queue_remaining' => count($todos),
             'queue_done' => count($done),
             'pages' => count($pages),
+            'images' => count($images),
+            'errors' => count($errors),
         ];
     }
 
     private static function reportLink(string $slug, ?string $runId): string
     {
         $home = trailingslashit(home_url());
-        $url = $home . 'ai-seo-report/' . $slug;
+        $url = $home . 'report/' . $slug;
         if ($runId) {
             $url = add_query_arg('run', $runId, $url);
         }
@@ -166,10 +245,10 @@ class Dashboard
     {
         $url = admin_url('admin-post.php');
         $url = add_query_arg([
-            'action' => 'BBSEO_run_crawl',
+            'action' => 'bbseo_run_crawl',
             'project' => sanitize_title($slug),
         ], $url);
-        return wp_nonce_url($url, 'BBSEO_run_crawl_' . $slug);
+        return wp_nonce_url($url, 'bbseo_run_crawl_' . $slug);
     }
 
     public static function handleManualRun(): void
@@ -179,7 +258,7 @@ class Dashboard
         }
 
         $slug = isset($_GET['project']) ? sanitize_title($_GET['project']) : '';
-        check_admin_referer('BBSEO_run_crawl_' . $slug);
+        check_admin_referer('bbseo_run_crawl_' . $slug);
 
         // Ensure project folder & config
         Storage::ensureProject($slug);
@@ -198,7 +277,7 @@ class Dashboard
         $urls = array_values(array_unique(array_filter(array_map('esc_url_raw', $urls))));
 
         if (empty($urls)) {
-            wp_safe_redirect(add_query_arg('BBSEO_notice', 'run_fail', admin_url('admin.php?page=ai-seo-dashboard')));
+            wp_safe_redirect(add_query_arg('bbseo_notice', 'run_fail', admin_url('admin.php?page=ai-seo-dashboard')));
             exit;
         }
 
@@ -206,7 +285,7 @@ class Dashboard
         Queue::init($slug, $urls, $runId);          // creates runs/{runId}/queue + meta.json
         Storage::setLatestRun($slug, $runId);
 
-        wp_safe_redirect(add_query_arg('BBSEO_notice', 'run', admin_url('admin.php?page=ai-seo-dashboard')));
+        wp_safe_redirect(add_query_arg('bbseo_notice', 'run', admin_url('admin.php?page=ai-seo-dashboard')));
         exit;
     }
 

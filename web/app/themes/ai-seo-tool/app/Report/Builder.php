@@ -12,6 +12,8 @@ class Builder
         $audit = Storage::readJson($dirs['base'] . '/audit.json', []);
         $crawl = [
             'pages_count' => count(glob($dirs['pages'] . '/*.json')),
+            'images_count' => count(glob($dirs['images'] . '/*.json')),
+            'errors_count' => count(glob($dirs['errors'] . '/*.json')),
             'status_buckets' => $audit['summary']['status_buckets'] ?? [],
         ];
         $topIssues = [];

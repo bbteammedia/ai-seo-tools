@@ -12,7 +12,7 @@ use BBSEO\Analytics\Dispatcher as AnalyticsDispatcher;
 
 class Scheduler
 {
-    public const EVENT = 'BBSEO_minutely_drain';
+    public const EVENT = 'bbseo_minutely_drain';
 
     public static function registerSchedules($schedules)
     {
@@ -104,6 +104,8 @@ class Scheduler
                 $meta['completed_at'] = gmdate('c');
                 $meta['summary'] = [
                     'pages' => $summary['pages'],
+                    'images' => $summary['images'],
+                    'errors' => $summary['errors'],
                     'issues_total' => $summary['issues']['total'],
                     'status' => $summary['status'],
                 ];
