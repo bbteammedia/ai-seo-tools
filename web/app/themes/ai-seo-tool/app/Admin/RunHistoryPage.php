@@ -22,7 +22,7 @@ class RunHistoryPage
         if (!current_user_can('manage_options')) return;
         $project = isset($_GET['project']) ? sanitize_title(wp_unslash($_GET['project'])) : '';
         if (!$project) {
-            echo '<div class="wrap"><h1>Run History</h1><p>No project selected. <a href="' . esc_url(admin_url('admin.php?page=ai-seo-dashboard')) . '">Go back to dashboard</a></p></div>';
+            echo '<div class="wrap"><h1>Run History</h1><p>No project selected. <a href="' . esc_url(admin_url('admin.php?page=crawler-dashboard')) . '">Go back to dashboard</a></p></div>';
             return;
         }
 
@@ -64,7 +64,7 @@ class RunHistoryPage
 
         echo '<div class="wrap">';
         echo '<h1>Run History - ' . esc_html($project) . '</h1>';
-        echo '<p><a href="' . esc_url(admin_url('admin.php?page=ai-seo-dashboard')) . '">&larr; Back to Dashboard</a></p>';
+        echo '<p><a href="' . esc_url(admin_url('admin.php?page=crawler-dashboard')) . '">&larr; Back to Dashboard</a></p>';
         echo '<table class="widefat fixed striped">';
         echo '<thead><tr><th>Run ID</th><th>Started</th><th>Pages</th><th>Images</th><th>Errors</th><th>2xx</th><th>3xx</th><th>4xx</th><th>5xx</th><th>Issues</th></tr></thead><tbody>';
 

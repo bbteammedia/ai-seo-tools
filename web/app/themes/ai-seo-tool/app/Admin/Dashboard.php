@@ -10,14 +10,22 @@ class Dashboard
 {
     public static function register(): void
     {
-        add_menu_page(
-            __('Blackbird SEO Dashboard', 'ai-seo-tool'),
-            __('Blackbird SEO', 'ai-seo-tool'),
+        // add_menu_page(
+        //     __('Blackbird SEO', 'ai-seo-tool'),
+        //     __('Blackbird SEO', 'ai-seo-tool'),
+        //     'manage_options',
+        //     'crawler-dashboard',
+        //     [self::class, 'render'],
+        //     'dashicons-chart-area',
+        //     56
+        // );
+        add_submenu_page(
+            'edit.php?post_type=bbseo_project',
+            __( 'Crawler', 'ai-seo-tool' ),
+            __( 'Crawler', 'ai-seo-tool' ),
             'manage_options',
-            'ai-seo-dashboard',
-            [self::class, 'render'],
-            'dashicons-chart-area',
-            56
+            'crawler-dashboard',
+            [self::class, 'render']
         );
     }
 
@@ -35,7 +43,7 @@ class Dashboard
         $projects = self::getProjects();
         ?>
         <div class="wrap">
-            <h1><?php esc_html_e('Blackbird SEO Projects', 'ai-seo-tool'); ?></h1>
+            <h1><?php esc_html_e('Crawler', 'ai-seo-tool'); ?></h1>
             <?php if (isset($_GET['bbseo_notice'])): $notice = sanitize_text_field($_GET['bbseo_notice']); ?>
                 <?php if ($notice === 'run'): ?>
                     <div class="notice notice-success is-dismissible"><p><?php esc_html_e('Crawl queued. Cron will begin shortly.', 'ai-seo-tool'); ?></p></div>
@@ -44,7 +52,7 @@ class Dashboard
                 <?php endif; ?>
             <?php endif; ?>
             <?php if (!$projects): ?>
-                <p><?php esc_html_e('No Blackbird SEO projects found. Create one under Blackbird SEO Projects → Add New.', 'ai-seo-tool'); ?></p>
+                <p><?php esc_html_e('No Crawler found. Create one under Blackbird SEO Projects → Add New.', 'ai-seo-tool'); ?></p>
                 <?php return; ?>
             <?php endif; ?>
             <table class="widefat striped">
@@ -277,7 +285,7 @@ class Dashboard
         $urls = array_values(array_unique(array_filter(array_map('esc_url_raw', $urls))));
 
         if (empty($urls)) {
-            wp_safe_redirect(add_query_arg('bbseo_notice', 'run_fail', admin_url('admin.php?page=ai-seo-dashboard')));
+            wp_safe_redirect(add_query_arg('bbseo_notice', 'run_fail', admin_url('admin.php?page=crawler-dashboard')));
             exit;
         }
 
@@ -285,7 +293,7 @@ class Dashboard
         Queue::init($slug, $urls, $runId);          // creates runs/{runId}/queue + meta.json
         Storage::setLatestRun($slug, $runId);
 
-        wp_safe_redirect(add_query_arg('bbseo_notice', 'run', admin_url('admin.php?page=ai-seo-dashboard')));
+        wp_safe_redirect(add_query_arg('bbseo_notice', 'run', admin_url('admin.php?page=crawler-dashboard')));
         exit;
     }
 

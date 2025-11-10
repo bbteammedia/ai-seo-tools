@@ -15,14 +15,14 @@ class Project
     public static function register(): void
     {
         $labels = [
-            'name' => __('Blackbird SEO Projects', 'ai-seo-tool'),
-            'singular_name' => __('Blackbird SEO Project', 'ai-seo-tool'),
-            'add_new_item' => __('Add New SEO Project', 'ai-seo-tool'),
-            'edit_item' => __('Edit SEO Project', 'ai-seo-tool'),
-            'new_item' => __('New SEO Project', 'ai-seo-tool'),
-            'view_item' => __('View SEO Project', 'ai-seo-tool'),
-            'search_items' => __('Search SEO Projects', 'ai-seo-tool'),
-            'not_found' => __('No SEO projects found', 'ai-seo-tool'),
+            'name' => __('Projects', 'ai-seo-tool'),
+            'singular_name' => __('Project', 'ai-seo-tool'),
+            'add_new_item' => __('Add Project', 'ai-seo-tool'),
+            'edit_item' => __('Edit Project', 'ai-seo-tool'),
+            'new_item' => __('New Project', 'ai-seo-tool'),
+            'view_item' => __('View Project', 'ai-seo-tool'),
+            'search_items' => __('Search Projects', 'ai-seo-tool'),
+            'not_found' => __('No projects found', 'ai-seo-tool'),
         ];
 
         register_post_type(self::POST_TYPE, [
