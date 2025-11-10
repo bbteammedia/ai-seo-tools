@@ -90,76 +90,30 @@ class ReportSectionsUI
             </div>
             <div id="bbseo-sections-list">
                 <?php foreach ($sections as $idx => $sec): ?>
-                    <?php
-                        $typeKey = $sec['type'] ?? '';
-                        $label = $registry[$typeKey]['label'] ?? ($sec['title'] ?: ucfirst(str_replace('_', ' ', (string) $typeKey)));
-                        $editorId = 'bbseo_section_' . $idx . '_body';
-                        $visible = (bool) ($sec['visible'] ?? true);
-                        $metrics = is_array($sec['metrics'] ?? null) ? $sec['metrics'] : [];
-                        $hasMetricsContent = self::hasMetricContent($metrics);
-                        $recoList = is_array($sec['reco_list'] ?? null) ? $sec['reco_list'] : [];
-                        $metaList = is_array($sec['meta_list'] ?? null) ? $sec['meta_list'] : [];
-                        $metaJson = $metaList ? wp_json_encode($metaList, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) : "[]";
-                        $suppressMetrics = in_array($typeKey, ['executive_summary', 'top_actions', 'meta_recommendations', 'technical_findings'], true);
-                        $orderValue = self::sanitizeOrder((int) ($sec['order'] ?? $idx));
-                        $metricsJson = wp_json_encode($metrics);
-                        if (!is_string($metricsJson)) {
-                            $metricsJson = '[]';
-                        }
-                    ?>
-                    <div class="section" data-id="<?php echo esc_attr($sec['id']); ?>" data-editor="<?php echo esc_attr($editorId); ?>">
-                        <div class="head">
-                            <div class="type">
-                                <?php echo esc_html($label); ?>
-                            </div>
-                            <div class="controls">
-                                <label class="order">
-                                    <span>Order</span>
-                                    <input type="number" min="0" max="15" step="1" name="bbseo_sections[<?php echo esc_attr($idx); ?>][order]" value="<?php echo esc_attr($orderValue); ?>">
-                                </label>
-                                <label class="visibility">
-                                    <input type="hidden" name="bbseo_sections[<?php echo esc_attr($idx); ?>][visible]" value="0">
-                                    <input type="checkbox" name="bbseo_sections[<?php echo esc_attr($idx); ?>][visible]" value="1" <?php checked($visible); ?>>
-                                    Show section
-                                </label>
-                                <button type="button" class="button bbseo-ai-one" data-id="<?php echo esc_attr($sec['id']); ?>">AI</button>
-                            </div>
-                        </div>
-                        <input type="hidden" name="bbseo_sections[<?php echo esc_attr($idx); ?>][metrics_json]" value="<?php echo esc_attr($metricsJson); ?>">
-                        <?php if (!$suppressMetrics && $hasMetricsContent): ?>
-                            <div class="metrics">
-                                <?php self::renderMetricsTable($metrics); ?>
-                            </div>
-                        <?php endif; ?>
-                        <div class="editor">
-                            <?php
-                            wp_editor(
-                                $sec['body'] ?? '',
-                                $editorId,
-                                [
-                                    'textarea_name' => "bbseo_sections[{$idx}][body]",
-                                    'textarea_rows' => 8,
-                                    'editor_height' => 180,
-                                    'media_buttons' => false,
-                                ]
-                            );
-                            ?>
-                        </div>
-                        <div class="reco">
-                            <label><strong>Additional Recommendations (one per line)</strong></label>
-                            <textarea name="bbseo_sections[<?php echo esc_attr($idx); ?>][reco_raw]" rows="6"><?php echo esc_textarea(implode("\n", $recoList)); ?></textarea>
-                            <small>Additional Recommendations for AI context.</small>
-                        </div>
-                        <input type="hidden" name="bbseo_sections[<?php echo esc_attr($idx); ?>][title]" value="<?php echo esc_attr($sec['title']); ?>">
-                        <input type="hidden" name="bbseo_sections[<?php echo esc_attr($idx); ?>][id]" value="<?php echo esc_attr($sec['id']); ?>">
-                        <input type="hidden" name="bbseo_sections[<?php echo esc_attr($idx); ?>][type]" value="<?php echo esc_attr($typeKey); ?>">
-                    </div>
+                    <?php self::renderSectionMetaTemplate($sec['type'], $idx, $sec); ?>
                 <?php endforeach; ?>
             </div>
         </div>
         <input type="hidden" name="bbseo_sections_post_id" value="<?php echo esc_attr($nonce); ?>" />
         <input type="hidden" name="bbseo_post_id" value="<?php echo (int) $post->ID; ?>" />
         <?php
+    }
+
+    private static function renderSectionMetaTemplate(string $typeKey, int $index, array $section): void
+    {
+        $template = locate_template("templates/sections-meta/{$typeKey}.php");
+        if (!$template) {
+            $template = locate_template('templates/sections-meta/default.php');
+        }
+        if (!$template) {
+            return;
+        }
+
+        $sectionIndex = $index;
+        $sectionData  = $section;
+        $metaList     = is_array($section['meta_list'] ?? null) ? $section['meta_list'] : [];
+
+        include $template;
     }
 
     /**
