@@ -28,3 +28,8 @@ auth.json
 
 # WP-CLI
 wp-cli.local.yml
+
+/node_modules
+/assets/dist
+/web/app/themes/ai-seo-tool/assets/dist
+npm-debug.log*

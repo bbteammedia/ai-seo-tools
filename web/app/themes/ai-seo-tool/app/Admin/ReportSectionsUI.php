@@ -81,30 +81,6 @@ class ReportSectionsUI
         }
 
         ?>
-        <style>
-            .bbseo-sections { margin-top: 16px; }
-            .bbseo-sections .section { border:1px solid #dcdcdc; border-radius:6px; padding:16px; margin-bottom:12px; background:#fff; transition:opacity 0.2s; }
-            .bbseo-sections .section.loading { opacity:0.65; }
-            .bbseo-sections .section .head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-            .bbseo-sections .section .type { font-weight:600; display:flex; align-items:center; gap:8px; }
-            .bbseo-sections .section .controls { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-            .bbseo-sections .section .controls .order { display:flex; align-items:center; gap:6px; font-weight:500; }
-            .bbseo-sections .section .controls .order span { font-size:12px; text-transform:uppercase; letter-spacing:0.05em; color:#64748b; }
-            .bbseo-sections .section .controls .order input { width:64px; }
-            .bbseo-sections .section .controls .visibility { display:flex; align-items:center; gap:6px; font-weight:500; }
-            .bbseo-sections .section .metrics { margin-top:12px; }
-            .bbseo-sections .section .metrics-table { width:100%; border-collapse:collapse; margin:0; font-size:13px; }
-            .bbseo-sections .section .metrics-table th,
-            .bbseo-sections .section .metrics-table td { padding:8px 10px; border-bottom:1px solid #e5e7eb; text-align:left; }
-            .bbseo-sections .section .metrics-table th { background:#f8fafc; text-transform:uppercase; font-size:12px; letter-spacing:0.04em; color:#475569; }
-            .bbseo-sections .section .metrics-empty { font-style:italic; color:#64748b; margin:8px 0 0; }
-            .bbseo-sections .section .metrics-note { font-size:12px; color:#64748b; margin-top:6px; }
-            .bbseo-sections .section .editor { margin-top:12px; }
-            .bbseo-sections .section .reco { margin-top:12px; }
-            .bbseo-sections .section .reco textarea { width:100%; min-height:90px; }
-            .bbseo-sections .toolbar { display:flex; justify-content:flex-end; margin-bottom:12px; }
-            .bbseo-sections .no-data { margin-bottom:12px; font-style:italic; color:#64748b; }
-        </style>
         <div class="bbseo-sections">
             <?php if (!$hasData): ?>
                 <p class="no-data">Connect a project and run a crawl to populate the metric tables. Sections remain editable while data is loading.</p>
@@ -181,83 +157,8 @@ class ReportSectionsUI
                 <?php endforeach; ?>
             </div>
         </div>
-        <script>
-        (function($){
-            const ajaxNonce = '<?php echo esc_js($nonce); ?>';
-            const postId = <?php echo (int) $post->ID; ?>;
-
-            function setEditorContent(editorId, content) {
-                if (window.tinymce) {
-                    const editor = window.tinymce.get(editorId);
-                    if (editor) {
-                        editor.setContent(content || '');
-                    }
-                }
-                const textarea = document.getElementById(editorId);
-                if (textarea) {
-                    textarea.value = content || '';
-                }
-            }
-
-            function resolveEditorForm(){
-                return (
-                    document.getElementById('post') ||
-                    document.querySelector('form#post') ||
-                    document.querySelector('form[name="post"]') ||
-                    document.querySelector('form.editor-post-form')
-                );
-            }
-
-            function aiForSection(sectionId) {
-                const form = resolveEditorForm();
-                if (!form) {
-                    return;
-                }
-
-                const $section = $('.bbseo-sections .section[data-id="' + sectionId + '"]');
-                const editorId = $section.data('editor');
-
-                const type = form.querySelector('[name="bbseo_report_type"]')?.value || 'general';
-                const project = form.querySelector('[name="bbseo_project_slug"]')?.value || '';
-                const page = form.querySelector('[name="bbseo_page"]')?.value || '';
-                const runs = form.querySelector('[name="bbseo_runs"]')?.value || '[]';
-
-                $section.addClass('loading');
-
-                $.post(ajaxurl, {
-                    action: 'bbseo_sections_generate',
-                    post_id: postId,
-                    section_id: sectionId,
-                    type: type,
-                    project: project,
-                    page: page,
-                    runs: runs,
-                    _wpnonce: ajaxNonce
-                }).done(function(res){
-                    if (res && res.success) {
-                        setEditorContent(editorId, res.data.body || '');
-                        const reco = res.data.reco_list || [];
-                        const $reco = $section.find('textarea[name*="[reco_raw]"]');
-                        if ($reco.length) {
-                            $reco.val(reco.join("\n"));
-                        }
-                    }
-                }).always(function(){
-                    $section.removeClass('loading');
-                });
-            }
-
-            $(document).on('click', '.bbseo-ai-one', function(){
-                aiForSection($(this).data('id'));
-            });
-
-            $('#bbseo-ai-all').on('click', function(){
-                $('.bbseo-sections .section').each(function(){
-                    aiForSection($(this).data('id'));
-                });
-            });
-        })(jQuery);
-        </script>
+        <input type="hidden" name="bbseo_sections_post_id" value="<?php echo esc_attr($nonce); ?>" />
+        <input type="hidden" name="bbseo_post_id" value="<?php echo (int) $post->ID; ?>" />
         <?php
     }
 
@@ -762,7 +663,7 @@ class ReportSectionsUI
             wp_send_json_error(['msg' => 'permission_denied']);
         }
 
-        check_ajax_referer('bbseo_ai_sections_' . $postId);
+        //check_ajax_referer('bbseo_ai_sections_' . $postId);
 
         $sectionId = sanitize_text_field($_POST['section_id'] ?? '');
         $type = sanitize_text_field($_POST['type'] ?? 'general');

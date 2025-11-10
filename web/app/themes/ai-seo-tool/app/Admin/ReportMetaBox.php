@@ -10,7 +10,6 @@ class ReportMetaBox
     {
         add_action('add_meta_boxes', [self::class, 'add']);
         add_action('save_post_' . Report::POST_TYPE, [self::class, 'save'], 10, 3);
-        add_action('admin_enqueue_scripts', [self::class, 'assets']);
     }
 
     public static function add(): void
@@ -42,11 +41,6 @@ class ReportMetaBox
             }
         }
         ?>
-        <style>
-            .bbseo-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-            .bbseo-grid .full { grid-column:1 / -1; }
-            .bbseo-grid textarea { min-height:120px; }
-        </style>
         <div class="bbseo-grid">
             <div>
                 <label><strong>Report Type</strong></label><br/>
@@ -80,99 +74,9 @@ class ReportMetaBox
                 <p class="description" id="bbseo-refresh-status">Pulls metrics from storage based on the selected project, runs, and report type.</p>
             </div>
         </div>
-        <script>
-        (function($){
-            const refreshState = {
-                nonce: '<?php echo esc_js(wp_create_nonce('bbseo_refresh_sections_' . $post->ID)); ?>',
-                postId: <?php echo (int) $post->ID; ?>,
-            };
-
-            function togglePage(){
-                const type = $('#BBSEO_report_type').val();
-                if (type === 'per_page') {
-                    $('#BBSEO_per_page_row').show();
-                } else {
-                    $('#BBSEO_per_page_row').hide();
-                }
-            }
-
-            $('#BBSEO_report_type').on('change', togglePage);
-            togglePage();
-
-            const $refreshButton = $('#bbseo-refresh-data');
-            const $status = $('#bbseo-refresh-status');
-
-            function setStatus(message, isError = false){
-                if (!$status.length) {
-                    return;
-                }
-                $status.text(message);
-                $status.css('color', isError ? '#d63638' : '#646970');
-            }
-
-            function resolveEditorForm() {
-                return (
-                    document.getElementById('post') ||
-                    document.querySelector('form#post') ||
-                    document.querySelector('form[name="post"]') ||
-                    document.querySelector('form.editor-post-form')
-                );
-            }
-
-            if ($refreshButton.length) {
-                $refreshButton.on('click', function(e){
-                    e.preventDefault();
-                    const form = resolveEditorForm();
-                    if (!form) {
-                        setStatus('Editor form missing. Reload the page and try again.', true);
-                        return;
-                    }
-                    const type = form.querySelector('[name="bbseo_report_type"]')?.value || 'general';
-                    const project = form.querySelector('[name="bbseo_project_slug"]')?.value || '';
-                    const page = form.querySelector('[name="bbseo_page"]')?.value || '';
-                    const runs = form.querySelector('[name="bbseo_runs"]')?.value || '[]';
-
-                    if (!project) {
-                        setStatus('Select a project before refreshing data.', true);
-                        return;
-                    }
-
-                    setStatus('Refreshing data… this may take a moment.');
-                    $refreshButton.prop('disabled', true).addClass('updating-message');
-
-                    $.post(ajaxurl, {
-                        action: 'bbseo_refresh_sections',
-                        post_id: refreshState.postId,
-                        _wpnonce: refreshState.nonce,
-                        type: type,
-                        project: project,
-                        page: page,
-                        runs: runs
-                    }).done(function(res){
-                        if (res && res.success) {
-                            setStatus('Data refreshed. Reloading…');
-                            setTimeout(function(){ window.location.reload(); }, 600);
-                        } else if (res && res.data && res.data.msg) {
-                            setStatus(res.data.msg, true);
-                        } else {
-                            setStatus('Refresh failed. Please try again.', true);
-                        }
-                    }).fail(function(xhr){
-                        const message = xhr?.responseJSON?.data?.msg || ('AJAX ' + xhr.status);
-                        setStatus(message, true);
-                    }).always(function(){
-                        $refreshButton.prop('disabled', false).removeClass('updating-message');
-                    });
-                });
-            }
-        })(jQuery);
-        </script>
+        <input type="hidden" name="bbseo_refresh_sections_nonce" value="<?php echo esc_attr(wp_create_nonce('bbseo_refresh_sections_' . $post->ID)); ?>" />
+        <input type="hidden" name="bbseo_post_id" value="<?php echo (int) $post->ID; ?>" />
         <?php
-    }
-
-    public static function assets(string $hook): void
-    {
-        // Placeholder for admin assets when needed.
     }
 
     public static function save(int $postId, \WP_Post $post, bool $update): void

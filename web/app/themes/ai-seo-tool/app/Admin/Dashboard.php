@@ -10,15 +10,6 @@ class Dashboard
 {
     public static function register(): void
     {
-        // add_menu_page(
-        //     __('Blackbird SEO', 'ai-seo-tool'),
-        //     __('Blackbird SEO', 'ai-seo-tool'),
-        //     'manage_options',
-        //     'crawler-dashboard',
-        //     [self::class, 'render'],
-        //     'dashicons-chart-area',
-        //     56
-        // );
         add_submenu_page(
             'edit.php?post_type=bbseo_project',
             __( 'Crawler', 'ai-seo-tool' ),

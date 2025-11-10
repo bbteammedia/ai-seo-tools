@@ -53,3 +53,54 @@ add_action('after_setup_theme', function () {
         wp_mkdir_p($dir);
     }
 });
+
+/**
+ * Retrieve the asset path from the manifest file.
+ *
+ * @param string $key The asset key to look up.
+ * @return string|null The asset path or null if not found.
+ */
+function aiseotool_manifest_get( $key ) {
+    $base_dir = get_stylesheet_directory() . '/assets/dist';
+    $manifest = $base_dir . '/manifest.json';
+    static $map = null;
+
+    if ( is_null( $map ) ) {
+        if ( file_exists( $manifest ) ) {
+            $json = file_get_contents( $manifest );
+            $map  = json_decode( $json, true );
+        } else {
+            $map = [];
+        }
+    }
+    return $map[$key] ?? null;
+}
+
+add_action('wp_enqueue_scripts', function () {
+    if ( ! is_admin() && ! is_user_logged_in() ) {
+        // example condition, change as you like (e.g., is_front_page() || is_page_template(...))
+    }
+    $theme_uri = get_stylesheet_directory_uri();
+    $css = aiseotool_manifest_get('public.css') ?: 'css/public.css';
+    $js  = aiseotool_manifest_get('public.js')  ?: 'js/public.js';
+    $ven = aiseotool_manifest_get('vendor.js');
+    if ( $ven ) wp_enqueue_script('ai-seo-tool-vendor', $theme_uri . '/assets/dist/' . $ven, [], null, true);
+    wp_enqueue_style('ai-seo-tool-public', $theme_uri . '/assets/dist/' . $css, [], null);
+    wp_enqueue_script('ai-seo-tool-public', $theme_uri . '/assets/dist/' . $js, ['ai-seo-tool-vendor'], null, true);
+}, 20);
+
+add_action('admin_enqueue_scripts', function ($hook) {
+    if ( 'wp-login.php' === $GLOBALS['pagenow'] ) { return; } // just in case
+    $theme_uri = get_stylesheet_directory_uri();
+    $css = aiseotool_manifest_get('admin.css') ?: 'css/admin.css';
+    $js  = aiseotool_manifest_get('admin.js')  ?: 'js/admin.js';
+    $ven = aiseotool_manifest_get('vendor.js');
+    $deps = [];
+
+    if ( $ven ) {
+        wp_enqueue_script('ai-seo-tool-vendor', $theme_uri . '/assets/dist/' . $ven, [], null, true);
+        $deps[] = 'ai-seo-tool-vendor';
+    }
+    wp_enqueue_style('ai-seo-tool-admin', $theme_uri . '/assets/dist/' . $css, [], null);
+    wp_enqueue_script('ai-seo-tool-admin', $theme_uri . '/assets/dist/' . $js, $deps, null, true);
+}, 20);

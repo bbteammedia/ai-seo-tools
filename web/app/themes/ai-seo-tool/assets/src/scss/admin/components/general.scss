@@ -1,0 +1,117 @@
+.bbseo-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 16px;
+}
+.bbseo-grid .full {
+	grid-column: 1 / -1;
+}
+.bbseo-grid textarea {
+	min-height: 120px;
+}
+
+.bbseo-sections {
+	margin-top: 16px;
+}
+.bbseo-sections .section {
+	border: 1px solid #dcdcdc;
+	border-radius: 6px;
+	padding: 16px;
+	margin-bottom: 12px;
+	background: #fff;
+	transition: opacity 0.2s;
+}
+.bbseo-sections .section.loading {
+	opacity: 0.65;
+}
+.bbseo-sections .section .head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+.bbseo-sections .section .type {
+	font-weight: 600;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.bbseo-sections .section .controls {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex-wrap: wrap;
+}
+.bbseo-sections .section .controls .order {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-weight: 500;
+}
+.bbseo-sections .section .controls .order span {
+	font-size: 12px;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: #64748b;
+}
+.bbseo-sections .section .controls .order input {
+	width: 64px;
+}
+.bbseo-sections .section .controls .visibility {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-weight: 500;
+}
+.bbseo-sections .section .metrics {
+	margin-top: 12px;
+}
+.bbseo-sections .section .metrics-table {
+	width: 100%;
+	border-collapse: collapse;
+	margin: 0;
+	font-size: 13px;
+}
+.bbseo-sections .section .metrics-table th,
+.bbseo-sections .section .metrics-table td {
+	padding: 8px 10px;
+	border-bottom: 1px solid #e5e7eb;
+	text-align: left;
+}
+.bbseo-sections .section .metrics-table th {
+	background: #f8fafc;
+	text-transform: uppercase;
+	font-size: 12px;
+	letter-spacing: 0.04em;
+	color: #475569;
+}
+.bbseo-sections .section .metrics-empty {
+	font-style: italic;
+	color: #64748b;
+	margin: 8px 0 0;
+}
+.bbseo-sections .section .metrics-note {
+	font-size: 12px;
+	color: #64748b;
+	margin-top: 6px;
+}
+.bbseo-sections .section .editor {
+	margin-top: 12px;
+}
+.bbseo-sections .section .reco {
+	margin-top: 12px;
+}
+.bbseo-sections .section .reco textarea {
+	width: 100%;
+	min-height: 90px;
+}
+.bbseo-sections .toolbar {
+	display: flex;
+	justify-content: flex-end;
+	margin-bottom: 12px;
+}
+.bbseo-sections .no-data {
+	margin-bottom: 12px;
+	font-style: italic;
+	color: #64748b;
+}
