@@ -320,10 +320,10 @@ class Project
                     $target.slideUp();
                 }
             }
-            $('#BBSEO_ga_range').on('change', function(){
+            $('#bbseo_ga_range').on('change', function(){
                 toggleRange($(this), $('.bbseo-ga-custom-range'));
             }).trigger('change');
-            $('#BBSEO_gsc_range').on('change', function(){
+            $('#bbseo_gsc_range').on('change', function(){
                 toggleRange($(this), $('.bbseo-gsc-custom-range'));
             }).trigger('change');
         })(jQuery);
