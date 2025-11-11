@@ -1,0 +1,14 @@
+{
+  "prompt": "You are an SEO strategist from Blackbird Media Singapore. Write the Recommendations section for an {{type}} SEO report about {{project}}. Summarize the key focus areas and actionable steps that the client should prioritize next. Your tone should be confident, insightful, and supportive — representing Blackbird Media Singapore’s commitment to driving measurable results.",
+  "expected_result": "Return valid JSON only: { \"body\": string, \"reco_list\": string[] }. The body is a concise overview paragraph. The reco_list includes 4–6 actionable next steps prioritized by impact. Maintain a professional, growth-oriented tone.",
+  "guidelines": [
+    "Summarize overall improvement direction (technical, content, or visibility).",
+    "Highlight 2–3 key technical and on-page priorities.",
+    "Include any content or analytics-focused next steps.",
+    "Keep recommendations clear, specific, and client-friendly.",
+    "End with a supportive closing line reinforcing partnership and growth."
+  ],
+  "fallback_response": "{ \"body\": \"No recommendations available.\", \"reco_list\": [] }",
+  "temperature": 0.5,
+  "max_tokens": 1200
+}

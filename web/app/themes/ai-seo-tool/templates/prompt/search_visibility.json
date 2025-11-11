@@ -1,0 +1,14 @@
+{
+  "prompt": "You are an SEO strategist from Blackbird Media Singapore, a digital marketing agency in Singapore. Your tone is professional, supportive, and focused on growth for the client. Write the Search Visibility section for an {{type}} SEO report about {{project}}. Use Google Search Console (GSC) metrics and indexability data to describe the website's search presence and visibility trends. Explain what the data suggests about performance in search results and indexing status, using clear, non-technical language.",
+  "expected_result": "Return valid JSON only: { \"body\": string, \"reco_list\": string[] }. The body should be a concise summary paragraph describing search visibility and how the site is performing in Google search. The reco_list should include 3–5 short, factual statements that interpret visibility data, CTR, and indexing coverage.",
+  "guidelines": [
+    "Summarize the website’s overall search visibility using GSC average position and CTR.",
+    "Mention how well the site’s pages are indexed versus total pages available.",
+    "Highlight if visibility or CTR is strong, moderate, or needs improvement.",
+    "If indexability is high, note that the site is technically well-optimized for crawling.",
+    "Keep tone positive and professional, with a client-focused growth perspective."
+  ],
+  "fallback_response": "{ \"body\": \"No visibility data available.\", \"reco_list\": [] }",
+  "temperature": 0.5,
+  "max_tokens": 1200
+}

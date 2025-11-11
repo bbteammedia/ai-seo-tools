@@ -7,7 +7,7 @@
     $recoList = is_array($section['reco_list'] ?? null) ? $section['reco_list'] : [];
     $metaList = is_array($section['meta_list'] ?? null) ? $section['meta_list'] : [];
     $metaJson = $metaList ? wp_json_encode($metaList, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) : "[]";
-    $suppressMetrics = in_array($typeKey, ['executive_summary', 'top_actions', 'meta_recommendations', 'technical_findings'], true);
+    $suppressMetrics = false;
     $orderValue = self::sanitizeOrder((int) ($section['order'] ?? $index));
     $metricsJson = wp_json_encode($metrics);
     if (!is_string($metricsJson)) {
@@ -33,7 +33,7 @@
         </div>
     </div>
     <input type="hidden" name="bbseo_sections[<?php echo esc_attr($index); ?>][metrics_json]" value="<?php echo esc_attr($metricsJson); ?>">
-    <?php if (!$suppressMetrics && $hasMetricsContent): ?>
+    <?php if ($hasMetricsContent): ?>
         <div class="metrics">
             <?php self::renderMetricsTable($metrics); ?>
         </div>

@@ -9,15 +9,20 @@ class LLMContext
     const MAX_JSON_BYTES = 6000;  // ~6 KB target per section
 
     public static function executiveSummary(array $big): array {
+        if ($ctx = self::metricsContext($big, 'executive_summary')) {
+            return self::capBytes($ctx);
+        }
         $r = self::latestRun($big);
+        $summary = self::runSummary($r);
+        $totals = $summary['totals'] ?? [];
         return self::capBytes([
             'project' => $big['project'] ?? '',
             'type'    => $big['type'] ?? 'general',
             'runs'    => array_map(fn($x)=>$x['run_id'] ?? '', $big['runs']),
             'metrics' => [
-                'pages'  => $r['summary']['pages'] ?? null,
-                'status' => $r['summary']['status'] ?? null,
-                'issues_total' => $r['summary']['issues']['total'] ?? null,
+                'pages'  => $totals['pages'] ?? $summary['pages'] ?? null,
+                'status' => $summary['status'] ?? null,
+                'issues_total' => $summary['issues']['total'] ?? null,
             ],
             'top_issues' => self::topIssues($r, 5),
             'ga'  => self::gaTotals($big),
@@ -26,12 +31,16 @@ class LLMContext
     }
 
     public static function topActions(array $big): array {
+        if ($ctx = self::metricsContext($big, 'top_actions')) {
+            return self::capBytes($ctx);
+        }
         $r = self::latestRun($big);
+        $status = self::runSummary($r)['status'] ?? [];
         return self::capBytes([
             'project' => $big['project'] ?? '',
             'impact'  => [
-                'errors_4xx'    => $r['summary']['status']['4xx'] ?? 0,
-                'errors_5xx'    => $r['summary']['status']['5xx'] ?? 0,
+                'errors_4xx'    => $status['4xx'] ?? 0,
+                'errors_5xx'    => $status['5xx'] ?? 0,
                 'alt_missing'   => self::issueCount($r, 'Images without ALT text'),
                 'multi_h1'      => self::issueCount($r, 'Multiple H1 headings'),
                 'meta_missing'  => self::issueCount($r, 'Missing meta description'),
@@ -44,19 +53,26 @@ class LLMContext
     }
 
     public static function overview(array $big): array {
+        if ($ctx = self::metricsContext($big, 'overview')) {
+            return self::capBytes($ctx);
+        }
         $r = self::latestRun($big);
+        $summary = self::runSummary($r);
         return self::capBytes([
-            'pages' => $r['summary']['pages'] ?? null,
-            'issues_total' => $r['summary']['issues']['total'] ?? null,
-            'status' => $r['summary']['status'] ?? null,
+            'pages' => $summary['totals']['pages'] ?? $summary['pages'] ?? null,
+            'issues_total' => $summary['issues']['total'] ?? null,
+            'status' => $summary['status'] ?? null,
             'issue_buckets' => self::topIssues($r, 6),
             'trend_runs' => array_slice(array_map(function($x){
-                return ['run'=>$x['run_id'] ?? '', 'issues'=>$x['summary']['issues']['total'] ?? null];
+                return ['run'=>$x['run_id'] ?? '', 'issues'=>$x['issues'] ?? null];
             }, $big['project_scope']['timeseries']['items'] ?? []), -5)
         ]);
     }
 
     public static function performance(array $big): array {
+        if ($ctx = self::metricsContext($big, 'performance_summary')) {
+            return self::capBytes($ctx);
+        }
         $ga = self::gaTotals($big);
         $r = self::latestRun($big);
         // Hook in real web-vitals if you aggregate them; placeholders here:
@@ -72,11 +88,15 @@ class LLMContext
     }
 
     public static function technicalSEO(array $big): array {
+        if ($ctx = self::metricsContext($big, 'technical_seo_issues')) {
+            return self::capBytes($ctx);
+        }
         $r = self::latestRun($big);
+        $summary = self::runSummary($r);
         return self::capBytes([
             'status' => [
-                '4xx' => $r['summary']['status']['4xx'] ?? 0,
-                '5xx' => $r['summary']['status']['5xx'] ?? 0
+                '4xx' => $summary['status']['4xx'] ?? 0,
+                '5xx' => $summary['status']['5xx'] ?? 0
             ],
             'canonical_missing' => self::issueCount($r, 'Missing canonical URL'),
             'redirect_chains'   => self::issueCount($r, 'Redirect chain'),
@@ -89,6 +109,9 @@ class LLMContext
     }
 
     public static function onpageContent(array $big): array {
+        if ($ctx = self::metricsContext($big, 'onpage_seo_content')) {
+            return self::capBytes($ctx);
+        }
         $r = self::latestRun($big);
         return self::capBytes([
             'title_missing' => self::issueCount($r,'Missing title tag'),
@@ -100,6 +123,9 @@ class LLMContext
     }
 
     public static function metaHeading(array $big): array {
+        if ($ctx = self::metricsContext($big, 'meta_recommendations')) {
+            return self::capBytes($ctx);
+        }
         $r = self::latestRun($big);
         return self::capBytes([
             'missing'   => [
@@ -114,6 +140,9 @@ class LLMContext
     }
 
     public static function keywordAnalysis(array $big): array {
+        if ($ctx = self::metricsContext($big, 'keyword_analysis')) {
+            return self::capBytes($ctx);
+        }
         $details = $big['runs'][0]['analytics']['gsc_details']['details'] ?? [];
         $queries = array_slice($details['queries'] ?? [], 0, 10);
         $pages   = array_slice($details['pages'] ?? [], 0, 10);
@@ -133,12 +162,12 @@ class LLMContext
     private static function latestRun(array $big): array { return $big['runs'][array_key_last($big['runs'])] ?? []; }
 
     private static function issueCount(array $run, string $label): int {
-        $counts = $run['report']['audit']['summary']['issue_counts'] ?? $run['audit']['summary']['issue_counts'] ?? [];
+        $counts = self::runIssueCounts($run);
         return (int)($counts[$label] ?? 0);
     }
 
     private static function topIssues(array $run, int $n): array {
-        $counts = $run['report']['audit']['summary']['issue_counts'] ?? $run['audit']['summary']['issue_counts'] ?? [];
+        $counts = self::runIssueCounts($run);
         arsort($counts);
         $out = [];
         foreach (array_slice($counts, 0, $n, true) as $k=>$v) { $out[] = [$k,(int)$v]; }
@@ -199,6 +228,63 @@ class LLMContext
         $flags = [];
         if (self::issueCount($run, 'Images without ALT text') > 0) { /* not speed, but sample */ }
         return $flags;
+    }
+
+    private static function runSummary(array $run): array
+    {
+        $summary = [];
+        if (!empty($run['summary']) && is_array($run['summary'])) {
+            $summary = $run['summary'];
+        } elseif (!empty($run['audit']['summary']) && is_array($run['audit']['summary'])) {
+            $summary = $run['audit']['summary'];
+        } elseif (!empty($run['report']['audit']['summary']) && is_array($run['report']['audit']['summary'])) {
+            $summary = $run['report']['audit']['summary'];
+        }
+
+        $issueCounts = is_array($summary['issue_counts'] ?? null) ? $summary['issue_counts'] : [];
+        if (!isset($summary['issues']) || !is_array($summary['issues'])) {
+            $summary['issues'] = [];
+        }
+        if (!isset($summary['issues']['total'])) {
+            $summary['issues']['total'] = self::sumIssueCounts($issueCounts);
+        }
+
+        if (!isset($summary['status']) || !is_array($summary['status'])) {
+            if (!empty($summary['status_buckets']) && is_array($summary['status_buckets'])) {
+                $summary['status'] = $summary['status_buckets'];
+            } elseif (!empty($run['aggregations']['status_distribution']) && is_array($run['aggregations']['status_distribution'])) {
+                $summary['status'] = $run['aggregations']['status_distribution'];
+            } else {
+                $summary['status'] = [];
+            }
+        }
+
+        return $summary;
+    }
+
+    private static function runIssueCounts(array $run): array
+    {
+        $summary = self::runSummary($run);
+        $counts = $summary['issue_counts'] ?? [];
+        return is_array($counts) ? $counts : [];
+    }
+
+    private static function sumIssueCounts(array $counts): int
+    {
+        $total = 0;
+        foreach ($counts as $count) {
+            $total += (int) $count;
+        }
+        return $total;
+    }
+
+    private static function metricsContext(array $big, string $sectionKey): ?array
+    {
+        $metrics = $big['section_metrics'][$sectionKey] ?? null;
+        if (!is_array($metrics) || $metrics === []) {
+            return null;
+        }
+        return ['metrics' => $metrics];
     }
 
     private static function capBytes(array $ctx): array {

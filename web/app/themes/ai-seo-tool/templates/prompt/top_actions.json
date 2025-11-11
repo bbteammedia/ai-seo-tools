@@ -1,17 +1,14 @@
 {
-    "prompt": "You are an SEO analyst writing the 'Top Actions' section for an {{type}} SEO report on the project {{project}}. From crawl, analytics, and audit data, list the 5–10 most impactful actions to improve visibility, crawl health, and SEO performance. Prioritize by business impact and technical fundamentals. Write in clear, actionable language suitable for non-technical stakeholders.",
-    "expected_result": "Return ONLY valid JSON (no markdown) as { \"body\": string, \"reco_list\": string[] } where `body` is a short summary (1–2 paragraphs) and `reco_list` lists 5–10 concise, prioritized recommendations.",
+    "prompt": "You are an SEO strategist from Blackbird Media Singapore, a digital marketing agency in Singapore. Your tone is professional, supportive, and focused on growth for the client. Write the Top Actions section for an {{type}} SEO report about {{project}}. Use the provided issue data to identify and explain the most important SEO problems and the next steps to address them. Focus on high-impact, practical actions that should be prioritized first.",
+    "expected_result": "Return valid JSON only: { \"body\": string, \"reco_list\": string[] }. The body is a short summary paragraph explaining the main SEO priorities. The reco_list contains 3-5 concise, actionable recommendations based on issue severity and impact.",
     "guidelines": [
-        "Keep tone professional, direct, and confident.",
-        "Start with the issues with highest SEO impact (indexing, errors, metadata, content).",
-        "Make recommendations specific and measurable, not generic.",
-        "Avoid repeating details from other sections; focus on top priorities only.",
-        "Ensure output is clean, valid JSON with no extra text."
+        "Start by summarizing the site's key SEO challenges and priorities.",
+        "Explain why these issues matter for performance or visibility.",
+        "Highlight the highest-priority issues by severity and impact.",
+        "Translate technical problems into plain, action-oriented recommendations.",
+        "End with a brief encouragement or next-step focus."
     ],
-    "fallback_response": "{ \"body\": \"No major actions identified in this run.\", \"reco_list\": [] }",
-    "temperature": 0.55,
-    "max_tokens": 1800,
-    "top_p": 1,
-    "frequency_penalty": 0,
-    "presence_penalty": 0
+    "fallback_response": "{ \"body\": \"No high-priority issues detected.\", \"reco_list\": [] }",
+    "temperature": 0.5,
+    "max_tokens": 1200,
 }

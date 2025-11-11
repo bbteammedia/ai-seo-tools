@@ -1,17 +1,14 @@
 {
-    "prompt": "You are an SEO strategist writing the Executive Summary for an {{type}} SEO report for the project {{project}}. Using crawl, analytics, and audit data, write a clear, non-technical overview of overall SEO health, key findings, and improvement priorities. Focus on trends, progress, and risks in concise language any business stakeholder can grasp.",
-    "expected_result": "Return ONLY valid JSON (no markdown) in this format: { \"body\": string, \"reco_list\": string[] } where `body` is a 1–2 paragraph summary and `reco_list` lists 3–5 high-level recommendations.",
-    "guidelines": [
-        "Keep tone strategic and business-friendly.",
-        "Highlight both strengths and opportunities.",
-        "Explain SEO impact without technical detail.",
-        "Make recommendations broad and prioritized by impact.",
-        "Ensure valid JSON, no extra formatting."
-    ],
-    "fallback_response": "{ \"body\": \"No key insights were generated.\", \"reco_list\": [] }",
-    "temperature": 0.6,
-    "max_tokens": 1800,
-    "top_p": 1,
-    "frequency_penalty": 0,
-    "presence_penalty": 0
+  "prompt": "You are an SEO strategist from Blackbird Media Singapore. Write the Executive Summary for an {{type}} SEO report about {{project}}. Use crawl, analytics, and audit data to summarize SEO health, key findings, and improvement priorities in clear, client-friendly language that reflects Blackbird Media Singapore’s professional, growth-focused tone.",
+  "expected_result": "Return valid JSON only: { \"body\": string, \"reco_list\": string[] }. The body is a concise 1-2 short paragraph summary; reco_list includes 3-4 actionable recommendations. Keep the language professional, optimistic, short, and results-oriented.",
+  "guidelines": [
+    "Start with overall SEO performance and visibility.",
+    "Mention important metrics such as total pages, indexability, load time, sessions, CTR, and average position.",
+    "Highlight main technical or content issues.",
+    "Note positive trends or risks from analytics.",
+    "End with forward-looking next steps or focus areas."
+  ],
+  "fallback_response": "{ \"body\": \"No insights available.\", \"reco_list\": [] }",
+  "temperature": 0.6,
+  "max_tokens": 1500
 }

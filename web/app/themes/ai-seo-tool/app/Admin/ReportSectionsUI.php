@@ -455,10 +455,18 @@ class ReportSectionsUI
     {
         $rows = $table['rows'] ?? [];
         $headers = $table['headers'] ?? [];
+        $emptyMessage = trim((string) ($table['empty'] ?? ''));
+        $note = trim((string) ($table['note'] ?? ''));
 
         if (!$headers && $rows) {
             $headers = array_keys(reset($rows));
         }
+
+        if (!$rows && $emptyMessage === '' && $note === '') {
+            return;
+        }
+
+        echo '<div class="metrics-table-wrap">';
 
         if ($rows) {
             echo '<table class="metrics-table"><thead><tr>';
@@ -477,13 +485,15 @@ class ReportSectionsUI
             echo '</tbody></table>';
         }
 
-        if (!$rows && !empty($table['empty'])) {
-            echo '<p class="metrics-empty">' . esc_html((string) $table['empty']) . '</p>';
+        if (!$rows && $emptyMessage !== '') {
+            echo '<p class="metrics-empty">' . esc_html($emptyMessage) . '</p>';
         }
 
-        if (!empty($table['note'])) {
-            echo '<p class="metrics-note">' . esc_html((string) $table['note']) . '</p>';
+        if ($note !== '') {
+            echo '<p class="metrics-note">' . esc_html($note) . '</p>';
         }
+
+        echo '</div>';
     }
 
     public static function save(int $postId, \WP_Post $post, bool $update): void
@@ -627,6 +637,11 @@ class ReportSectionsUI
         $runs = is_array($runs) ? array_map('sanitize_text_field', $runs) : [];
 
         $data = DataLoader::forReport($type, $project, $runs, $page);
+        $metricsBySection = ReportMetrics::build($type, $data);
+        $data['section_metrics'] = $metricsBySection;
+        Gemini::log('Gemini section_metrics', [
+            'section_metrics' => $metricsBySection,
+        ]);
         $result = Gemini::summarizeSection($type, $data, $sectionId);
 
         if (!is_array($result)) {

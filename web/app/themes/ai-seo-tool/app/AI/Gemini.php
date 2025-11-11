@@ -340,6 +340,12 @@ TXT;
         if ($ctxKey && method_exists(\BBSEO\Helpers\LLMContext::class, $ctxKey)) {
             $ctx = \BBSEO\Helpers\LLMContext::$ctxKey($data);
         }
+        
+        $metricsKey = self::sectionMetricsKey($sectionId);
+        $sectionMetrics = $data['section_metrics'][$sectionId] ?? $data['section_metrics'][$metricsKey] ?? [];
+        if (!empty($sectionMetrics)) {
+            $ctx['metrics'] = $sectionMetrics;
+        }
         $contextJson = json_encode($ctx, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         $prompt = self::sectionPromptJson($promptJsonFile) ?: [];
@@ -372,11 +378,10 @@ TXT;
 
     Hard rules:
     - Output JSON only (no markdown, code fences, or commentary).
-    - Keys allowed: "body", "reco_list" only.
-    - Use double quotes for all keys/strings; UTF-8 plain text.
-    - "body": concise 1–2 paragraphs; do not invent metrics.
-    - "reco_list": 5–10 non-duplicative, actionable items.
-    - If a metric is unknown, state it without fabricating numbers.
+    - Use double quotes for all keys/strings (valid JSON, UTF-8).
+    - Allowed keys: "body", "reco_list" only.
+    - If a metric is unavailable, acknowledge it gracefully.
+    - Use basic english and can understand for non-technical readers.
 
     Metadata:
     - section_id: {$sectionId}
@@ -388,6 +393,10 @@ TXT;
         if (empty($ctx) && !empty($prompt['fallback_response'])) {
             $instructions .= "\n\nFALLBACK_JSON:\n" . (string)$prompt['fallback_response'];
         }
+
+        self::log('Gemini buildSectionPrompt', [
+            'instructions' => $instructions,
+        ]);
 
         return $instructions;
     }
@@ -404,6 +413,24 @@ TXT;
         }
 
         return $json;
+    }
+
+    private static function sectionMetricsKey(string $sectionId): string
+    {
+        if (strpos($sectionId, '_') === false) {
+            return $sectionId;
+        }
+        
+        // Split by underscore and take first two parts if available
+        $parts = explode('_', $sectionId);
+        
+        // If we have at least 2 parts, return first two joined with underscore
+        if (count($parts) >= 2) {
+            return $parts[0] . '_' . $parts[1];
+        }
+        
+        // Otherwise return the first part (fallback for single underscore)
+        return $parts[0];
     }
 
     private static function compileStats(array $data): array
@@ -672,7 +699,7 @@ TXT;
         return $response ?: '';
     }
 
-    private static function log(string $message, array $context = []): void
+    public static function log(string $message, array $context = []): void
     {
         $payload = $context ? ' ' . wp_json_encode($context) : '';
         // save log file to wp-content/uploads/ai-seo-tool/gemini.log

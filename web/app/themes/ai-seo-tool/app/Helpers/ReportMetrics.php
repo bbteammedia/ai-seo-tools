@@ -1,923 +1,1088 @@
 <?php
 namespace BBSEO\Helpers;
 
+use BBSEO\AI\Gemini;
+
 class ReportMetrics
 {
-    /**
-     * @param array<string,mixed> $snapshot
-     * @return array<string,array<string,mixed>>
-     */
     public static function build(string $type, array $snapshot): array
     {
-        $base = self::compileBase($snapshot);
-
+        $context = self::buildAuditContext($type, $snapshot);
         return [
-            'executive_summary' => ['rows' => [], 'headers' => []],
-            'top_actions' => ['rows' => [], 'headers' => []],
-            'overview' => self::overviewTable($type, $base),
-            'performance_summary' => self::performanceSummaryTable($type, $base),
-            'technical_seo_issues' => self::technicalIssuesTable($type, $base),
-            'onpage_seo_content' => self::onpageTable($base),
-            'keyword_analysis' => self::keywordTable($base),
-            'backlink_profile' => self::backlinkTable($base),
-            'crawl_history' => self::crawlHistoryTable($base),
-            'traffic_trends' => self::trafficTrendsTable($base),
-            'search_visibility' => self::searchVisibilityTable($base),
-            'meta_recommendations' => ['rows' => [], 'headers' => []],
-            'technical_findings' => ['rows' => [], 'headers' => []],
-            'recommendations' => ['rows' => [], 'headers' => []],
+            'executive_summary' => self::buildExecutiveSummary($context),
+            'top_actions' => self::buildTopActions($context),
+            'overview' => self::buildOverview($context),
+            'performance_summary' => self::buildPerformanceSummary($context),
+            'technical_seo_issues' => self::buildTechnicalSeoIssues($context),
+            'onpage_seo_content' => self::buildOnpageContent($context),
+            'keyword_analysis' => self::buildKeywordAnalysis($context),
+            'backlink_profile' => self::buildBacklinkProfile($context),
+            'crawl_history' => self::buildCrawlHistory($context),
+            'traffic_trends' => self::buildTrafficTrends($context),
+            'search_visibility' => self::buildSearchVisibility($context),
+            'meta_recommendations' => self::buildMetaRecommendations($context),
+            'technical_findings' => self::buildTechnicalFindings($context),
+            'recommendations' => self::buildRecommendations($context),
         ];
     }
 
-    /**
-     * @param array<string,mixed> $snapshot
-     * @return array<string,mixed>
-     */
-    private static function compileBase(array $snapshot): array
+    private static function buildAuditContext(string $type, array $snapshot): array
     {
-        $runs = $snapshot['runs'] ?? [];
-
-        $base = [
-            'total_pages' => 0,
-            'indexed_pages' => 0,
-            'status' => [
-                '2xx' => 0,
-                '3xx' => 0,
-                '4xx' => 0,
-                '5xx' => 0,
-            ],
-            'issues' => [
-                'broken_links' => 0,
-                'missing_titles' => 0,
-                'missing_meta' => 0,
-                'long_titles' => 0,
-                'low_content' => 0,
-                'redirect_chains' => 0,
-                'mixed_content' => 0,
-                'duplicate_content' => 0,
-                'missing_h1' => 0,
-                'missing_canonical' => 0,
-                'alt_missing' => 0,
-            ],
-            'samples' => [
-                'broken_links' => null,
-                'missing_titles' => null,
-                'missing_meta' => null,
-                'long_titles' => null,
-                'low_content' => null,
-                'redirect_chains' => null,
-                'mixed_content' => null,
-                'duplicate_content' => null,
-                'missing_h1' => null,
-                'missing_canonical' => null,
-                'alt_missing' => null,
-            ],
-            'word_count_total' => 0,
-            'word_count_pages' => 0,
-            'avg_word_count' => 0,
-            'pages' => [],
-            'analytics' => [
-                'ga_top_pageviews' => [],
-                'ga_top_exit_pages' => [],
-                'gsc_best_keywords' => [],
-                'gsc_low_ctr' => [],
-            ],
-            'crawler' => [
-                'largest_pages' => [],
-                'slowest_pages' => [],
-                'redirect_heavy' => [],
-                'short_content_pages' => [],
-            ],
-            'backlinks' => [
-                'referring_domains' => null,
-                'total_backlinks' => null,
-                'new_links' => null,
-                'lost_links' => null,
-                'toxic_score' => null,
-                'anchor_distribution' => null,
-                'last_synced' => null,
-            ],
-            'project_scope' => [
-                'crawl_timeseries' => [],
-                'ga_timeseries' => [],
-                'gsc_timeseries' => [],
-            ],
-        ];
-
+        $project = $snapshot['project'] ?? '';
+        $rawRuns = is_array($snapshot['runs'] ?? null) ? $snapshot['runs'] : [];
         $projectScope = is_array($snapshot['project_scope'] ?? null) ? $snapshot['project_scope'] : [];
-        $base['project_scope']['crawl_timeseries'] = self::normalizeTimeseries($projectScope['timeseries'] ?? null);
-        $base['project_scope']['ga_timeseries'] = self::normalizeTimeseries($projectScope['ga_timeseries'] ?? null);
-        $base['project_scope']['gsc_timeseries'] = self::normalizeTimeseries($projectScope['gsc_timeseries'] ?? null);
 
-        foreach ($runs as $run) {
-            if (!is_array($run)) {
+        $runs = self::normalizeRuns($rawRuns, $project);
+
+        $context = [
+            'type' => $type,
+            'project' => $project,
+            'runs' => $runs,
+            'current_run' => $runs[0] ?? null,
+            'previous_run' => $runs[1] ?? null,
+            'project_scope' => [
+                'crawl_timeseries' => self::normalizeTimeseries($projectScope['timeseries'] ?? null),
+                'ga_timeseries' => self::normalizeTimeseries($projectScope['ga_timeseries'] ?? null),
+                'gsc_timeseries' => self::normalizeTimeseries($projectScope['gsc_timeseries'] ?? null),
+            ],
+        ];
+
+        $context['has_ga_or_gsc'] = self::runHasAnalytics($context['current_run']);
+        $context['has_gsc'] = self::runHasGsc($context['current_run']);
+        $context['has_backlink_data'] = !empty($context['current_run']['audit']['backlinks']);
+
+        return $context;
+    }
+
+    private static function normalizeRuns(array $rawRuns, string $project): array
+    {
+        $runs = [];
+        foreach ($rawRuns as $rawRun) {
+            if (!is_array($rawRun)) {
+                continue;
+            }
+            $runId = (string) ($rawRun['run_id'] ?? '');
+            if ($runId === '') {
                 continue;
             }
 
-            $summary = is_array($run['summary'] ?? null) ? $run['summary'] : [];
-            $audit = is_array($run['audit'] ?? null) ? $run['audit'] : [];
-            $report = is_array($run['report'] ?? null) ? $run['report'] : [];
-            $analytics = is_array($run['analytics'] ?? null) ? $run['analytics'] : [];
-            $backlinks = is_array($run['backlinks'] ?? null) ? $run['backlinks'] : [];
+            $audit = is_array($rawRun['audit'] ?? null) ? $rawRun['audit'] : [];
+            $analytics = is_array($rawRun['analytics'] ?? null) ? $rawRun['analytics'] : [];
+            $counts = self::runDirectoryCounts($project, $runId);
 
-            if ($analytics) {
-                $existingAnalytics = $report['analytics'] ?? [];
-                if (!is_array($existingAnalytics)) {
-                    $existingAnalytics = [];
-                }
-                $report['analytics'] = array_merge($existingAnalytics, $analytics);
-            }
-
-            $statusSources = [
-                $summary['status'] ?? null,
-                self::getByPath($summary, 'status_buckets'),
-                self::getByPath($audit, 'summary.status_buckets'),
-                self::getByPath($report, 'crawl.status_buckets'),
+            $runs[] = [
+                'run_id' => $runId,
+                'audit' => $audit,
+                'analytics' => $analytics,
+                'counts' => $counts,
+                'aggregations' => is_array($audit['aggregations'] ?? null) ? $audit['aggregations'] : [],
+                'issues' => is_array($audit['issues'] ?? null) ? $audit['issues'] : [],
+                'items' => is_array($audit['items'] ?? null) ? $audit['items'] : [],
+                'diff' => is_array($audit['diff'] ?? null) ? $audit['diff'] : [],
             ];
-
-            $statusBuckets = null;
-            foreach ($statusSources as $source) {
-                if (is_array($source) && !empty($source)) {
-                    $statusBuckets = $source;
-                    break;
-                }
-            }
-
-            $totalPagesValue = $summary['pages']
-                ?? $summary['total_pages']
-                ?? self::getByPath($audit, 'summary.total_pages')
-                ?? self::getByPath($report, 'crawl.pages_count')
-                ?? 0;
-            $base['total_pages'] += (int) $totalPagesValue;
-            if ($statusBuckets) {
-                foreach (['2xx', '3xx', '4xx', '5xx', 'other'] as $bucket) {
-                    if (isset($statusBuckets[$bucket])) {
-                        $base['status'][$bucket] += (int) $statusBuckets[$bucket];
-                    }
-                }
-            }
-
-            $runIssueCounts = array_fill_keys(array_keys($base['issues']), 0);
-            $runIndexedPages = 0;
-
-            $pages = $run['pages'] ?? [];
-            if (!is_array($pages) || empty($pages)) {
-                $pages = $report['pages'] ?? [];
-            }
-            if (!is_array($pages) || empty($pages)) {
-                $pages = $audit['items'] ?? [];
-            }
-            if (!is_array($pages)) {
-                $pages = [];
-            }
-
-            foreach ($pages as $page) {
-                if (!is_array($page)) {
-                    continue;
-                }
-
-                $base['pages'][] = $page;
-
-                $url = trim((string) ($page['url'] ?? ''));
-                $status = isset($page['status']) ? (int) $page['status'] : null;
-
-                if ($status !== null) {
-                    if ($status >= 200 && $status < 300) {
-                        ++$runIndexedPages;
-                    }
-                    if ($status >= 400 && $status < 500) {
-                        ++$runIssueCounts['broken_links'];
-                        self::setSample($base['samples'], 'broken_links', $url);
-                    }
-                }
-
-                $issuesList = $page['issues'] ?? [];
-                if (is_array($issuesList) && !empty($issuesList)) {
-                    foreach ($issuesList as $issueLabel) {
-                        if (!is_string($issueLabel) || $issueLabel === '') {
-                            continue;
-                        }
-                        $category = self::issueCategoryFromLabel($issueLabel);
-                        if ($category && array_key_exists($category, $runIssueCounts)) {
-                            ++$runIssueCounts[$category];
-                            self::setSample($base['samples'], $category, $url);
-                        }
-                    }
-                }
-
-                if (array_key_exists('word_count', $page) || array_key_exists('words', $page)) {
-                    $wordCount = (int) ($page['word_count'] ?? $page['words'] ?? 0);
-                    if ($wordCount > 0) {
-                        $base['word_count_total'] += $wordCount;
-                        ++$base['word_count_pages'];
-                    }
-                    if ($wordCount > 0 && $wordCount < 300) {
-                        ++$runIssueCounts['low_content'];
-                        self::setSample($base['samples'], 'low_content', $url);
-                    }
-                }
-
-                if (array_key_exists('title', $page)) {
-                    $title = trim((string) $page['title']);
-                    if ($title === '') {
-                        ++$runIssueCounts['missing_titles'];
-                        self::setSample($base['samples'], 'missing_titles', $url);
-                    }
-                    $titleLength = function_exists('mb_strlen') ? mb_strlen($title) : strlen($title);
-                    if ($titleLength > 65) {
-                        ++$runIssueCounts['long_titles'];
-                        self::setSample($base['samples'], 'long_titles', $url);
-                    }
-                }
-
-                if (array_key_exists('meta_description', $page)) {
-                    $meta = trim((string) $page['meta_description']);
-                    if ($meta === '') {
-                        ++$runIssueCounts['missing_meta'];
-                        self::setSample($base['samples'], 'missing_meta', $url);
-                    }
-                }
-
-                if (array_key_exists('canonical', $page)) {
-                    $canonical = trim((string) $page['canonical']);
-                    if ($canonical === '') {
-                        ++$runIssueCounts['missing_canonical'];
-                        self::setSample($base['samples'], 'missing_canonical', $url);
-                    }
-                }
-
-                if (array_key_exists('h1', $page) || array_key_exists('h1_count', $page)) {
-                    $h1 = $page['h1'] ?? null;
-                    $h1Count = $page['h1_count'] ?? null;
-                    $hasH1 = true;
-                    if (is_string($h1)) {
-                        $hasH1 = trim($h1) !== '';
-                    } elseif (is_array($h1)) {
-                        $hasH1 = !empty(array_filter($h1, static fn ($item) => trim((string) $item) !== ''));
-                    } elseif ($h1Count !== null) {
-                        $hasH1 = (int) $h1Count > 0;
-                    }
-                    if (!$hasH1) {
-                        ++$runIssueCounts['missing_h1'];
-                        self::setSample($base['samples'], 'missing_h1', $url);
-                    }
-                }
-
-                if (array_key_exists('alt_missing', $page) || array_key_exists('images_missing_alt', $page)) {
-                    $altMissing = $page['alt_missing'] ?? $page['images_missing_alt'] ?? null;
-                    if (is_numeric($altMissing) && (int) $altMissing > 0) {
-                        ++$runIssueCounts['alt_missing'];
-                        self::setSample($base['samples'], 'alt_missing', $url);
-                    }
-                }
-
-                if (array_key_exists('redirect_chain', $page) || array_key_exists('is_redirect_chain', $page)) {
-                    $redirectFlag = $page['redirect_chain'] ?? $page['is_redirect_chain'] ?? null;
-                    if (!empty($redirectFlag)) {
-                        ++$runIssueCounts['redirect_chains'];
-                        self::setSample($base['samples'], 'redirect_chains', $url);
-                    }
-                }
-
-                if (array_key_exists('mixed_content', $page) || array_key_exists('has_mixed_content', $page)) {
-                    $mixed = $page['mixed_content'] ?? $page['has_mixed_content'] ?? null;
-                    if (!empty($mixed)) {
-                        ++$runIssueCounts['mixed_content'];
-                        self::setSample($base['samples'], 'mixed_content', $url);
-                    }
-                }
-
-                if (array_key_exists('duplicate_content', $page) || array_key_exists('is_duplicate', $page)) {
-                    $duplicate = $page['duplicate_content'] ?? $page['is_duplicate'] ?? null;
-                    if (!empty($duplicate)) {
-                        ++$runIssueCounts['duplicate_content'];
-                        self::setSample($base['samples'], 'duplicate_content', $url);
-                    }
-                }
-            }
-
-            if ($runIndexedPages === 0 && $statusBuckets && isset($statusBuckets['2xx'])) {
-                $runIndexedPages = (int) $statusBuckets['2xx'];
-            }
-            $base['indexed_pages'] += $runIndexedPages;
-            if ($statusBuckets && isset($statusBuckets['4xx'])) {
-                $runIssueCounts['broken_links'] = max($runIssueCounts['broken_links'], (int) $statusBuckets['4xx']);
-            }
-
-            $issueSummary = $summary['issue_counts'] ?? null;
-            if (!is_array($issueSummary)) {
-                $issueSummary = self::getByPath($audit, 'summary.issue_counts');
-            }
-            if (!is_array($issueSummary)) {
-                $issueSummary = self::getByPath($report, 'audit.summary.issue_counts');
-            }
-            if (!is_array($issueSummary)) {
-                $issueSummary = [];
-            }
-            foreach ($issueSummary as $label => $count) {
-                if (!is_string($label)) {
-                    continue;
-                }
-                $category = self::issueCategoryFromLabel($label);
-                if ($category && array_key_exists($category, $runIssueCounts)) {
-                    $runIssueCounts[$category] = max($runIssueCounts[$category], (int) $count);
-                }
-            }
-
-            foreach ($runIssueCounts as $key => $count) {
-                $base['issues'][$key] += $count;
-            }
-
-            if ($report) {
-                self::mergeLists($base['analytics']['ga_top_pageviews'], self::extractList($report, [
-                    'ga4.top_pageviews',
-                    'ga.top_pageviews',
-                    'analytics.top_pageviews',
-                    'analytics.ga.top_pages',
-                    'analytics.ga.top_pageviews',
-                ]));
-                self::mergeLists($base['analytics']['ga_top_exit_pages'], self::extractList($report, [
-                    'ga4.top_exit_pages',
-                    'ga.top_exit_pages',
-                    'analytics.top_exit_pages',
-                    'analytics.ga.top_exit_pages',
-                ]));
-                self::mergeLists($base['analytics']['gsc_best_keywords'], self::extractList($report, [
-                    'gsc.best_keywords',
-                    'gsc.best_performing_keywords',
-                    'analytics.gsc.top_keywords',
-                    'analytics.gsc.best_keywords',
-                ]));
-                self::mergeLists($base['analytics']['gsc_low_ctr'], self::extractList($report, [
-                    'gsc.low_ctr_keywords',
-                    'gsc.lowest_ctr',
-                    'analytics.gsc.low_ctr_keywords',
-                    'analytics.gsc.low_ctr',
-                ]));
-                self::mergeLists($base['crawler']['largest_pages'], self::extractList($report, [
-                    'crawler.largest_pages',
-                    'crawler.pages_largest',
-                ]));
-                self::mergeLists($base['crawler']['slowest_pages'], self::extractList($report, [
-                    'crawler.slowest_pages',
-                    'crawler.pages_slowest',
-                ]));
-                self::mergeLists($base['crawler']['redirect_heavy'], self::extractList($report, [
-                    'crawler.redirect_heavy',
-                    'crawler.most_redirects',
-                ]));
-                self::mergeLists($base['crawler']['short_content_pages'], self::extractList($report, [
-                    'crawler.short_content_pages',
-                    'crawler.thin_content_pages',
-                ]));
-            }
-
-            $gaData = $analytics['ga'] ?? null;
-            if (is_array($gaData)) {
-                if (isset($gaData['top_pages']) && is_array($gaData['top_pages'])) {
-                    self::mergeLists($base['analytics']['ga_top_pageviews'], $gaData['top_pages']);
-                }
-                if (isset($gaData['top_exit_pages']) && is_array($gaData['top_exit_pages'])) {
-                    self::mergeLists($base['analytics']['ga_top_exit_pages'], $gaData['top_exit_pages']);
-                }
-            }
-
-            $gscData = $analytics['gsc'] ?? null;
-            if (is_array($gscData)) {
-                if (isset($gscData['top_keywords']) && is_array($gscData['top_keywords'])) {
-                    self::mergeLists($base['analytics']['gsc_best_keywords'], $gscData['top_keywords']);
-                }
-                if (isset($gscData['low_ctr_keywords']) && is_array($gscData['low_ctr_keywords'])) {
-                    self::mergeLists($base['analytics']['gsc_low_ctr'], $gscData['low_ctr_keywords']);
-                }
-            }
-
-            $gscDetails = self::getByPath($analytics, 'gsc_details.details.queries');
-            if (is_array($gscDetails) && !empty($gscDetails)) {
-                $normalizedQueries = array_map(static function ($row) {
-                    if (!is_array($row)) {
-                        return [];
-                    }
-                    return [
-                        'keyword' => $row['key'] ?? ($row['keyword'] ?? ''),
-                        'clicks' => $row['clicks'] ?? null,
-                        'ctr' => $row['ctr'] ?? null,
-                        'position' => $row['position'] ?? null,
-                    ];
-                }, $gscDetails);
-                self::mergeLists($base['analytics']['gsc_best_keywords'], array_filter($normalizedQueries));
-            }
-
-            $backlinkProvider = $backlinks['provider'] ?? null;
-            if (is_array($backlinkProvider)) {
-                $base['backlinks']['referring_domains'] = $base['backlinks']['referring_domains'] ?? ($backlinkProvider['referring_domains'] ?? null);
-                $base['backlinks']['total_backlinks'] = $base['backlinks']['total_backlinks'] ?? ($backlinkProvider['total_backlinks'] ?? null);
-                $base['backlinks']['new_links'] = $base['backlinks']['new_links'] ?? ($backlinkProvider['new_links'] ?? null);
-                $base['backlinks']['lost_links'] = $base['backlinks']['lost_links'] ?? ($backlinkProvider['lost_links'] ?? null);
-                $base['backlinks']['toxic_score'] = $base['backlinks']['toxic_score'] ?? ($backlinkProvider['toxic_score'] ?? null);
-                $base['backlinks']['anchor_distribution'] = $base['backlinks']['anchor_distribution'] ?? ($backlinkProvider['anchor_distribution'] ?? $backlinkProvider['anchor_text_distribution'] ?? null);
-                $base['backlinks']['last_synced'] = $base['backlinks']['last_synced'] ?? ($backlinkProvider['last_synced'] ?? null);
-            }
         }
 
-        if ($base['word_count_pages'] > 0) {
-            $base['avg_word_count'] = (int) round($base['word_count_total'] / $base['word_count_pages']);
-        }
-
-        return $base;
+        usort($runs, static fn ($a, $b) => self::compareRunDates($a, $b));
+        return array_values($runs);
     }
 
-    /**
-     * @param array<string,mixed> $base
-     * @return array<string,mixed>
-     */
-    private static function overviewTable(string $type, array $base): array
+    private static function runDirectoryCounts(string $project, string $runId): array
     {
-        $rows = [];
+        if ($project === '') {
+            return [
+                'pages' => 0,
+                'images' => 0,
+                'errors' => 0,
+            ];
+        }
 
-        if ($type === 'technical') {
-            $rows = [
-                ['Metric' => 'Total Pages Crawled', 'Value' => self::formatNumber($base['total_pages'])],
-                ['Metric' => 'Indexed Pages (2xx)', 'Value' => self::formatNumber($base['status']['2xx'])],
-                ['Metric' => 'Broken Links (4xx)', 'Value' => self::formatNumber($base['status']['4xx'])],
-                ['Metric' => 'Missing Titles', 'Value' => self::formatNumber($base['issues']['missing_titles'])],
-                ['Metric' => 'Missing Meta Descriptions', 'Value' => self::formatNumber($base['issues']['missing_meta'])],
-                ['Metric' => 'Redirect Chains', 'Value' => self::formatNumber($base['issues']['redirect_chains'])],
-                ['Metric' => 'Mixed Content Pages', 'Value' => self::formatNumber($base['issues']['mixed_content'])],
+        $runDir = Storage::runDir($project, $runId);
+        return [
+            'pages' => self::countDirectoryFiles($runDir . '/pages'),
+            'images' => self::countDirectoryFiles($runDir . '/images'),
+            'errors' => self::countDirectoryFiles($runDir . '/errors'),
+        ];
+    }
+
+    private static function countDirectoryFiles(string $dir): int
+    {
+        if (!is_dir($dir)) {
+            return 0;
+        }
+        $count = 0;
+        $iterator = new \FilesystemIterator($dir, \FilesystemIterator::SKIP_DOTS);
+        foreach ($iterator as $fileinfo) {
+            if ($fileinfo->isFile()) {
+                $count++;
+            }
+        }
+        return $count;
+    }
+
+    private static function compareRunDates(array $a, array $b): int
+    {
+        $aTime = self::runTimestamp($a);
+        $bTime = self::runTimestamp($b);
+        if ($aTime === $bTime) {
+            return 0;
+        }
+        return $aTime > $bTime ? -1 : 1;
+    }
+
+    private static function runTimestamp(array $run): int
+    {
+        $date = $run['audit']['run']['finished_at'] ?? $run['audit']['generated_at'] ?? '';
+        $timestamp = strtotime((string) $date);
+        return $timestamp ? (int) $timestamp : 0;
+    }
+
+    private static function runHasAnalytics(?array $run): bool
+    {
+        if (!$run) {
+            return false;
+        }
+        if (!empty($run['analytics']['ga'] ?? null)) {
+            return true;
+        }
+        if (!empty($run['analytics']['gsc'] ?? null)) {
+            return true;
+        }
+        $details = self::getByPath($run, 'analytics.gsc_details.details.queries');
+        return is_array($details) && !empty($details);
+    }
+
+    private static function runHasGsc(?array $run): bool
+    {
+        if (!$run) {
+            return false;
+        }
+        if (!empty($run['analytics']['gsc'] ?? null)) {
+            return true;
+        }
+        $details = self::getByPath($run, 'analytics.gsc_details.details.queries');
+        return is_array($details) && !empty($details);
+    }
+
+    private static function buildExecutiveSummary(array $context): array
+    {
+        $run = $context['current_run'];
+        if (!$run) {
+            return self::emptyTable('Executive summary not available yet.');
+        }
+
+        $rows = [];
+        $rows[] = ['Metric' => 'Project', 'Value' => $context['project'] ?: '-'];
+        $rows[] = ['Metric' => 'Run ID', 'Value' => $run['run_id']];
+        $generated = $run['audit']['generated_at'] ?? $run['audit']['run']['finished_at'] ?? '';
+        $rows[] = ['Metric' => 'Generated', 'Value' => self::formatDateLabel((string) $generated)];
+
+        $rows[] = ['Metric' => 'Total Pages', 'Value' => self::formatNumber($run['counts']['pages'])];
+        $rows[] = ['Metric' => 'Indexable Pages', 'Value' => self::formatNumber(self::countIndexablePages($run))];
+
+        $avgLoad = self::averageLoadTime($run);
+        $rows[] = ['Metric' => 'Avg Load Time', 'Value' => self::formatLoadTime($avgLoad)];
+
+        $topIssues = self::topIssues($run, 3);
+        if (!empty($topIssues)) {
+            $rows[] = [
+                'Metric' => 'Top Issue Types',
+                'Value' => implode(', ', array_map(static fn ($issue) => ($issue['name'] ?? '-') . ' (' . self::formatNumber($issue['occurrences'] ?? null) . ')', $topIssues)),
             ];
-        } elseif ($type === 'per_page') { // using per_page as content audit
-            $rows = [
-                ['Metric' => 'Total Pages Crawled', 'Value' => self::formatNumber($base['total_pages'])],
-                ['Metric' => 'Indexed Pages (2xx)', 'Value' => self::formatNumber($base['status']['2xx'])],
-                ['Metric' => 'Average Word Count', 'Value' => self::formatNumber($base['avg_word_count'])],
-                ['Metric' => 'Pages <300 Words', 'Value' => self::formatNumber($base['issues']['low_content'])],
-                ['Metric' => 'Duplicate Content Issues', 'Value' => self::formatNumber($base['issues']['duplicate_content'])],
-                ['Metric' => 'Missing Titles', 'Value' => self::formatNumber($base['issues']['missing_titles'])],
-                ['Metric' => 'Missing Meta Descriptions', 'Value' => self::formatNumber($base['issues']['missing_meta'])],
-            ];
-        } else {
-            $rows = [
-                ['Metric' => 'Total Pages Crawled', 'Value' => self::formatNumber($base['total_pages'])],
-                ['Metric' => 'Indexed Pages (2xx)', 'Value' => self::formatNumber($base['status']['2xx'])],
-                ['Metric' => 'Average Word Count', 'Value' => self::formatNumber($base['avg_word_count'])],
-                ['Metric' => 'Broken Links (4xx)', 'Value' => self::formatNumber($base['status']['4xx'])],
-                ['Metric' => 'Missing Titles', 'Value' => self::formatNumber($base['issues']['missing_titles'])],
-                ['Metric' => 'Missing Meta Descriptions', 'Value' => self::formatNumber($base['issues']['missing_meta'])],
-                ['Metric' => 'Long Titles (>65 chars)', 'Value' => self::formatNumber($base['issues']['long_titles'])],
-                ['Metric' => 'Pages <300 Words', 'Value' => self::formatNumber($base['issues']['low_content'])],
-            ];
+        }
+
+        $ga = self::collectGaSummary($run);
+        if (!empty($ga['sessions']) || !empty($ga['users']) || $ga['bounce'] !== null) {
+            $gaValue = implode(', ', array_filter([
+                $ga['sessions'] !== null ? 'Sessions: ' . self::formatNumber($ga['sessions']) : null,
+                $ga['users'] !== null ? 'Users: ' . self::formatNumber($ga['users']) : null,
+                $ga['bounce'] !== null ? 'Bounce: ' . self::formatPercent($ga['bounce']) : null,
+            ]));
+            if ($gaValue !== '') {
+                $rows[] = ['Metric' => 'Google Analytics (30d)', 'Value' => $gaValue];
+            }
+        }
+
+        $gsc = self::collectGscSummary($run);
+        if ($gsc['clicks'] !== null || $gsc['impressions'] !== null || $gsc['ctr'] !== null || $gsc['position'] !== null) {
+            $gscValue = implode(', ', array_filter([
+                $gsc['clicks'] !== null ? 'Clicks: ' . self::formatNumber($gsc['clicks']) : null,
+                $gsc['impressions'] !== null ? 'Impressions: ' . self::formatNumber($gsc['impressions']) : null,
+                $gsc['ctr'] !== null ? 'CTR: ' . self::formatPercent($gsc['ctr']) : null,
+                $gsc['position'] !== null ? 'Avg Pos: ' . self::formatNumber($gsc['position'], true) : null,
+            ]));
+            if ($gscValue !== '') {
+                $rows[] = ['Metric' => 'Google Search Console (30d)', 'Value' => $gscValue];
+            }
+        }
+
+        $note = '';
+        if (empty($rows)) {
+            return self::emptyTable('Executive summary requires crawl data.');
         }
 
         return [
             'headers' => ['Metric', 'Value'],
             'rows' => $rows,
-            'empty' => $base['total_pages'] ? null : 'Metrics will populate after the first crawler run.',
+            'empty' => '',
+            'note' => $note,
         ];
     }
 
-    /**
-     * @param array<string,mixed> $base
-     * @return array<string,mixed>
-     */
-    private static function performanceSummaryTable(string $type, array $base): array
+    private static function buildTopActions(array $context): array
     {
-        $rows = [];
+        $run = $context['current_run'];
+        if (!$run || empty($run['issues'])) {
+            return self::emptyTable('Top actions require crawl issues to be populated.');
+        }
 
-        if ($type === 'technical') {
+        $issues = self::topIssues($run, 5);
+        if (empty($issues)) {
+            return self::emptyTable('Top actions require issue metadata.');
+        }
+
+        $rows = [];
+        foreach ($issues as $issue) {
             $rows[] = [
-                'Source' => 'Google Search Console',
-                'Metric' => 'Top Crawl Errors',
-                'Top Value' => self::firstValue($base['analytics']['gsc_best_keywords'], ['error', 'keyword', 'term'], 'Connect Google Search Console'),
-            ];
-            $rows[] = [
-                'Source' => 'Crawler',
-                'Metric' => 'Slowest Page',
-                'Top Value' => self::firstValue($base['crawler']['slowest_pages'], ['url', 'page'], self::fallbackSlowestPage($base)),
-            ];
-            $rows[] = [
-                'Source' => 'Crawler',
-                'Metric' => 'Most Redirects',
-                'Top Value' => self::firstValue($base['crawler']['redirect_heavy'], ['url', 'page'], self::fallbackRedirectHeavyPage($base)),
-            ];
-        } elseif ($type === 'per_page') {
-            $rows[] = [
-                'Source' => 'Google Analytics',
-                'Metric' => 'Top Exit Page',
-                'Top Value' => self::firstValue($base['analytics']['ga_top_exit_pages'], ['url', 'page'], 'Connect Google Analytics'),
-            ];
-            $rows[] = [
-                'Source' => 'Google Search Console',
-                'Metric' => 'Lowest CTR Keyword',
-                'Top Value' => self::firstValue($base['analytics']['gsc_low_ctr'], ['keyword', 'term'], 'Connect Google Search Console'),
-            ];
-            $rows[] = [
-                'Source' => 'Crawler',
-                'Metric' => 'Shortest Content Page',
-                'Top Value' => self::firstValue($base['crawler']['short_content_pages'], ['url', 'page'], self::fallbackShortContentPage($base)),
-            ];
-        } else {
-            $rows[] = [
-                'Source' => 'Google Analytics',
-                'Metric' => 'Top Pageviews',
-                'Top Value' => self::firstValue($base['analytics']['ga_top_pageviews'], ['url', 'page'], 'Connect Google Analytics'),
-            ];
-            $rows[] = [
-                'Source' => 'Google Search Console',
-                'Metric' => 'Best Performing Keyword',
-                'Top Value' => self::firstValue($base['analytics']['gsc_best_keywords'], ['keyword', 'term'], 'Connect Google Search Console'),
-            ];
-            $rows[] = [
-                'Source' => 'Crawler',
-                'Metric' => 'Largest Page',
-                'Top Value' => self::firstValue($base['crawler']['largest_pages'], ['url', 'page'], self::fallbackLargestPage($base)),
+                'Issue' => $issue['name'] ?? '- ',
+                'Severity' => ucfirst((string) ($issue['severity'] ?? '-')),
+                'Impact' => self::formatNumber($issue['impact'] ?? null, true) ?: 'N/A',
+                'Occurrences' => self::formatNumber($issue['occurrences'] ?? null) ?: '0',
+                'Priority Score' => number_format(self::issuePriority($issue), 1),
+                'Example URL' => !empty($issue['sample_urls']) ? self::shortUrl($issue['sample_urls'][0]) : '-',
             ];
         }
 
-        return [
-            'headers' => ['Source', 'Metric', 'Top Value'],
-            'rows' => $rows,
-            'note' => empty($base['analytics']['ga_top_pageviews']) && empty($base['analytics']['gsc_best_keywords'])
-                ? 'Connect analytics data sources to enrich this summary.'
-                : null,
-        ];
-    }
-
-    /**
-     * @param array<string,mixed> $base
-     * @return array<string,mixed>
-     */
-    private static function technicalIssuesTable(string $type, array $base): array
-    {
-        $rows = [];
-
-        if ($type === 'per_page') {
-            $rows[] = self::issueRow('Duplicate Content', $base['issues']['duplicate_content'], $base['samples']['duplicate_content']);
-            $rows[] = self::issueRow('Thin Content (<300 words)', $base['issues']['low_content'], $base['samples']['low_content']);
-            $rows[] = self::issueRow('Missing Titles', $base['issues']['missing_titles'], $base['samples']['missing_titles']);
-            $rows[] = self::issueRow('Missing Meta Descriptions', $base['issues']['missing_meta'], $base['samples']['missing_meta']);
-            $rows[] = self::issueRow('Images Missing ALT', $base['issues']['alt_missing'], $base['samples']['alt_missing']);
-        } else {
-            $rows[] = self::issueRow('Broken Links (4xx)', $base['status']['4xx'], $base['samples']['broken_links']);
-            $rows[] = self::issueRow('Missing Canonical', $base['issues']['missing_canonical'], $base['samples']['missing_canonical']);
-            $rows[] = self::issueRow('Redirect Chains', $base['issues']['redirect_chains'], $base['samples']['redirect_chains']);
-            $rows[] = self::issueRow('Missing H1', $base['issues']['missing_h1'], $base['samples']['missing_h1']);
-            $rows[] = self::issueRow('HTTPS / Mixed Content', $base['issues']['mixed_content'], $base['samples']['mixed_content']);
+        $diff = $run['diff'] ?? [];
+        $noteParts = [];
+        if (isset($diff['issues_resolved'])) {
+            $noteParts[] = 'Resolved: ' . self::formatNumber($diff['issues_resolved']) . ' issues';
+        }
+        if (isset($diff['issues_regressed'])) {
+            $noteParts[] = 'Regressed: ' . self::formatNumber($diff['issues_regressed']) . ' issues';
         }
 
         return [
-            'headers' => ['Issue Type', 'Count', 'Example URL'],
+            'headers' => ['Issue', 'Severity', 'Impact', 'Occurrences', 'Priority Score', 'Example URL'],
             'rows' => $rows,
+            'empty' => '',
+            'note' => implode(' · ', array_filter($noteParts)),
         ];
     }
 
-    /**
-     * @param array<string,mixed> $base
-     * @return array<string,mixed>
-     */
-    private static function onpageTable(array $base): array
+    private static function buildOverview(array $context): array
     {
-        $rows = [
-            [
-                'Element' => 'Title',
-                'Issue' => self::formatIssueCountDetail('Missing or length issues', $base['issues']['missing_titles'] + $base['issues']['long_titles']),
-                'Recommendation' => 'Keep unique titles under ~65 characters.',
-            ],
-            [
-                'Element' => 'Meta Description',
-                'Issue' => self::formatIssueCountDetail('Missing descriptions', $base['issues']['missing_meta']),
-                'Recommendation' => 'Add intent-driven copy around 150–160 characters.',
-            ],
-            [
-                'Element' => 'Headings',
-                'Issue' => self::formatIssueCountDetail('Missing primary H1', $base['issues']['missing_h1']),
-                'Recommendation' => 'Ensure a single descriptive H1 per page.',
-            ],
-            [
-                'Element' => 'Word Count',
-                'Issue' => self::formatIssueCountDetail('Pages under 300 words', $base['issues']['low_content']),
-                'Recommendation' => 'Expand content with supporting detail and internal links.',
-            ],
-            [
-                'Element' => 'Images',
-                'Issue' => self::formatIssueCountDetail('Missing ALT attributes', $base['issues']['alt_missing']),
-                'Recommendation' => 'Add descriptive ALT text to key imagery.',
-            ],
-        ];
+        $run = $context['current_run'];
+        if (!$run) {
+            return self::emptyTable('Overview metrics unavailable until a crawl completes.');
+        }
 
-        return [
-            'headers' => ['Element', 'Common Issue', 'Recommendation'],
-            'rows' => $rows,
-        ];
-    }
+        $duration = $run['audit']['run']['duration_sec'] ?? null;
+        $status = $run['aggregations']['status_distribution'] ?? [];
+        $indexability = $run['aggregations']['indexability'] ?? [];
+        $imageCoverage = $run['aggregations']['image_alt_coverage'] ?? null;
+        $avgLoad = self::averageLoadTime($run);
 
-    /**
-     * @param array<string,mixed> $base
-     * @return array<string,mixed>
-     */
-    private static function keywordTable(array $base): array
-    {
+        $statusLabel = [];
+        foreach (['2xx', '3xx', '4xx', '5xx', 'other'] as $bucket) {
+            if (isset($status[$bucket])) {
+                $statusLabel[] = $bucket . ': ' . self::formatNumber($status[$bucket]);
+            }
+        }
+
+        $indexableCount = self::countIndexablePages($run);
+        $indexNote = [
+            'Indexable: ' . self::formatNumber($indexableCount),
+        ];
+        if (isset($indexability['canonicalized'])) {
+            $indexNote[] = 'Canonicalized: ' . self::formatNumber($indexability['canonicalized']);
+        }
+        if (isset($indexability['noindex'])) {
+            $indexNote[] = 'Noindex: ' . self::formatNumber($indexability['noindex']);
+        }
+        if (isset($indexability['blocked_robots'])) {
+            $indexNote[] = 'Robots-blocked: ' . self::formatNumber($indexability['blocked_robots']);
+        }
+
         $rows = [
-            [
-                'Metric' => 'Top keywords by impressions',
-                'Value' => self::firstValue($base['analytics']['gsc_best_keywords'], ['keyword', 'term'], 'Connect Google Search Console'),
-            ],
-            [
-                'Metric' => 'Top keywords by clicks',
-                'Value' => self::firstValue($base['analytics']['gsc_best_keywords'], ['keyword', 'term'], 'Connect Google Search Console', 1),
-            ],
-            [
-                'Metric' => 'Keywords with low CTR',
-                'Value' => self::firstValue($base['analytics']['gsc_low_ctr'], ['keyword', 'term'], 'Connect Google Search Console'),
-            ],
-            [
-                'Metric' => 'High impressions, low position',
-                'Value' => self::firstValue($base['analytics']['gsc_low_ctr'], ['keyword', 'term'], 'Add GSC data to highlight opportunities', 1),
-            ],
+            ['Metric' => 'Crawl Duration', 'Value' => self::formatDuration($duration)],
+            ['Metric' => 'Pages Crawled', 'Value' => self::formatNumber($run['counts']['pages'])],
+            ['Metric' => 'HTTP Status Distribution', 'Value' => implode(', ', $statusLabel) ?: 'n/a'],
+            ['Metric' => 'Indexability', 'Value' => implode(' · ', $indexNote)],
+            ['Metric' => 'Avg Load Time', 'Value' => self::formatLoadTime($avgLoad)],
+            ['Metric' => 'Images Missing ALT Coverage', 'Value' => $imageCoverage !== null ? self::formatPercent($imageCoverage) : 'N/A'],
+            ['Metric' => 'Errors Captured', 'Value' => self::formatNumber($run['counts']['errors']) ?: '0'],
         ];
 
         return [
             'headers' => ['Metric', 'Value'],
             'rows' => $rows,
+            'empty' => '',
+            'note' => '',
         ];
     }
 
-    /**
-     * @param array<string,mixed> $base
-     * @return array<string,mixed>
-     */
-    private static function backlinkTable(array $base): array
+    private static function buildPerformanceSummary(array $context): array
     {
+        $run = $context['current_run'];
+        if (!$run) {
+            return self::emptyTable('Performance summary requires crawl data.');
+        }
+
+        $ga = self::collectGaSummary($run);
+        $gsc = self::collectGscSummary($run);
+        $rows = [];
+        $notes = [];
+
+        if ($ga['sessions'] !== null || $ga['users'] !== null) {
+            $rows[] = [
+                'Metric' => 'GA Sessions / Users',
+                'Value' => implode(', ', array_filter([
+                    $ga['sessions'] !== null ? 'Sessions: ' . self::formatNumber($ga['sessions']) : null,
+                    $ga['users'] !== null ? 'Users: ' . self::formatNumber($ga['users']) : null,
+                ])),
+            ];
+            if ($ga['bounce'] !== null) {
+                $rows[] = ['Metric' => 'GA Bounce Rate', 'Value' => self::formatPercent($ga['bounce'])];
+            }
+            if (!empty($ga['top_pages'])) {
+                $rows[] = ['Metric' => 'Top Pages by Sessions', 'Value' => implode(', ', array_map(static fn ($url) => self::shortUrl($url), array_slice($ga['top_pages'], 0, 5))) ?: '—'];
+            }
+        } else {
+            $avgLoad = self::averageLoadTime($run);
+            $rows[] = ['Metric' => 'Crawler Perf (fallback)', 'Value' => 'Avg load: ' . self::formatLoadTime($avgLoad)];
+            $notes[] = 'GA data not yet connected; showing crawl performance instead.';
+        }
+
+        if ($gsc['clicks'] !== null || $gsc['impressions'] !== null) {
+            $rows[] = [
+                'Metric' => 'GSC Clicks / Impressions',
+                'Value' => implode(', ', array_filter([
+                    $gsc['clicks'] !== null ? 'Clicks: ' . self::formatNumber($gsc['clicks']) : null,
+                    $gsc['impressions'] !== null ? 'Impressions: ' . self::formatNumber($gsc['impressions']) : null,
+                ])),
+            ];
+            if ($gsc['ctr'] !== null || $gsc['position'] !== null) {
+                $rows[] = ['Metric' => 'GSC CTR / Position', 'Value' => implode(', ', array_filter([
+                    $gsc['ctr'] !== null ? 'CTR: ' . self::formatPercent($gsc['ctr']) : null,
+                    $gsc['position'] !== null ? 'Avg Pos: ' . self::formatNumber($gsc['position'], true) : null,
+                ]))];
+            }
+        } else {
+            $notes[] = 'GSC data unavailable for this run.';
+        }
+
+        if (empty($rows)) {
+            return self::emptyTable('Performance summary requires analytics data.');
+        }
+
+        return [
+            'headers' => ['Metric', 'Value'],
+            'rows' => $rows,
+            'empty' => '',
+            'note' => implode(' · ', array_filter($notes)),
+        ];
+    }
+
+    private static function buildTechnicalSeoIssues(array $context): array
+    {
+        $run = $context['current_run'];
+        if (!$run || empty($run['issues'])) {
+            return self::emptyTable('Technical issues will appear after the crawler finishes.');
+        }
+
+        $issues = $run['issues'];
+        $rows = [];
+        foreach (array_slice($issues, 0, 12) as $issue) {
+            $rows[] = [
+                'Issue' => $issue['name'] ?? '-',
+                'Severity' => ucfirst((string) ($issue['severity'] ?? '-')),
+                'Occurrences' => self::formatNumber($issue['occurrences'] ?? null) ?: '0',
+                'Category' => $issue['category'] ?? '-',
+                'Sample URL' => !empty($issue['sample_urls']) ? self::shortUrl($issue['sample_urls'][0]) : '-',
+            ];
+        }
+
+        $severity = $run['aggregations']['issue_by_severity'] ?? self::buildSeverityCounts($run['issues']);
+        $severityLabel = [];
+        foreach ($severity as $level => $count) {
+            $severityLabel[] = ucfirst($level) . ': ' . self::formatNumber($count);
+        }
+
+        $indexability = $run['aggregations']['indexability'] ?? [];
+        $indexLabel = [];
+        if (isset($indexability['canonicalized'])) {
+            $indexLabel[] = 'Canonicalized: ' . self::formatNumber($indexability['canonicalized']);
+        }
+        if (isset($indexability['noindex'])) {
+            $indexLabel[] = 'Noindex: ' . self::formatNumber($indexability['noindex']);
+        }
+        if (isset($indexability['blocked_robots'])) {
+            $indexLabel[] = 'Blocked by robots: ' . self::formatNumber($indexability['blocked_robots']);
+        }
+
+        $noteParts = [];
+        if ($severityLabel) {
+            $noteParts[] = 'Severity distribution: ' . implode(', ', $severityLabel);
+        }
+        if ($indexLabel) {
+            $noteParts[] = 'Indexability: ' . implode(', ', $indexLabel);
+        }
+
+        return [
+            'headers' => ['Issue', 'Severity', 'Occurrences', 'Category', 'Sample URL'],
+            'rows' => $rows,
+            'empty' => '',
+            'note' => implode(' · ', array_filter($noteParts)),
+        ];
+    }
+
+    private static function buildOnpageContent(array $context): array
+    {
+        $run = $context['current_run'];
+        if (!$run) {
+            return self::emptyTable('On-page content metrics will appear after the crawl runs.');
+        }
+
+        $items = $run['items'] ?? [];
+        $missingTitles = 0;
+        $missingMeta = 0;
+        $multiH1 = 0;
+        $thinPages = 0;
+        $imagesMissingAlt = 0;
+        $imageTotal = 0;
+
+        foreach ($items as $item) {
+            $meta = $item['meta'] ?? [];
+            if (empty(trim((string) ($meta['title'] ?? '')))) {
+                $missingTitles++;
+            }
+            if (empty(trim((string) ($meta['meta_description'] ?? '')))) {
+                $missingMeta++;
+            }
+            $h1Count = $meta['h1_count'] ?? null;
+            if (is_numeric($h1Count) && (int) $h1Count > 1) {
+                $multiH1++;
+            }
+
+            $content = $item['content'] ?? [];
+            if (!empty($content['thin_content'])) {
+                $thinPages++;
+            }
+
+            $media = $item['media'] ?? [];
+            if (isset($media['image_count'])) {
+                $imageTotal += (int) $media['image_count'];
+            }
+            if (isset($media['images_missing_alt'])) {
+                $imagesMissingAlt += (int) $media['images_missing_alt'];
+            }
+        }
+
+        $wordBins = $run['aggregations']['wordcount_bins'] ?? [];
+        $wordLabel = [];
+        foreach ($wordBins as $bucket => $value) {
+            $wordLabel[] = $bucket . ': ' . self::formatNumber($value);
+        }
+
+        $imageCoverage = $run['aggregations']['image_alt_coverage'] ?? null;
+        $coverageLabel = $imageCoverage !== null ? self::formatPercent($imageCoverage) : 'N/A';
+
         $rows = [
-            ['Metric' => 'Referring Domains', 'Value' => self::formatNumber($base['backlinks']['referring_domains']) ?? 'Connect a backlink provider'],
-            ['Metric' => 'Total Backlinks', 'Value' => self::formatNumber($base['backlinks']['total_backlinks']) ?? '-'],
-            ['Metric' => 'New Links', 'Value' => self::formatNumber($base['backlinks']['new_links']) ?? '-'],
-            ['Metric' => 'Lost Links', 'Value' => self::formatNumber($base['backlinks']['lost_links']) ?? '-'],
-            ['Metric' => 'Average Toxic Score', 'Value' => self::formatNumber($base['backlinks']['toxic_score'], true) ?? '-'],
+            ['Metric' => 'Missing Title Tags', 'Value' => self::formatNumber($missingTitles) ?: '0'],
+            ['Metric' => 'Missing Meta Descriptions', 'Value' => self::formatNumber($missingMeta) ?: '0'],
+            ['Metric' => 'Pages with Multiple H1s', 'Value' => self::formatNumber($multiH1) ?: '0'],
+            ['Metric' => 'Word Count Distribution', 'Value' => implode(', ', $wordLabel) ?: 'Data unavailable'],
+            ['Metric' => 'Thin Content Pages', 'Value' => self::formatNumber($thinPages) ?: '0'],
+            ['Metric' => 'Duplicate Content Groups', 'Value' => 'Data unavailable'],
+            ['Metric' => 'Images Missing ALT', 'Value' => ($imagesMissingAlt ?: '0') . ' missing / ' . ($imageTotal ?: '0') . ' total (' . $coverageLabel . ')'],
+            ['Metric' => 'Captured Images', 'Value' => self::formatNumber($run['counts']['images']) ?: '0'],
         ];
 
         return [
             'headers' => ['Metric', 'Value'],
             'rows' => $rows,
-            'note' => $base['backlinks']['anchor_distribution'] ? null : 'Import backlink data (Ahrefs, SEMrush, etc.) for richer insights.',
+            'empty' => '',
+            'note' => '',
         ];
     }
 
-    /**
-     * @param array<string,mixed> $base
-     * @return array<string,mixed>
-     */
-    private static function crawlHistoryTable(array $base): array
+    private static function buildKeywordAnalysis(array $context): array
     {
-        $series = array_reverse($base['project_scope']['crawl_timeseries']);
-        $series = array_slice($series, 0, 6);
+        if (empty($context['has_gsc'])) {
+            return self::emptyTable('Keyword analysis requires Google Search Console to be connected.');
+        }
+
+        $run = $context['current_run'];
+        if (!$run) {
+            return self::emptyTable('Keyword analysis requires crawl data.');
+        }
+
+        $gsc = self::collectGscSummary($run);
+        $rows = [];
+        $rows[] = ['Metric' => 'Clicks (30d)', 'Value' => self::formatNumber($gsc['clicks']) ?: '0'];
+        $rows[] = ['Metric' => 'Impressions (30d)', 'Value' => self::formatNumber($gsc['impressions']) ?: '0'];
+        $rows[] = ['Metric' => 'CTR (30d)', 'Value' => $gsc['ctr'] !== null ? self::formatPercent($gsc['ctr']) : 'N/A'];
+        $rows[] = ['Metric' => 'Avg Position (30d)', 'Value' => $gsc['position'] !== null ? self::formatNumber($gsc['position'], true) : 'N/A'];
+
+        $queries = self::collectGscQueries($run, 5);
+        if (!empty($queries)) {
+            foreach ($queries as $query) {
+                $rows[] = [
+                    'Metric' => 'Query: ' . ($query['key'] ?? '-'),
+                    'Value' => implode(', ', array_filter([
+                        isset($query['clicks']) ? 'Clicks: ' . self::formatNumber($query['clicks']) : null,
+                        isset($query['impressions']) ? 'Impr: ' . self::formatNumber($query['impressions']) : null,
+                        isset($query['ctr']) ? 'CTR: ' . self::formatPercent($query['ctr']) : null,
+                        isset($query['position']) ? 'Pos: ' . self::formatNumber($query['position'], true) : null,
+                    ])),
+                ];
+            }
+        }
+
+        return [
+            'headers' => ['Metric', 'Value'],
+            'rows' => $rows,
+            'empty' => '',
+            'note' => '',
+        ];
+    }
+
+    private static function buildBacklinkProfile(array $context): array
+    {
+        if (empty($context['has_backlink_data'])) {
+            return self::emptyTable('Backlink profile requires third-party backlink data.');
+        }
+
+        $run = $context['current_run'];
+        if (!$run) {
+            return self::emptyTable('Backlink profile requires crawl data.');
+        }
+
+        $backlinks = $run['audit']['backlinks'] ?? [];
+        if (empty($backlinks)) {
+            return self::emptyTable('Backlink provider data not found.');
+        }
+
+        $rows = [
+            ['Metric' => 'Total Backlinks', 'Value' => self::formatNumber($backlinks['total_backlinks'] ?? null) ?: 'N/A'],
+            ['Metric' => 'Referring Domains', 'Value' => self::formatNumber($backlinks['referring_domains'] ?? null) ?: 'N/A'],
+        ];
+        if (isset($backlinks['follow_ratio'])) {
+            $rows[] = ['Metric' => 'Follow Ratio', 'Value' => self::formatPercent($backlinks['follow_ratio'])];
+        }
+        if (isset($backlinks['anchor_distribution'])) {
+            $distribution = is_array($backlinks['anchor_distribution']) ? implode(', ', array_keys($backlinks['anchor_distribution'])) : 'Available';
+            $rows[] = ['Metric' => 'Anchor Distribution', 'Value' => $distribution];
+        }
+
+        return [
+            'headers' => ['Metric', 'Value'],
+            'rows' => $rows,
+            'empty' => '',
+            'note' => '',
+        ];
+    }
+
+    private static function buildCrawlHistory(array $context): array
+    {
+        $run = $context['current_run'];
+        if (!$run) {
+            return self::emptyTable('Crawl history requires run data.');
+        }
+
+        $diff = $run['diff'] ?? [];
+        $rows = [
+            ['Metric' => 'New Pages', 'Value' => self::formatNumber($diff['new_pages'] ?? null) ?: '0'],
+            ['Metric' => 'Removed Pages', 'Value' => self::formatNumber($diff['removed_pages'] ?? null) ?: '0'],
+            ['Metric' => 'Issues Resolved', 'Value' => self::formatNumber($diff['issues_resolved'] ?? null) ?: '0'],
+            ['Metric' => 'Issues Regressed', 'Value' => self::formatNumber($diff['issues_regressed'] ?? null) ?: '0'],
+            ['Metric' => 'Pages Crawled This Run', 'Value' => self::formatNumber($run['counts']['pages']) ?: '0'],
+            ['Metric' => 'Images Crawled This Run', 'Value' => self::formatNumber($run['counts']['images']) ?: '0'],
+        ];
+
+        $noteParts = [];
+        $previous = $context['previous_run'];
+        if ($previous) {
+            $noteParts[] = 'Pages delta vs prev: ' . self::formatDelta($run['counts']['pages'] ?? 0, $previous['counts']['pages'] ?? 0);
+            $noteParts[] = 'Images delta vs prev: ' . self::formatDelta($run['counts']['images'] ?? 0, $previous['counts']['images'] ?? 0);
+        }
+
+        return [
+            'headers' => ['Metric', 'Value'],
+            'rows' => $rows,
+            'empty' => '',
+            'note' => implode(' · ', array_filter($noteParts)),
+        ];
+    }
+
+    private static function buildTrafficTrends(array $context): array
+    {
+        $rows = [];
+        $notes = [];
+
+        $gaSeries = $context['project_scope']['ga_timeseries'];
+        if (!empty($gaSeries)) {
+            $rows[] = [
+                'Metric' => 'GA Sessions Trend',
+                'Value' => self::formatTimeseriesDelta($gaSeries, 'sessions'),
+            ];
+            if (isset($gaSeries[array_key_last($gaSeries)]['bounceRate'])) {
+                $rows[] = [
+                    'Metric' => 'GA Bounce Rate Trend',
+                    'Value' => self::formatTimeseriesDelta($gaSeries, 'bounceRate', true),
+                ];
+            }
+        } else {
+            $notes[] = 'No GA timeseries available yet.';
+        }
+
+        $gscSeries = $context['project_scope']['gsc_timeseries'];
+        if (!empty($gscSeries)) {
+            $rows[] = [
+                'Metric' => 'GSC Clicks Trend',
+                'Value' => self::formatTimeseriesDelta($gscSeries, 'clicks'),
+            ];
+            $rows[] = [
+                'Metric' => 'GSC Impressions Trend',
+                'Value' => self::formatTimeseriesDelta($gscSeries, 'impressions'),
+            ];
+            $rows[] = [
+                'Metric' => 'GSC CTR Trend',
+                'Value' => self::formatTimeseriesDelta($gscSeries, 'ctr', true),
+            ];
+        } else {
+            $notes[] = 'No GSC timeseries available yet.';
+        }
+
+        $gaSummary = $context['current_run'] ? self::collectGaSummary($context['current_run']) : [];
+        if (!empty($gaSummary['top_pages'])) {
+            $notes[] = 'GA top pages: ' . implode(', ', array_map(static fn ($url) => self::shortUrl($url), array_slice($gaSummary['top_pages'], 0, 3)));
+        }
+
+        if (empty($rows)) {
+            return self::emptyTable('Traffic trends require historical analytics.');
+        }
+
+        return [
+            'headers' => ['Metric', 'Value'],
+            'rows' => $rows,
+            'empty' => '',
+            'note' => implode(' · ', array_filter($notes)),
+        ];
+    }
+
+    private static function buildSearchVisibility(array $context): array
+    {
+        $run = $context['current_run'];
+        if (!$run) {
+            return self::emptyTable('Search visibility needs crawl data.');
+        }
+
+        $gsc = self::collectGscSummary($run);
+        $totalPages = $run['counts']['pages'] ?? 0;
+        $indexable = self::countIndexablePages($run);
+
+        $rows = [
+            ['Metric' => 'GSC Avg Position', 'Value' => $gsc['position'] !== null ? self::formatNumber($gsc['position'], true) : 'Connect GSC'],
+            ['Metric' => 'GSC CTR', 'Value' => $gsc['ctr'] !== null ? self::formatPercent($gsc['ctr']) : 'Connect GSC'],
+            ['Metric' => 'Indexable vs Total', 'Value' => self::formatNumber($indexable) . ' / ' . self::formatNumber($totalPages) . ' (' . self::formatPercent($totalPages ? $indexable / $totalPages : 0) . ')'],
+        ];
+
+        return [
+            'headers' => ['Metric', 'Value'],
+            'rows' => $rows,
+            'empty' => '',
+            'note' => '',
+        ];
+    }
+
+    private static function buildMetaRecommendations(array $context): array
+    {
+        $run = $context['current_run'];
+        if (!$run) {
+            return self::emptyTable('Meta recommendations require crawl data.');
+        }
+
+        $recommendations = self::collectMetaRecommendations($run, 5);
+        if (empty($recommendations)) {
+            return self::emptyTable('AI meta recommendations are not available for this run.');
+        }
+
+        return [
+            'headers' => ['URL', 'Current Title', 'AI Title', 'Current Meta', 'AI Meta'],
+            'rows' => $recommendations,
+            'empty' => '',
+            'note' => '',
+        ];
+    }
+
+    private static function buildTechnicalFindings(array $context): array
+    {
+        $run = $context['current_run'];
+        if (!$run) {
+            return self::emptyTable('Technical findings require crawl data.');
+        }
+
+        $items = $run['items'] ?? [];
+        $canonicalCount = 0;
+        $hreflangCount = 0;
+        $noindex = 0;
+        $blocked = 0;
+        $https = 0;
+        $mixed = 0;
+        $structuredCount = 0;
+        $ttfb = [];
+        $lcp = [];
+        $weight = [];
+
+        foreach ($items as $item) {
+            $index = $item['indexability'] ?? [];
+            if (!empty($index['is_canonicalized'])) {
+                $canonicalCount++;
+            }
+            if (!empty($index['is_noindex'])) {
+                $noindex++;
+            }
+            if (!empty($index['is_blocked_by_robots'])) {
+                $blocked++;
+            }
+
+            $meta = $item['meta'] ?? [];
+            if (!empty($meta['hreflang'])) {
+                $hreflangCount++;
+            }
+
+            $security = $item['security'] ?? [];
+            if (!empty($security['is_https'])) {
+                $https++;
+            }
+            if (!empty($security['mixed_content'])) {
+                $mixed++;
+            }
+
+            if (!empty($item['structured_data'])) {
+                $structuredCount++;
+            }
+
+            $perf = $item['performance'] ?? [];
+            if (isset($perf['ttfb_ms'])) {
+                $ttfb[] = (float) $perf['ttfb_ms'];
+            }
+            if (isset($perf['lcp_ms'])) {
+                $lcp[] = (float) $perf['lcp_ms'];
+            }
+            if (isset($perf['page_weight_kb'])) {
+                $weight[] = (float) $perf['page_weight_kb'];
+            }
+        }
+
+        $structuredPct = $items ? ($structuredCount / count($items)) : 0;
+        $avgWeight = empty($weight) ? null : (array_sum($weight) / count($weight));
+        $rows = [
+            ['Metric' => 'Canonicalized Pages', 'Value' => self::formatNumber($canonicalCount)],
+            ['Metric' => 'Hreflang Tags', 'Value' => self::formatNumber($hreflangCount)],
+            ['Metric' => 'Robots Flags', 'Value' => 'Noindex: ' . self::formatNumber($noindex) . ', Blocked: ' . self::formatNumber($blocked)],
+            ['Metric' => 'HTTPS vs Mixed Content', 'Value' => 'HTTPS: ' . self::formatNumber($https) . ', Mixed: ' . self::formatNumber($mixed)],
+            ['Metric' => 'Structured Data Coverage', 'Value' => self::formatPercent($structuredPct)],
+            ['Metric' => 'Page Speed Averages', 'Value' => 'TTFB: ' . self::formatMsAverage($ttfb) . ', LCP: ' . self::formatMsAverage($lcp) . ', Weight: ' . ($avgWeight !== null ? self::formatNumber($avgWeight, true) . ' KB' : 'N/A')],
+        ];
+
+        return [
+            'headers' => ['Metric', 'Value'],
+            'rows' => $rows,
+            'empty' => '',
+            'note' => '',
+        ];
+    }
+
+    private static function buildRecommendations(array $context): array
+    {
+        $run = $context['current_run'];
+        if (!$run || empty($run['issues'])) {
+            return self::emptyTable('Recommendations need issues from the latest crawl.');
+        }
+
+        $grouped = [];
+        foreach ($run['issues'] as $issue) {
+            $category = $issue['category'] ?? 'General';
+            $grouped[$category][] = $issue;
+        }
 
         $rows = [];
-        foreach ($series as $entry) {
-            if (!is_array($entry)) {
+        foreach ($grouped as $category => $items) {
+            $top = self::topIssues(['issues' => $items], 1);
+            $topIssue = $top[0] ?? null;
+            if (!$topIssue) {
                 continue;
             }
             $rows[] = [
-                'Date' => self::formatDateLabel((string) ($entry['date'] ?? '')),
-                'Pages' => self::formatNumber($entry['pages'] ?? null) ?? '-',
-                'Issues' => self::formatNumber($entry['issues'] ?? null) ?? '-',
-                '4xx' => self::formatNumber($entry['4xx'] ?? $entry['errors'] ?? null) ?? '-',
+                'Category' => $category,
+                'Top Issue' => $topIssue['name'] ?? '-',
+                'Severity' => ucfirst((string) ($topIssue['severity'] ?? '-')),
+                'Occurrences' => self::formatNumber($topIssue['occurrences'] ?? null) ?: '0',
             ];
         }
 
+        $diff = $run['diff'] ?? [];
+        $noteParts = [];
+        if (isset($diff['issues_resolved'])) {
+            $noteParts[] = 'Resolved: ' . self::formatNumber($diff['issues_resolved']);
+        }
+        if (isset($diff['issues_regressed'])) {
+            $noteParts[] = 'Regressed: ' . self::formatNumber($diff['issues_regressed']);
+        }
+
         return [
-            'headers' => ['Date', 'Pages', 'Issues', '4xx'],
+            'headers' => ['Category', 'Top Issue', 'Severity', 'Occurrences'],
             'rows' => $rows,
-            'empty' => $rows ? null : 'Refresh data to build crawl history.',
+            'empty' => '',
+            'note' => implode(' · ', array_filter($noteParts)),
         ];
     }
 
-    /**
-     * @param array<string,mixed> $base
-     * @return array<string,mixed>
-     */
-    private static function trafficTrendsTable(array $base): array
+    private static function countIndexablePages(array $run): int
     {
-        $series = array_reverse($base['project_scope']['ga_timeseries']);
-        $series = array_slice($series, 0, 6);
+        $items = $run['items'] ?? [];
+        $count = 0;
+        foreach ($items as $item) {
+            $isIndexable = $item['indexability']['is_indexable'] ?? null;
+            if ($isIndexable) {
+                $count++;
+            }
+        }
+        return $count;
+    }
 
-        $rows = [];
-        foreach ($series as $entry) {
-            if (!is_array($entry)) {
+    private static function averageLoadTime(array $run): ?float
+    {
+        $items = $run['items'] ?? [];
+        $values = [];
+        foreach ($items as $item) {
+            $perf = $item['performance'] ?? [];
+            if (isset($perf['load_time_s']) && is_numeric($perf['load_time_s'])) {
+                $values[] = (float) $perf['load_time_s'];
                 continue;
             }
-            $rows[] = [
-                'Date' => self::formatDateLabel((string) ($entry['date'] ?? '')),
-                'Sessions' => self::formatNumber($entry['sessions'] ?? null) ?? '-',
-                'Users' => self::formatNumber($entry['totalUsers'] ?? ($entry['users'] ?? null)) ?? '-',
-                'Pageviews' => self::formatNumber($entry['screenPageViews'] ?? ($entry['pageviews'] ?? null)) ?? '-',
-            ];
-        }
-
-        return [
-            'headers' => ['Date', 'Sessions', 'Users', 'Pageviews'],
-            'rows' => $rows,
-            'empty' => $rows ? null : 'Connect Google Analytics and refresh to populate traffic trends.',
-        ];
-    }
-
-    /**
-     * @param array<string,mixed> $base
-     * @return array<string,mixed>
-     */
-    private static function searchVisibilityTable(array $base): array
-    {
-        $series = array_reverse($base['project_scope']['gsc_timeseries']);
-        $series = array_slice($series, 0, 6);
-
-        $rows = [];
-        foreach ($series as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-            $rows[] = [
-                'Date' => self::formatDateLabel((string) ($entry['date'] ?? '')),
-                'Clicks' => self::formatNumber($entry['clicks'] ?? null) ?? '-',
-                'Impressions' => self::formatNumber($entry['impressions'] ?? null) ?? '-',
-                'CTR' => self::formatPercent($entry['ctr'] ?? null) ?? '-',
-                'Avg Position' => self::formatNumber($entry['position'] ?? null, true) ?? '-',
-            ];
-        }
-
-        return [
-            'headers' => ['Date', 'Clicks', 'Impressions', 'CTR', 'Avg Position'],
-            'rows' => $rows,
-            'empty' => $rows ? null : 'Connect Google Search Console and refresh to populate search trends.',
-        ];
-    }
-
-    /**
-     * @param array<string,int|string|null> $samples
-     */
-    private static function setSample(array &$samples, string $key, ?string $value): void
-    {
-        if ($value && empty($samples[$key])) {
-            $samples[$key] = $value;
-        }
-    }
-
-    private static function issueCategoryFromLabel(string $label): ?string
-    {
-        $needle = strtolower($label);
-        $map = [
-            'broken_links' => ['broken link', '404', '4xx', 'link error'],
-            'missing_titles' => ['missing title', 'no title'],
-            'missing_meta' => ['missing meta description', 'no meta description'],
-            'long_titles' => ['title too long', 'long title', 'title length'],
-            'low_content' => ['thin content', 'low word count', 'insufficient content', 'under 300 words', 'short content'],
-            'redirect_chains' => ['redirect chain', 'too many redirects', 'redirect loop'],
-            'mixed_content' => ['mixed content'],
-            'duplicate_content' => ['duplicate content', 'duplicate page'],
-            'missing_h1' => ['missing h1'],
-            'missing_canonical' => ['missing canonical'],
-            'alt_missing' => ['missing alt', 'without alt', 'no alt text'],
-        ];
-
-        foreach ($map as $category => $keywords) {
-            foreach ($keywords as $keyword) {
-                if (str_contains($needle, $keyword)) {
-                    return $category;
-                }
+            if (isset($perf['load_time_ms']) && is_numeric($perf['load_time_ms'])) {
+                $values[] = (float) $perf['load_time_ms'] / 1000;
             }
         }
-
-        return null;
-    }
-
-    /**
-     * @param array<int,mixed> $target
-     * @param array<int,mixed> $source
-     */
-    private static function mergeLists(array &$target, array $source): void
-    {
-        foreach ($source as $item) {
-            $target[] = $item;
-        }
-    }
-
-    /**
-     * @param array<string,mixed> $data
-     * @param array<int,string> $paths
-     * @return array<int,mixed>
-     */
-    private static function extractList(array $data, array $paths): array
-    {
-        foreach ($paths as $path) {
-            $value = self::getByPath($data, $path);
-            if (is_array($value) && !empty($value)) {
-                return array_values($value);
-            }
-        }
-        return [];
-    }
-
-    /**
-     * @param array<string,mixed> $data
-     */
-    private static function getByPath(array $data, string $path)
-    {
-        $segments = explode('.', $path);
-        $current = $data;
-        foreach ($segments as $segment) {
-            if (!is_array($current) || !array_key_exists($segment, $current)) {
-                return null;
-            }
-            $current = $current[$segment];
-        }
-        return $current;
-    }
-
-    /**
-     * @return array<string,string>
-     */
-    private static function issueRow(string $label, int $count, ?string $sample): array
-    {
-        return [
-            'Issue Type' => $label,
-            'Count' => self::formatNumber($count),
-            'Example URL' => $sample ? self::shortUrl($sample) : '-',
-        ];
-    }
-
-    private static function formatIssueCountDetail(string $label, int $count): string
-    {
-        $number = self::formatNumber($count);
-        return $number . ' ' . strtolower($label);
-    }
-
-    private static function formatNumber($value, bool $allowFloat = false): ?string
-    {
-        if ($value === null || $value === '') {
+        if (empty($values)) {
             return null;
         }
-        if (!is_numeric($value)) {
-            return is_string($value) ? $value : null;
-        }
-        $number = $allowFloat ? (float) $value : (int) $value;
-        if (function_exists('number_format_i18n')) {
-            return number_format_i18n($number, $allowFloat ? 2 : 0);
-        }
-        return $allowFloat ? number_format($number, 2) : number_format((float) $number, 0);
+        return array_sum($values) / count($values);
     }
 
-    private static function shortUrl(string $url, int $max = 60): string
+    private static function formatLoadTime(?float $seconds): string
     {
-        $trimmed = trim($url);
-        if ($trimmed === '') {
-            return '-';
+        if ($seconds === null) {
+            return 'N/A';
         }
-        if (strlen($trimmed) <= $max) {
-            return $trimmed;
-        }
-        return substr($trimmed, 0, $max - 1) . '…';
+        return number_format($seconds, 2) . 's';
     }
 
-    /**
-     * @param array<int,mixed> $list
-     */
-    private static function firstValue(array $list, array $keys, string $fallback, int $offset = 0): string
+    private static function formatDuration($seconds): string
     {
-        if (isset($list[$offset])) {
-            $item = $list[$offset];
-            if (is_string($item) && $item !== '') {
-                return $item;
-            }
-            if (is_array($item)) {
-                foreach ($keys as $key) {
-                    if (!empty($item[$key])) {
-                        return (string) $item[$key];
-                    }
-                }
-                if (!empty($item['value'])) {
-                    return (string) $item['value'];
-                }
-            }
+        if (!is_numeric($seconds) || (int) $seconds <= 0) {
+            return 'N/A';
         }
-        if (!empty($list)) {
-            $item = $list[0];
-            if (is_string($item) && $item !== '') {
-                return $item;
-            }
-            if (is_array($item)) {
-                foreach ($keys as $key) {
-                    if (!empty($item[$key])) {
-                        return (string) $item[$key];
-                    }
-                }
-            }
+        $seconds = (int) $seconds;
+        $parts = [];
+        $hours = intdiv($seconds, 3600);
+        if ($hours > 0) {
+            $parts[] = $hours . 'h';
         }
-
-        return $fallback;
+        $minutes = intdiv($seconds % 3600, 60);
+        if ($minutes > 0) {
+            $parts[] = $minutes . 'm';
+        }
+        $rest = $seconds % 60;
+        if ($rest > 0 || empty($parts)) {
+            $parts[] = $rest . 's';
+        }
+        return implode(' ', $parts);
     }
 
-    /**
-     * @param mixed $timeseries
-     * @return array<int,array<string,mixed>>
-     */
+    private static function topIssues(array $run, int $limit = 3): array
+    {
+        $issues = $run['issues'] ?? [];
+        if (empty($issues)) {
+            return [];
+        }
+        usort($issues, static fn ($a, $b) => self::issuePriority($b) <=> self::issuePriority($a));
+        return array_slice($issues, 0, $limit);
+    }
+
+    private static function issuePriority(array $issue): float
+    {
+        $weights = [
+            'critical' => 4,
+            'high' => 3,
+            'medium' => 2,
+            'low' => 1,
+        ];
+        $severity = strtolower($issue['severity'] ?? '');
+        $weight = $weights[$severity] ?? 1;
+        $impact = isset($issue['impact']) ? (float) $issue['impact'] : 1.0;
+        $occurrences = isset($issue['occurrences']) ? (float) $issue['occurrences'] : 0;
+        return $weight * max(1.0, $impact) * max(1.0, $occurrences);
+    }
+
+    private static function collectGaSummary(array $run): array
+    {
+        $summary = $run['audit']['analytics_summary']['ga'] ?? [];
+        if (!empty($summary)) {
+            return [
+                'sessions' => $summary['sessions_30d'] ?? null,
+                'users' => $summary['users_30d'] ?? null,
+                'bounce' => $summary['bounce_rate'] ?? null,
+                'top_pages' => $summary['top_pages'] ?? [],
+            ];
+        }
+
+        $analytics = $run['analytics']['ga'] ?? [];
+        $totals = $analytics['totals'] ?? $analytics;
+        return [
+            'sessions' => $totals['sessions'] ?? null,
+            'users' => $totals['totalUsers'] ?? null,
+            'bounce' => $totals['bounceRate'] ?? null,
+            'top_pages' => $analytics['top_pages'] ?? [],
+        ];
+    }
+
+    private static function collectGscSummary(array $run): array
+    {
+        $summary = $run['audit']['analytics_summary']['gsc'] ?? [];
+        if (!empty($summary)) {
+            return [
+                'clicks' => $summary['clicks_30d'] ?? null,
+                'impressions' => $summary['impressions_30d'] ?? null,
+                'ctr' => $summary['ctr_30d'] ?? $summary['ctr'] ?? null,
+                'position' => $summary['avg_position'] ?? $summary['position'] ?? null,
+            ];
+        }
+
+        $analytics = $run['analytics']['gsc'] ?? [];
+        if (!empty($analytics)) {
+            return [
+                'clicks' => $analytics['clicks_30d'] ?? $analytics['clicks'] ?? null,
+                'impressions' => $analytics['impressions_30d'] ?? $analytics['impressions'] ?? null,
+                'ctr' => $analytics['ctr_30d'] ?? $analytics['ctr'] ?? null,
+                'position' => $analytics['avg_position'] ?? $analytics['position'] ?? null,
+            ];
+        }
+
+        return [
+            'clicks' => null,
+            'impressions' => null,
+            'ctr' => null,
+            'position' => null,
+        ];
+    }
+
+    private static function buildSeverityCounts(array $issues): array
+    {
+        $counts = [];
+        foreach ($issues as $issue) {
+            $level = strtolower($issue['severity'] ?? 'other');
+            $counts[$level] = ($counts[$level] ?? 0) + ((int) ($issue['occurrences'] ?? 0));
+        }
+        return $counts;
+    }
+
+    private static function collectGscQueries(array $run, int $limit = 5): array
+    {
+        $queries = self::getByPath($run, 'analytics.gsc_details.details.queries');
+        if (!is_array($queries)) {
+            return [];
+        }
+        usort($queries, static fn ($a, $b) => ($b['clicks'] ?? 0) <=> ($a['clicks'] ?? 0));
+        return array_slice($queries, 0, $limit);
+    }
+
+    private static function formatDelta($current, $previous): string
+    {
+        if (!is_numeric($current) || !is_numeric($previous)) {
+            return 'N/A';
+        }
+        $delta = (int) $current - (int) $previous;
+        return ($delta >= 0 ? '+' : '') . $delta;
+    }
+
+    private static function formatTimeseriesDelta(array $series, string $field, bool $percent = false): string
+    {
+        $count = count($series);
+        if ($count === 0) {
+            return 'n/a';
+        }
+        $latest = $series[$count - 1];
+        $previous = $series[$count - 2] ?? null;
+        $current = isset($latest[$field]) ? (float) $latest[$field] : null;
+        $previousValue = isset($previous[$field]) ? (float) $previous[$field] : null;
+
+        $currentLabel = $current === null ? 'n/a' : ($percent ? self::formatPercent($current) : self::formatNumber($current, true));
+        $previousLabel = $previousValue === null ? 'n/a' : ($percent ? self::formatPercent($previousValue) : self::formatNumber($previousValue, true));
+
+        $deltaLabel = '';
+        if ($current !== null && $previousValue !== null) {
+            $delta = $current - $previousValue;
+            $deltaLabel = 'Δ ' . ($delta >= 0 ? '+' : '') . number_format($delta, $percent ? 1 : 0) . ($percent ? '%' : '');
+        }
+
+        return 'Latest: ' . $currentLabel . ', Prev: ' . $previousLabel . ($deltaLabel !== '' ? ', ' . $deltaLabel : '');
+    }
+
+    private static function collectMetaRecommendations(array $run, int $limit = 5): array
+    {
+        $items = $run['items'] ?? [];
+        $rows = [];
+        foreach ($items as $item) {
+            $ai = $item['ai'] ?? [];
+            $metaRecommendation = $ai['meta_recommendation'] ?? $ai['recommendation'] ?? null;
+            if (!is_array($metaRecommendation)) {
+                continue;
+            }
+            $url = $item['url'] ?? '-';
+            $meta = $item['meta'] ?? [];
+            $rows[] = [
+                'URL' => self::shortUrl($url),
+                'Current Title' => self::safeText($meta['title'] ?? ''),
+                'AI Title' => self::safeText($metaRecommendation['title'] ?? ''),
+                'Current Meta' => self::safeText($meta['meta_description'] ?? ''),
+                'AI Meta' => self::safeText($metaRecommendation['meta_description'] ?? $metaRecommendation['description'] ?? ''),
+            ];
+            if (count($rows) >= $limit) {
+                break;
+            }
+        }
+        return $rows;
+    }
+
+    private static function safeText($value): string
+    {
+        $text = trim((string) $value);
+        return $text !== '' ? $text : '-';
+    }
+
+    private static function formatMsAverage(array $values): string
+    {
+        if (empty($values)) {
+            return 'N/A';
+        }
+        $avg = array_sum($values) / count($values);
+        return number_format($avg, 0) . ' ms';
+    }
+
+    private static function emptyTable(string $message): array
+    {
+        return [
+            'headers' => [],
+            'rows' => [],
+            'empty' => $message,
+            'note' => '',
+        ];
+    }
+
     private static function normalizeTimeseries($timeseries): array
     {
         if (is_array($timeseries) && isset($timeseries['items']) && is_array($timeseries['items'])) {
@@ -933,6 +1098,33 @@ class ReportMetrics
             }
         }
         return $out;
+    }
+
+    private static function shortUrl(string $url, int $max = 60): string
+    {
+        $trimmed = trim($url);
+        if ($trimmed === '') {
+            return '-';
+        }
+        if (strlen($trimmed) <= $max) {
+            return $trimmed;
+        }
+        return substr($trimmed, 0, $max - 1) . '…';
+    }
+
+    private static function formatNumber($value, bool $allowFloat = false): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (!is_numeric($value)) {
+            return is_string($value) ? $value : null;
+        }
+        $number = $allowFloat ? (float) $value : (int) round($value);
+        if (function_exists('number_format_i18n')) {
+            return number_format_i18n($number, $allowFloat ? 2 : 0);
+        }
+        return $allowFloat ? number_format($number, 2) : number_format((float) $number, 0);
     }
 
     private static function formatPercent($value): ?string
@@ -952,90 +1144,26 @@ class ReportMetrics
         if ($date === '') {
             return '-';
         }
-
         $timestamp = strtotime($date);
         if (!$timestamp) {
             return $date;
         }
-
         if (function_exists('wp_date')) {
             return wp_date('M j, Y', $timestamp);
         }
-
         return date('M j, Y', $timestamp);
     }
 
-    /**
-     * @param array<string,mixed> $base
-     */
-    private static function fallbackLargestPage(array $base): string
+    private static function getByPath(array $data, string $path)
     {
-        $best = null;
-        foreach ($base['pages'] as $page) {
-            $wordCount = (int) ($page['word_count'] ?? 0);
-            if ($wordCount <= 0) {
-                continue;
+        $segments = explode('.', $path);
+        $current = $data;
+        foreach ($segments as $segment) {
+            if (!is_array($current) || !array_key_exists($segment, $current)) {
+                return null;
             }
-            if (!$best || $wordCount > $best['word_count']) {
-                $best = [
-                    'url' => $page['url'] ?? '',
-                    'word_count' => $wordCount,
-                ];
-            }
+            $current = $current[$segment];
         }
-        if ($best) {
-            return self::shortUrl((string) $best['url']) . ' (' . self::formatNumber($best['word_count']) . ' words)';
-        }
-        return 'Crawler data required';
-    }
-
-    /**
-     * @param array<string,mixed> $base
-     */
-    private static function fallbackSlowestPage(array $base): string
-    {
-        $best = null;
-        foreach ($base['pages'] as $page) {
-            $time = $page['load_time_ms'] ?? $page['load_time'] ?? $page['response_time'] ?? null;
-            if (!is_numeric($time)) {
-                continue;
-            }
-            $time = (float) $time;
-            if (!$best || $time > $best['time']) {
-                $best = [
-                    'url' => $page['url'] ?? '',
-                    'time' => $time,
-                ];
-            }
-        }
-
-        if ($best) {
-            $timeLabel = $best['time'] >= 1000 ? round($best['time'] / 1000, 2) . 's' : round($best['time'], 0) . 'ms';
-            return self::shortUrl((string) $best['url']) . ' (' . $timeLabel . ')';
-        }
-
-        return 'Crawler timing data needed';
-    }
-
-    /**
-     * @param array<string,mixed> $base
-     */
-    private static function fallbackRedirectHeavyPage(array $base): string
-    {
-        if (!empty($base['samples']['redirect_chains'])) {
-            return self::shortUrl((string) $base['samples']['redirect_chains']);
-        }
-        return 'No redirect chains detected';
-    }
-
-    /**
-     * @param array<string,mixed> $base
-     */
-    private static function fallbackShortContentPage(array $base): string
-    {
-        if (!empty($base['samples']['low_content'])) {
-            return self::shortUrl((string) $base['samples']['low_content']);
-        }
-        return 'All pages exceed 300 words';
+        return $current;
     }
 }
