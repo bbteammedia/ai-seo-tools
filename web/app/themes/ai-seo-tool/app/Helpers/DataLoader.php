@@ -30,25 +30,13 @@ class DataLoader
             $dir = Storage::runDir($project, $run);
             $runPack = [
                 'run_id' => $run,
-                'summary' => self::read($dir . '/summary.json') ?: [],
                 'audit' => self::read($dir . '/audit.json') ?: [],
                 'analytics' => [
                     'ga' => self::read($dir . '/analytics/ga.json'),
                     'gsc' => self::read($dir . '/analytics/gsc.json'),
                     'gsc_details' => self::read($dir . '/analytics/gsc-details.json'),
-                ],
-                'backlinks' => [
-                    'provider' => self::read($dir . '/backlinks/provider.json'),
-                ],
-                'pages' => [],
-                'images' => [],
-                'errors' => [],
+                ]
             ];
-
-            if ($type === 'per_page' && $pageUrl) {
-                $pf = $dir . '/pages/' . md5($pageUrl) . '.json';
-                $runPack['pages'] = is_file($pf) ? [self::read($pf) ?: []] : [];
-            } 
 
             $out['runs'][] = $runPack;
         }

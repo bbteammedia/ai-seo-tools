@@ -1,0 +1,229 @@
+{
+  "project": "petalo-cakery",
+  "run_id": "2025-11-10_110249_5502",
+  "base_path": "runs/petalo-cakery/2025-11-10_110249_5502",
+  "global_paths": {
+    "audit": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json",
+    "run_analytics": "runs/petalo-cakery/2025-11-10_110249_5502/analytics/",
+    "pages": "runs/petalo-cakery/2025-11-10_110249_5502/pages/",
+    "images": "runs/petalo-cakery/2025-11-10_110249_5502/images/",
+    "errors": "runs/petalo-cakery/2025-11-10_110249_5502/errors/",
+    "global_analytics": "analytics/"
+  },
+  "sections": {
+    "Executive Summary": {
+      "show": [
+        "project & run info",
+        "total pages & indexability",
+        "avg load time",
+        "top 3 issue types",
+        "analytics KPIs if available (GA/GSC)"
+      ],
+      "collect": [
+        { "field": "project", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "project" },
+        { "field": "run_id", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "run.run_id" },
+        { "field": "generated_at", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "generated_at" },
+        { "field": "total_pages", "from": "pages", "path": "runs/petalo-cakery/2025-11-10_110249_5502/pages/*.json", "selector": "COUNT_FILES" },
+        { "field": "indexable_pages", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "SUM(items[].indexability.is_indexable)" },
+        { "field": "avg_load_time_s", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "AVG(items[].performance.load_time_s)" },
+        { "field": "top_issue_types", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "TOP_N(issues[] BY occurrences DESC, 3)" },
+        { "field": "ga_kpis", "from": "run_analytics", "path": "runs/petalo-cakery/2025-11-10_110249_5502/analytics/ga.json", "selector": "{sessions_30d, users_30d, bounce_rate}", "optional": true },
+        { "field": "gsc_kpis", "from": "run_analytics", "path": "runs/petalo-cakery/2025-11-10_110249_5502/analytics/gsc.json", "selector": "{clicks_30d, impressions_30d, ctr_30d, avg_position}", "optional": true }
+      ]
+    },
+
+    "Top Actions": {
+      "show": [
+        "top 5 issues by priority (severity x impact)",
+        "diff: new vs resolved (if present)"
+      ],
+      "collect": [
+        { "field": "issues", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "issues[]" },
+        { "field": "issues_resolved", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "diff.issues_resolved", "optional": true },
+        { "field": "issues_regressed", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "diff.issues_regressed", "optional": true }
+      ]
+    },
+
+    "Overview": {
+      "show": [
+        "crawl duration",
+        "HTTP status distribution",
+        "indexability counts",
+        "avg load time",
+        "image ALT coverage"
+      ],
+      "collect": [
+        { "field": "duration_sec", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "run.duration_sec" },
+        { "field": "status_distribution", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "aggregations.status_distribution" },
+        { "field": "indexability_rollup", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "aggregations.indexability" },
+        { "field": "avg_load_time_s", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "AVG(items[].performance.load_time_s)" },
+        { "field": "image_alt_coverage_ratio", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "aggregations.image_alt_coverage" }
+      ]
+    },
+
+    "Performance Summary": {
+      "show_if": "has_ga_or_gsc",
+      "show": [
+        "GA sessions & users, bounce rate",
+        "GSC clicks/impressions/CTR/avg position",
+        "top pages by sessions",
+        "fallback to crawl perf if analytics missing"
+      ],
+      "collect": [
+        { "field": "ga", "from": "run_analytics", "path": "runs/petalo-cakery/2025-11-10_110249_5502/analytics/ga.json", "selector": "{sessions_30d, users_30d, bounce_rate, top_pages[]}", "optional": true },
+        { "field": "gsc", "from": "run_analytics", "path": "runs/petalo-cakery/2025-11-10_110249_5502/analytics/gsc.json", "selector": "{clicks_30d, impressions_30d, ctr_30d, avg_position}", "optional": true },
+        { "field": "fallback_performance", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "items[].performance" }
+      ]
+    },
+
+    "Technical SEO Issues": {
+      "show": [
+        "technical issue list with counts & severity",
+        "severity breakdown chart",
+        "indexability (noindex/canonicalized/robots-blocked)",
+        "example URLs"
+      ],
+      "collect": [
+        { "field": "technical_issues", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "FILTER(issues[] WHERE category=='Technical')" },
+        { "field": "severity_breakdown", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "aggregations.issue_by_severity" },
+        { "field": "indexability_rollup", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "aggregations.indexability" },
+        { "field": "example_urls", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "issues[].sample_urls" },
+        { "field": "error_pages", "from": "errors", "path": "runs/petalo-cakery/2025-11-10_110249_5502/errors/*.json", "selector": "LIST_FILES" }
+      ]
+    },
+
+    "On-Page SEO & Content": {
+      "show": [
+        "missing/duplicate metas",
+        "multiple H1",
+        "word count distribution",
+        "thin/duplicate content",
+        "images missing alt (per-page)"
+      ],
+      "collect": [
+        { "field": "onpage_issues", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "FILTER(issues[] WHERE category=='On-Page')" },
+        { "field": "wordcount_bins", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "aggregations.wordcount_bins" },
+        { "field": "page_meta_core", "from": "audit_items", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "items[].meta.{title_length, meta_description_length, h1_count}" },
+        { "field": "page_content_core", "from": "audit_items", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "items[].content.{word_count, readability, thin_content, duplicate_group}" },
+        { "field": "page_images_alt", "from": "audit_items", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "items[].media.{image_count, images_missing_alt}" },
+        { "field": "images_inventory", "from": "images", "path": "runs/petalo-cakery/2025-11-10_110249_5502/images/*.json", "selector": "LIST_FILES" }
+      ]
+    },
+
+    "Keyword Analysis": {
+      "show_if": "has_gsc",
+      "show": [
+        "clicks, impressions, CTR, avg position",
+        "top queries"
+      ],
+      "collect": [
+        { "field": "gsc_clicks", "from": "run_analytics", "path": "runs/petalo-cakery/2025-11-10_110249_5502/analytics/gsc.json", "selector": "clicks_30d" },
+        { "field": "gsc_impressions", "from": "run_analytics", "path": "runs/petalo-cakery/2025-11-10_110249_5502/analytics/gsc.json", "selector": "impressions_30d" },
+        { "field": "gsc_ctr", "from": "run_analytics", "path": "runs/petalo-cakery/2025-11-10_110249_5502/analytics/gsc.json", "selector": "ctr_30d" },
+        { "field": "gsc_avg_position", "from": "run_analytics", "path": "runs/petalo-cakery/2025-11-10_110249_5502/analytics/gsc.json", "selector": "avg_position" },
+        { "field": "top_queries", "from": "run_analytics", "path": "runs/petalo-cakery/2025-11-10_110249_5502/analytics/gsc.json", "selector": "top_queries[]" }
+      ]
+    },
+
+    "Backlink Profile": {
+      "show_if": "has_backlink_data",
+      "show": [
+        "total backlinks",
+        "referring domains",
+        "follow vs nofollow ratio"
+      ],
+      "collect": [
+        { "field": "backlinks_total", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "backlinks.total", "optional": true },
+        { "field": "ref_domains", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "backlinks.domains[]", "optional": true },
+        { "field": "follow_ratio", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "backlinks.follow_ratio", "optional": true }
+      ]
+    },
+
+    "Crawl History": {
+      "show": [
+        "new/removed pages",
+        "issues resolved/regressed",
+        "pages crawled this run"
+      ],
+      "collect": [
+        { "field": "new_pages", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "diff.new_pages", "optional": true },
+        { "field": "removed_pages", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "diff.removed_pages", "optional": true },
+        { "field": "issues_resolved", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "diff.issues_resolved", "optional": true },
+        { "field": "issues_regressed", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "diff.issues_regressed", "optional": true },
+        { "field": "pages_crawled_this_run", "from": "pages", "path": "runs/petalo-cakery/2025-11-10_110249_5502/pages/*.json", "selector": "COUNT_FILES" }
+      ]
+    },
+
+    "Traffic Trends": {
+      "show_if": "has_ga_or_gsc",
+      "show": [
+        "GSC clicks/impressions/CTR trend (30d)",
+        "GA sessions trend & top landing pages"
+      ],
+      "collect": [
+        { "field": "gsc_trend", "from": "run_analytics", "path": "runs/petalo-cakery/2025-11-10_110249_5502/analytics/gsc.json", "selector": "{clicks_30d, impressions_30d, ctr_30d}" },
+        { "field": "ga_top_pages", "from": "run_analytics", "path": "runs/petalo-cakery/2025-11-10_110249_5502/analytics/ga.json", "selector": "top_pages[]", "optional": true }
+      ]
+    },
+
+    "Search Visibility": {
+      "show": [
+        "avg position & CTR",
+        "keyword position distribution if available",
+        "fallback: indexable vs non-indexable"
+      ],
+      "collect": [
+        { "field": "gsc_avg_position", "from": "run_analytics", "path": "runs/petalo-cakery/2025-11-10_110249_5502/analytics/gsc.json", "selector": "avg_position", "optional": true },
+        { "field": "gsc_ctr", "from": "run_analytics", "path": "runs/petalo-cakery/2025-11-10_110249_5502/analytics/gsc.json", "selector": "ctr_30d", "optional": true },
+        { "field": "position_buckets", "from": "run_analytics", "path": "runs/petalo-cakery/2025-11-10_110249_5502/analytics/gsc.json", "selector": "POSITION_BUCKETS(top_queries[])", "optional": true },
+        { "field": "indexability_proxy", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "aggregations.indexability" }
+      ]
+    },
+
+    "Meta Recommendations": {
+      "show": [
+        "URL",
+        "current title/meta",
+        "AI-suggested title/meta",
+        "lengths"
+      ],
+      "collect": [
+        { "field": "url", "from": "audit_items", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "items[].url" },
+        { "field": "current", "from": "audit_items", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "items[].meta.{title, meta_description, title_length, meta_description_length}" },
+        { "field": "ai_suggestion", "from": "audit_items", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "items[].ai.meta_recommendation.{suggested_title, suggested_meta_description}", "optional": true }
+      ]
+    },
+
+    "Technical Findings": {
+      "show": [
+        "canonical, hreflang, robots/noindex",
+        "HTTPS/mixed content",
+        "structured data",
+        "page speed metrics"
+      ],
+      "collect": [
+        { "field": "canonical_hreflang", "from": "audit_items", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "items[].meta.{canonical, hreflang}" },
+        { "field": "robots_flags", "from": "audit_items", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "items[].indexability.{is_noindex, is_blocked_by_robots, is_canonicalized}" },
+        { "field": "security", "from": "audit_items", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "items[].security.{is_https, mixed_content}" },
+        { "field": "structured_data", "from": "audit_items", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "items[].structured_data[]" },
+        { "field": "performance", "from": "audit_items", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "items[].performance.{ttfb_ms, load_time_s, lcp_ms, page_weight_kb}" }
+      ]
+    },
+
+    "Recommendations": {
+      "show": [
+        "prioritized actions by category",
+        "progress (resolved vs new)"
+      ],
+      "collect": [
+        { "field": "issues_for_prioritization", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "issues[]" },
+        { "field": "progress_diff", "from": "audit", "path": "runs/petalo-cakery/2025-11-10_110249_5502/audit.json", "selector": "diff", "optional": true }
+      ]
+    }
+  },
+  "conditions": {
+    "has_ga_or_gsc": "FILE_EXISTS(runs/petalo-cakery/2025-11-10_110249_5502/analytics/ga.json) OR FILE_EXISTS(runs/petalo-cakery/2025-11-10_110249_5502/analytics/gsc.json) OR FILE_EXISTS(analytics/ga.json) OR FILE_EXISTS(analytics/gsc.json)",
+    "has_gsc": "FILE_EXISTS(runs/petalo-cakery/2025-11-10_110249_5502/analytics/gsc.json) OR FILE_EXISTS(analytics/gsc.json)",
+    "has_backlink_data": "JSON_HAS_KEY(runs/petalo-cakery/2025-11-10_110249_5502/audit.json, 'backlinks')"
+  }
+}

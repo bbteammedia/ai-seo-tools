@@ -33,7 +33,7 @@
         </div>
     </div>
     <input type="hidden" name="bbseo_sections[<?php echo esc_attr($index); ?>][metrics_json]" value="<?php echo esc_attr($metricsJson); ?>">
-SAFFSFSDF
+
     <div class="editor">
         <?php
         wp_editor(

@@ -7,8 +7,8 @@ class Report {
 
 		this.refreshBtn = document.getElementById("bbseo-refresh-data");
 		this.statusEl = document.getElementById("bbseo-refresh-status");
-		this.typeEl = document.getElementById("BBSEO_report_type");
-		this.perPageRow = document.getElementById("BBSEO_per_page_row");
+		this.typeEl = document.getElementById("bbseo_report_type");
+		this.perPageRow = document.getElementById("bbseo_per_page_row");
 
 		this.init();
 	}
