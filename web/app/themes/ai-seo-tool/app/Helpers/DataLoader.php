@@ -31,7 +31,6 @@ class DataLoader
             $runPack = [
                 'run_id' => $run,
                 'summary' => self::read($dir . '/summary.json') ?: [],
-                'report' => self::read($dir . '/report.json') ?: [],
                 'audit' => self::read($dir . '/audit.json') ?: [],
                 'analytics' => [
                     'ga' => self::read($dir . '/analytics/ga.json'),

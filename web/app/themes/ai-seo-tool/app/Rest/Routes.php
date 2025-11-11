@@ -8,7 +8,6 @@ use BBSEO\Helpers\Storage;
 use BBSEO\Crawl\Queue;
 use BBSEO\Crawl\Worker;
 use BBSEO\Audit\Runner as AuditRunner;
-use BBSEO\Report\Builder as ReportBuilder;
 use BBSEO\Report\Summary;
 use BBSEO\Analytics\Dispatcher as AnalyticsDispatcher;
 use BBSEO\Analytics\Store as AnalyticsStore;
@@ -33,12 +32,6 @@ class Routes
         register_rest_route('ai-seo-tool/v1', '/audit', [
             'methods' => 'POST',
             'callback' => [self::class, 'audit'],
-            'permission_callback' => '__return_true',
-        ]);
-
-        register_rest_route('ai-seo-tool/v1', '/report', [
-            'methods' => 'POST',
-            'callback' => [self::class, 'report'],
             'permission_callback' => '__return_true',
         ]);
 
@@ -120,7 +113,6 @@ class Routes
 
         if (!Queue::next($project, $runId)) {
             $audit = AuditRunner::run($project, $runId);
-            $report = ReportBuilder::build($project, $runId);
             $summary = Summary::build($project, $runId);
             Summary::appendTimeseries($project, $summary);
             $result['audit'] = $audit['summary'] ?? [];
@@ -157,24 +149,6 @@ class Routes
         }
 
         return Http::ok(AuditRunner::run($project, $runId));
-    }
-
-    public static function report(WP_REST_Request $req)
-    {
-        if (!Http::validate_token($req)) {
-            return Http::fail('invalid key', 401);
-        }
-        $project = sanitize_text_field($req->get_param('project'));
-        if (!$project) {
-            return Http::fail('project required', 422);
-        }
-        $runId = $req->get_param('run');
-        $runId = $runId ? self::normalizeRunId($runId) : (Storage::getLatestRun($project) ?? '');
-        if (!$runId) {
-            return Http::fail('run not found', 404);
-        }
-
-        return Http::ok(ReportBuilder::build($project, $runId));
     }
 
     public static function status(WP_REST_Request $req)

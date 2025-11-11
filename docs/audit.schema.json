@@ -1,0 +1,458 @@
+{
+  "$id": "ai-seo-tool/audit.schema.json",
+  "description": "Extended audit.json contract for modular SEO reports (both SEO Analyze & Technical SEO).",
+  "version": "1.1.0",
+  "type": "object",
+  "required": [
+    "run",
+    "project",
+    "generated_at",
+    "summary",
+    "aggregations",
+    "issues",
+    "items"
+  ],
+  "properties": {
+    "run": {
+      "type": "object",
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "prev_run_id": {
+          "type": "string"
+        },
+        "started_at": {
+          "type": "string"
+        },
+        "finished_at": {
+          "type": "string"
+        },
+        "duration_sec": {
+          "type": "number"
+        },
+        "crawler": {
+          "type": "string"
+        },
+        "user_agent": {
+          "type": "string"
+        }
+      }
+    },
+    "project": {
+      "type": "string"
+    },
+    "generated_at": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "totals": {
+          "type": "object",
+          "properties": {
+            "pages": {
+              "type": "integer"
+            },
+            "indexable_pages": {
+              "type": "integer"
+            },
+            "images": {
+              "type": "integer"
+            },
+            "links_internal": {
+              "type": "integer"
+            },
+            "links_external": {
+              "type": "integer"
+            }
+          }
+        },
+        "scores": {
+          "type": "object",
+          "properties": {
+            "overall": {
+              "type": "integer"
+            },
+            "technical": {
+              "type": "integer"
+            },
+            "content": {
+              "type": "integer"
+            },
+            "performance": {
+              "type": "integer"
+            }
+          }
+        },
+        "highlights": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "issue_counts": {
+          "type": "object"
+        },
+        "status_buckets": {
+          "type": "object"
+        },
+        "avg_word_count": {
+          "type": "number"
+        },
+        "avg_load_time": {
+          "type": "number"
+        }
+      }
+    },
+    "aggregations": {
+      "type": "object",
+      "properties": {
+        "status_distribution": {
+          "type": "object"
+        },
+        "wordcount_bins": {
+          "type": "object"
+        },
+        "loadtime_bins": {
+          "type": "object"
+        },
+        "issue_by_category": {
+          "type": "object"
+        },
+        "issue_by_severity": {
+          "type": "object"
+        },
+        "image_alt_coverage": {
+          "type": "number"
+        },
+        "indexability": {
+          "type": "object",
+          "properties": {
+            "noindex": {
+              "type": "integer"
+            },
+            "canonicalized": {
+              "type": "integer"
+            },
+            "blocked_robots": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    },
+    "analytics_summary": {
+      "type": "object",
+      "properties": {
+        "ga": {
+          "type": "object",
+          "properties": {
+            "sessions_30d": {
+              "type": "integer"
+            },
+            "users_30d": {
+              "type": "integer"
+            },
+            "bounce_rate": {
+              "type": "number"
+            },
+            "top_pages": {
+              "type": "array"
+            }
+          }
+        },
+        "gsc": {
+          "type": "object",
+          "properties": {
+            "clicks_30d": {
+              "type": "integer"
+            },
+            "impressions_30d": {
+              "type": "integer"
+            },
+            "ctr_30d": {
+              "type": "number"
+            },
+            "avg_position": {
+              "type": "number"
+            },
+            "top_queries": {
+              "type": "array"
+            }
+          }
+        }
+      }
+    },
+    "diff": {
+      "type": "object",
+      "properties": {
+        "new_pages": {
+          "type": "integer"
+        },
+        "removed_pages": {
+          "type": "integer"
+        },
+        "issues_resolved": {
+          "type": "integer"
+        },
+        "issues_regressed": {
+          "type": "integer"
+        }
+      }
+    },
+    "issues": {
+      "type": "array",
+      "description": "Issue taxonomy with metadata for rendering and prioritization",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "impact": {
+            "type": "integer"
+          },
+          "effort": {
+            "type": "integer"
+          },
+          "description": {
+            "type": "string"
+          },
+          "how_to_fix": {
+            "type": "string"
+          },
+          "occurrences": {
+            "type": "integer"
+          },
+          "sample_urls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "items": {
+      "type": "array",
+      "description": "Per-page snapshot (keep concise; raw details remain in runs/{run_id}/pages/*.json)",
+      "items": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "title_length": {
+                "type": "integer"
+              },
+              "meta_description": {
+                "type": "string"
+              },
+              "meta_description_length": {
+                "type": "integer"
+              },
+              "h1": {
+                "type": "string"
+              },
+              "h1_count": {
+                "type": "integer"
+              },
+              "canonical": {
+                "type": "string"
+              },
+              "robots": {
+                "type": "string"
+              },
+              "hreflang": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "content": {
+            "type": "object",
+            "properties": {
+              "word_count": {
+                "type": "integer"
+              },
+              "readability": {
+                "type": "number"
+              },
+              "thin_content": {
+                "type": "boolean"
+              },
+              "duplicate_group": {
+                "type": "string"
+              }
+            }
+          },
+          "performance": {
+            "type": "object",
+            "properties": {
+              "ttfb_ms": {
+                "type": "number"
+              },
+              "load_time_s": {
+                "type": "number"
+              },
+              "lcp_ms": {
+                "type": "number"
+              },
+              "page_weight_kb": {
+                "type": "number"
+              }
+            }
+          },
+          "media": {
+            "type": "object",
+            "properties": {
+              "image_count": {
+                "type": "integer"
+              },
+              "images_missing_alt": {
+                "type": "integer"
+              },
+              "largest_image_kb": {
+                "type": "number"
+              }
+            }
+          },
+          "links": {
+            "type": "object",
+            "properties": {
+              "internal_inlinks": {
+                "type": "integer"
+              },
+              "internal_outlinks": {
+                "type": "integer"
+              },
+              "external_outlinks": {
+                "type": "integer"
+              },
+              "nofollow_outlinks": {
+                "type": "integer"
+              },
+              "broken_outlinks": {
+                "type": "integer"
+              }
+            }
+          },
+          "indexability": {
+            "type": "object",
+            "properties": {
+              "is_indexable": {
+                "type": "boolean"
+              },
+              "is_canonicalized": {
+                "type": "boolean"
+              },
+              "is_noindex": {
+                "type": "boolean"
+              },
+              "is_blocked_by_robots": {
+                "type": "boolean"
+              }
+            }
+          },
+          "pagination": {
+            "type": "object",
+            "properties": {
+              "rel_prev": {
+                "type": "string"
+              },
+              "rel_next": {
+                "type": "string"
+              }
+            }
+          },
+          "security": {
+            "type": "object",
+            "properties": {
+              "is_https": {
+                "type": "boolean"
+              },
+              "mixed_content": {
+                "type": "boolean"
+              }
+            }
+          },
+          "structured_data": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string"
+                },
+                "severity": {
+                  "type": "string"
+                },
+                "evidence": {
+                  "type": "string"
+                },
+                "selector": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "ai": {
+            "type": "object",
+            "properties": {
+              "summary": {
+                "type": "string"
+              },
+              "meta_recommendation": {
+                "type": "object",
+                "properties": {
+                  "suggested_title": {
+                    "type": "string"
+                  },
+                  "suggested_meta_description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

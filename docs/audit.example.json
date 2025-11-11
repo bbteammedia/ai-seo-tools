@@ -1,0 +1,223 @@
+{
+  "run": {
+    "run_id": "2025-11-10_033040_705C",
+    "prev_run_id": "2025-11-03_021015_1ABF",
+    "started_at": "2025-11-10T03:30:40Z",
+    "finished_at": "2025-11-10T03:55:01Z",
+    "duration_sec": 145,
+    "crawler": "spatie/crawler",
+    "user_agent": "AI-SEO-Tool/1.1"
+  },
+  "project": "petalo-cakery",
+  "generated_at": "2025-11-10T03:55:01Z",
+  "summary": {
+    "totals": {
+      "pages": 41,
+      "indexable_pages": 38,
+      "images": 2457,
+      "links_internal": 1820,
+      "links_external": 240
+    },
+    "scores": {
+      "overall": 78,
+      "technical": 82,
+      "content": 74,
+      "performance": 69
+    },
+    "highlights": [
+      "ALT text missing on 41 pages",
+      "Multiple H1 on 21 product pages",
+      "Average load time 1.8s (target <1.5s)"
+    ],
+    "issue_counts": {
+      "Images without ALT text": 41,
+      "Multiple H1 headings": 21,
+      "Missing Meta Description": 5
+    },
+    "status_buckets": {
+      "2xx": 41,
+      "3xx": 0,
+      "4xx": 0,
+      "5xx": 0
+    },
+    "avg_word_count": 356,
+    "avg_load_time": 1.8
+  },
+  "aggregations": {
+    "status_distribution": {
+      "200": 41
+    },
+    "wordcount_bins": {
+      "0-299": 8,
+      "300-699": 28,
+      "700+": 5
+    },
+    "loadtime_bins": {
+      "<=1s": 10,
+      "1-2s": 22,
+      "2-3s": 7,
+      ">3s": 2
+    },
+    "issue_by_category": {
+      "On-Page": 26,
+      "Accessibility": 41,
+      "Technical": 9
+    },
+    "issue_by_severity": {
+      "low": 41,
+      "medium": 21,
+      "high": 5
+    },
+    "image_alt_coverage": 0.12,
+    "indexability": {
+      "noindex": 3,
+      "canonicalized": 6,
+      "blocked_robots": 0
+    }
+  },
+  "analytics_summary": {
+    "ga": {
+      "sessions_30d": 12480,
+      "users_30d": 9610,
+      "bounce_rate": 0.42,
+      "top_pages": [
+        "/",
+        "/pricing",
+        "/blog/ai-seo-tools"
+      ]
+    },
+    "gsc": {
+      "clicks_30d": 610,
+      "impressions_30d": 10560,
+      "ctr_30d": 0.058,
+      "avg_position": 12.1,
+      "top_queries": [
+        "wedding cakes",
+        "designer cakes"
+      ]
+    }
+  },
+  "diff": {
+    "new_pages": 4,
+    "removed_pages": 1,
+    "issues_resolved": 7,
+    "issues_regressed": 3
+  },
+  "issues": [
+    {
+      "id": "img_alt_missing",
+      "name": "Images without ALT text",
+      "category": "Accessibility",
+      "severity": "low",
+      "impact": 2,
+      "effort": 2,
+      "description": "Images missing alt attributes hurt accessibility and SEO for image search.",
+      "how_to_fix": "Add descriptive alt attributes to all <img> tags, especially product/gallery images.",
+      "occurrences": 41,
+      "sample_urls": [
+        "https://petalocakery.com/product/holiday-gingerbread/",
+        "https://petalocakery.com/about-us/"
+      ]
+    },
+    {
+      "id": "multi_h1",
+      "name": "Multiple H1 headings",
+      "category": "On-Page",
+      "severity": "medium",
+      "impact": 3,
+      "effort": 2,
+      "description": "Multiple H1s may dilute topical focus and confuse assistive tech.",
+      "how_to_fix": "Use a single H1 per page, convert others to H2/H3.",
+      "occurrences": 21,
+      "sample_urls": [
+        "https://petalocakery.com/product/rosy/"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "url": "https://petalocakery.com/product/holiday-gingerbread/",
+      "status": 200,
+      "hash": "5f8b3c2a",
+      "meta": {
+        "title": "Holiday Gingerbread | Petalo Cakery",
+        "title_length": 34,
+        "meta_description": "",
+        "meta_description_length": 0,
+        "h1": "Holiday Gingerbread",
+        "h1_count": 2,
+        "canonical": "https://petalocakery.com/product/holiday-gingerbread/",
+        "robots": "index,follow",
+        "hreflang": []
+      },
+      "content": {
+        "word_count": 382,
+        "readability": 58.2,
+        "thin_content": false,
+        "duplicate_group": null
+      },
+      "performance": {
+        "ttfb_ms": 382,
+        "load_time_s": 1.95,
+        "lcp_ms": 2450,
+        "page_weight_kb": 1480
+      },
+      "media": {
+        "image_count": 64,
+        "images_missing_alt": 11,
+        "largest_image_kb": 520
+      },
+      "links": {
+        "internal_inlinks": 12,
+        "internal_outlinks": 28,
+        "external_outlinks": 3,
+        "nofollow_outlinks": 0,
+        "broken_outlinks": 1
+      },
+      "indexability": {
+        "is_indexable": true,
+        "is_canonicalized": false,
+        "is_noindex": false,
+        "is_blocked_by_robots": false
+      },
+      "pagination": {
+        "rel_prev": null,
+        "rel_next": null
+      },
+      "security": {
+        "is_https": true,
+        "mixed_content": false
+      },
+      "structured_data": [
+        {
+          "@type": "Product",
+          "name": "Holiday Gingerbread"
+        }
+      ],
+      "issues": [
+        {
+          "id": "multi_h1",
+          "name": "Multiple H1 headings",
+          "category": "On-Page",
+          "severity": "medium",
+          "evidence": "<h1>Holiday Gingerbread</h1><h1>Product</h1>"
+        },
+        {
+          "id": "img_alt_missing",
+          "name": "Images without ALT text",
+          "category": "Accessibility",
+          "severity": "low",
+          "evidence": "<img src='x.jpg'>",
+          "selector": "img.gallery-item:nth(5)"
+        }
+      ],
+      "ai": {
+        "summary": "Strong product page hindered by multiple H1s and several images missing alt text.",
+        "meta_recommendation": {
+          "suggested_title": "Holiday Gingerbread \u2013 Festive Cookies | Petalo Cakery",
+          "suggested_meta_description": "Order our Holiday Gingerbread with warm spices and festive decor. Freshly baked and customizable for your celebration."
+        }
+      }
+    }
+  ]
+}

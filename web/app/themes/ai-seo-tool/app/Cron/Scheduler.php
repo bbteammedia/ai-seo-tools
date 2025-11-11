@@ -6,7 +6,6 @@ use BBSEO\Helpers\Storage;
 use BBSEO\Crawl\Queue;
 use BBSEO\Crawl\Worker;
 use BBSEO\Audit\Runner as AuditRunner;
-use BBSEO\Report\Builder as ReportBuilder;
 use BBSEO\Report\Summary;
 use BBSEO\Analytics\Dispatcher as AnalyticsDispatcher;
 
@@ -97,10 +96,13 @@ class Scheduler
             $queueEmpty = !Queue::next($project, $latestRun);
             if ($queueEmpty && empty($meta['completed_at'])) {
                 $audit = AuditRunner::run($project, $latestRun);
-                $report = ReportBuilder::build($project, $latestRun);
                 $summary = Summary::build($project, $latestRun);
                 Summary::appendTimeseries($project, $summary);
-                AnalyticsDispatcher::syncProject($project, $latestRun);
+                $analyticsResult = AnalyticsDispatcher::syncProject($project, $latestRun);
+                if (self::shouldRefreshAudit($analyticsResult)) {
+                    // Ensure analytics data is reflected inside audit/report artifacts.
+                    $audit = AuditRunner::run($project, $latestRun);
+                }
                 $meta['completed_at'] = gmdate('c');
                 $meta['summary'] = [
                     'pages' => $summary['pages'],
@@ -155,6 +157,16 @@ class Scheduler
         }
 
         return $projects;
+    }
+
+    private static function shouldRefreshAudit(array $analyticsResult): bool
+    {
+        foreach (['ga', 'gsc'] as $key) {
+            if (!empty($analyticsResult[$key]['synced'])) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static function shouldStartNewRun(string $project, array $cfg, ?string $latestRun): bool
