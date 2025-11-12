@@ -170,50 +170,51 @@ class ReportMetrics
             return self::emptyTable('Executive summary not available yet.');
         }
 
+        // get project title on project CPT base on slug $context['project']
+        $projectTitle = self::getProjectTitle($context['project']);
+
         $rows = [];
-        $rows[] = ['Metric' => 'Project', 'Value' => $context['project'] ?: '-'];
-        $rows[] = ['Metric' => 'Run ID', 'Value' => $run['run_id']];
-        $generated = $run['audit']['generated_at'] ?? $run['audit']['run']['finished_at'] ?? '';
-        $rows[] = ['Metric' => 'Generated', 'Value' => self::formatDateLabel((string) $generated)];
+        $rows[] = ['Metric' => 'Project', 'Value' => $projectTitle ?: '-'];
 
-        $rows[] = ['Metric' => 'Total Pages', 'Value' => self::formatNumber($run['counts']['pages'])];
-        $rows[] = ['Metric' => 'Indexable Pages', 'Value' => self::formatNumber(self::countIndexablePages($run))];
+        // Summary
+        $rows[] = ['Metric' => 'Total Pages', 'Value' => self::formatNumber($run['audit']['summary']['totals']['pages'] ?? $run['counts']['pages'])];
+        $rows[] = ['Metric' => 'Indexable Pages', 'Value' => self::formatNumber($run['audit']['summary']['totals']['indexable_pages'] ?? null)];
 
-        $avgLoad = self::averageLoadTime($run);
-        $rows[] = ['Metric' => 'Avg Load Time', 'Value' => self::formatLoadTime($avgLoad)];
-
-        $topIssues = self::topIssues($run, 3);
-        if (!empty($topIssues)) {
+        // highlight
+        $highlighted = self::highlightIssues($run);
+        if (!empty($highlighted)) {
             $rows[] = [
-                'Metric' => 'Top Issue Types',
-                'Value' => implode(', ', array_map(static fn ($issue) => ($issue['name'] ?? '-') . ' (' . self::formatNumber($issue['occurrences'] ?? null) . ')', $topIssues)),
+                'Metric' => 'Highlighted Issues',
+                'Value' => implode(', ', $highlighted),
             ];
         }
 
-        $ga = self::collectGaSummary($run);
-        if (!empty($ga['sessions']) || !empty($ga['users']) || $ga['bounce'] !== null) {
-            $gaValue = implode(', ', array_filter([
-                $ga['sessions'] !== null ? 'Sessions: ' . self::formatNumber($ga['sessions']) : null,
-                $ga['users'] !== null ? 'Users: ' . self::formatNumber($ga['users']) : null,
-                $ga['bounce'] !== null ? 'Bounce: ' . self::formatPercent($ga['bounce']) : null,
-            ]));
-            if ($gaValue !== '') {
-                $rows[] = ['Metric' => 'Google Analytics (30d)', 'Value' => $gaValue];
+        // GA / GSC summary analytics_summary
+        $analyticsSummary = $run['audit']['analytics_summary'] ?? [];
+        error_log(print_r($analyticsSummary, true));
+        if (!empty($analyticsSummary)) {
+            foreach ($analyticsSummary as $key => $metric) {
+                $name = $key == 'ga' ? 'Google Analytics' : ($key == 'gsc' ? 'Google Search Console' : ucfirst($key));
+                $value = $metric ?? '';
+                if ($name !== '' && $value !== '') {
+                    $rows[] = [
+                        'Metric' => $name,
+                        'Value' => json_encode($value),
+                    ];
+                }
             }
         }
 
-        $gsc = self::collectGscSummary($run);
-        if ($gsc['clicks'] !== null || $gsc['impressions'] !== null || $gsc['ctr'] !== null || $gsc['position'] !== null) {
-            $gscValue = implode(', ', array_filter([
-                $gsc['clicks'] !== null ? 'Clicks: ' . self::formatNumber($gsc['clicks']) : null,
-                $gsc['impressions'] !== null ? 'Impressions: ' . self::formatNumber($gsc['impressions']) : null,
-                $gsc['ctr'] !== null ? 'CTR: ' . self::formatPercent($gsc['ctr']) : null,
-                $gsc['position'] !== null ? 'Avg Pos: ' . self::formatNumber($gsc['position'], true) : null,
-            ]));
-            if ($gscValue !== '') {
-                $rows[] = ['Metric' => 'Google Search Console (30d)', 'Value' => $gscValue];
-            }
+        // aggregations
+        $aggregations = $run['audit']['aggregations'] ?? [];
+        // if not empty
+        if (!empty($aggregations)) {
+            $rows[] = [
+                'Metric' => 'Aggregations',
+                'Value' => json_encode($aggregations),
+            ];
         }
+
 
         $note = '';
         if (empty($rows)) {
@@ -226,6 +227,25 @@ class ReportMetrics
             'empty' => '',
             'note' => $note,
         ];
+    }
+
+    private static function getProjectTitle(string $projectSlug): string
+    {
+        if ($projectSlug === '') {
+            return '';
+        }
+
+        $args = [
+            'name' => $projectSlug,
+            'post_type' => 'bbseo_project',
+            'post_status' => 'publish',
+            'numberposts' => 1,
+        ];
+        $posts = get_posts($args);
+        if (empty($posts)) {
+            return '';
+        }
+        return $posts[0]->post_title;
     }
 
     private static function buildTopActions(array $context): array
@@ -911,6 +931,16 @@ class ReportMetrics
         }
         usort($issues, static fn ($a, $b) => self::issuePriority($b) <=> self::issuePriority($a));
         return array_slice($issues, 0, $limit);
+    }
+
+    private static function highlightIssues(array $run): array
+    {
+        $issues = $run['audit']['summary']['highlights'] ?? [];
+        error_log(print_r($issues, true));
+        if (empty($issues)) {
+            return [];
+        }
+        return array_slice($issues, 0, 5);
     }
 
     private static function issuePriority(array $issue): float

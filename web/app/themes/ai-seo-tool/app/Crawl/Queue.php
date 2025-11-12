@@ -48,6 +48,7 @@ class Queue
         $pdir = $dirs['pages'];
         $edir = $dirs['errors'];
         $idir = $dirs['images'];
+        $odir = $dirs['others'];
         $added = 0;
         foreach ($urls as $url) {
             $url = trim((string) $url);
@@ -60,7 +61,8 @@ class Queue
             $page = $pdir . '/' . $hash . '.json';
             $image = $idir . '/' . $hash . '.json';
             $error = $edir . '/' . $hash . '.json';
-            if (file_exists($todo) || file_exists($done) || file_exists($page) || file_exists($image) || file_exists($error)) {
+            $other = $odir . '/' . $hash . '.json';
+            if (file_exists($todo) || file_exists($done) || file_exists($page) || file_exists($image) || file_exists($error) || file_exists($other)) {
                 continue;
             }
             file_put_contents($todo, $url);

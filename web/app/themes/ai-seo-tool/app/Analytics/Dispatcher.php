@@ -1,50 +1,63 @@
 <?php
 namespace BBSEO\Analytics;
 
-use BBSEO\Helpers\Storage;
+use BBSEO\Analytics\GoogleAnalytics;
+use BBSEO\Analytics\SearchConsole;
 
 class Dispatcher
 {
-    public static function syncProject(string $project, string $runId): array
+    public static function syncProject(string $project, string $runId, array $providers = []): array
     {
         $results = [
             'ga' => null,
             'gsc' => null,
         ];
 
-        // Google Analytics
-        if (GoogleAnalytics::isConfigured($project)) {
-            try {
-                $payload = GoogleAnalytics::sync($project, $runId);
-                $results['ga'] = [
-                    'synced' => true,
-                    'metrics' => $payload['metrics'] ?? [],
-                    'range' => $payload['range'] ?? [],
-                ];
-            } catch (\Throwable $exception) {
-                $results['ga'] = [
-                    'synced' => false,
-                    'error' => $exception->getMessage(),
-                ];
-                self::recordError($project, 'ga', $exception->getMessage());
-            }
+        $targets = $providers;
+        if (empty($targets)) {
+            $targets = ['ga', 'gsc'];
         }
+        $targets = array_values(array_intersect(['ga', 'gsc'], $targets));
 
-        // Google Search Console
-        if (SearchConsole::isConfigured($project)) {
-            try {
-                $payload = SearchConsole::sync($project, $runId);
-                $results['gsc'] = [
-                    'synced' => true,
-                    'metrics' => $payload['metrics'] ?? [],
-                    'range' => $payload['range'] ?? [],
-                ];
-            } catch (\Throwable $exception) {
-                $results['gsc'] = [
-                    'synced' => false,
-                    'error' => $exception->getMessage(),
-                ];
-                self::recordError($project, 'gsc', $exception->getMessage());
+        foreach (array_unique($targets) as $target) {
+            if ($target === 'ga') {
+                if (!GoogleAnalytics::isConfigured($project)) {
+                    continue;
+                }
+                try {
+                    $payload = GoogleAnalytics::sync($project, $runId);
+                    $results['ga'] = [
+                        'synced' => true,
+                        'metrics' => $payload['metrics'] ?? [],
+                        'range' => $payload['range'] ?? [],
+                    ];
+                } catch (\Throwable $exception) {
+                    $results['ga'] = [
+                        'synced' => false,
+                        'error' => $exception->getMessage(),
+                    ];
+                    self::recordError($project, 'ga', $exception->getMessage());
+                }
+            }
+
+            if ($target === 'gsc') {
+                if (!SearchConsole::isConfigured($project)) {
+                    continue;
+                }
+                try {
+                    $payload = SearchConsole::sync($project, $runId);
+                    $results['gsc'] = [
+                        'synced' => true,
+                        'metrics' => $payload['metrics'] ?? [],
+                        'range' => $payload['range'] ?? [],
+                    ];
+                } catch (\Throwable $exception) {
+                    $results['gsc'] = [
+                        'synced' => false,
+                        'error' => $exception->getMessage(),
+                    ];
+                    self::recordError($project, 'gsc', $exception->getMessage());
+                }
             }
         }
 

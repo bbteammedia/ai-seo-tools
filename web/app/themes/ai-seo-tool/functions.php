@@ -44,6 +44,8 @@ add_action('init', [\BBSEO\Cron\Scheduler::class, 'init']);
 add_action('switch_theme', [\BBSEO\Cron\Scheduler::class, 'deactivate']);
 add_action('init', [\BBSEO\Cron\AnalyticsSync::class, 'init']);
 add_action('switch_theme', [\BBSEO\Cron\AnalyticsSync::class, 'deactivate']);
+add_action('init', [\BBSEO\Cron\AnalyticsQueueRunner::class, 'init']);
+add_action('switch_theme', [\BBSEO\Cron\AnalyticsQueueRunner::class, 'deactivate']);
 
 
 // Ensure storage base dir exists on theme load

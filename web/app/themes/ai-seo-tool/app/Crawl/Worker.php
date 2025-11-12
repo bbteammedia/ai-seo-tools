@@ -36,7 +36,10 @@ class Worker
                 'image/png',
                 'image/gif',
                 'image/webp',
-                'image/svg+xml'
+                'image/svg+xml',
+                // include js and css as well
+                'application/javascript',
+                'text/css'
             ])
             ->setUserAgent('bbseo-Bot/0.1');
 
@@ -109,17 +112,18 @@ class Worker
             $pfile = $dirs['pages'] . '/' . md5($url) . '.json';
             Storage::writeJson($pfile, $page);
         } elseif (self::isPdf($contentType)) {
-            $page['pdf_info'] = self::analyzePdf($body, $url);
-            $pfile = $dirs['pages'] . '/' . md5($url) . '.json';
-            Storage::writeJson($pfile, $page);
+            $page['other_info'] = self::analyzePdf($body, $url);
+            $ofile = $dirs['others'] . '/' . md5($url) . '.json';
+            Storage::writeJson($ofile, $page);
         } elseif (self::isImage($contentType)) {
             $page['image_info'] = self::analyzeImage($body, $url, $contentType);
             $ifile = $dirs['images'] . '/' . md5($url) . '.json';
             Storage::writeJson($ifile, $page);
         } else {
             // Other asset types can be handled here if needed
-            $pfile = $dirs['pages'] . '/' . md5($url) . '.json';
-            Storage::writeJson($pfile, $page);
+            $page['other_info'] = self::analyzeOther($body, $url, $contentType);
+            $ofile = $dirs['others'] . '/' . md5($url) . '.json';
+            Storage::writeJson($ofile, $page);
         }
 
         if (!empty($discovered)) {
@@ -406,7 +410,6 @@ class Worker
                 }
             }
 
-
             $alt = trim($node->attr('alt') ?? '');
             $src = self::absolutizeUrl($src, $url);
             $loading = strtolower((string) ($node->attr('loading') ?? ''));
@@ -435,6 +438,22 @@ class Worker
         ];
 
         $uniqueInternal = array_values(array_unique(array_merge($uniqueInternal, $imagelinks)));
+
+        // add css and js to unique internal URLs
+        $crawler->filter('link[rel="stylesheet"][href]')->each(function (DomCrawler $node) use (&$uniqueInternal, $url) {
+            $href = $node->attr('href') ?? '';
+            $hrefAbs = self::absolutizeUrl($href, $url);
+            if ($hrefAbs && !in_array($hrefAbs, $uniqueInternal, true)) {
+                $uniqueInternal[] = $hrefAbs;
+            }
+        });
+        $crawler->filter('script[src]')->each(function (DomCrawler $node) use (&$uniqueInternal, $url) {
+            $src = $node->attr('src') ?? '';
+            $srcAbs = self::absolutizeUrl($src, $url);
+            if ($srcAbs && !in_array($srcAbs, $uniqueInternal, true)) {
+                $uniqueInternal[] = $srcAbs;
+            }
+        });
 
         // --- Build summary text (for AI) ---------------------------------------
         $summary = sprintf(
@@ -916,5 +935,14 @@ class Worker
         ];
 
         return $formats[strtolower($contentType)] ?? 'unknown';
+    }
+
+    private static function analyzeOther(string $body, string $url, string $contentType): array
+    {
+        return [
+            'size_bytes' => strlen($body),
+            'size_kb' => round(strlen($body) / 1024, 2),
+            'note' => 'No specific analysis available for this content type.'
+        ];
     }
 }

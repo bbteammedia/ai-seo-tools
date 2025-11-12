@@ -675,7 +675,7 @@ class Runner
         if (!empty($issueCounts)) {
             $sorted = $issueCounts;
             arsort($sorted);
-            foreach (array_slice($sorted, 0, 3, true) as $label => $count) {
+            foreach (array_slice($sorted, 0, 10, true) as $label => $count) {
                 $highlights[] = sprintf('%s on %d pages', $label, $count);
             }
         }
@@ -692,7 +692,7 @@ class Runner
         }
 
         $highlights = array_values(array_unique(array_filter($highlights)));
-        return array_slice($highlights, 0, 5);
+        return array_slice($highlights, 0, 10);
     }
 
     /**

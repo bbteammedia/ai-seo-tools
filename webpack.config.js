@@ -114,5 +114,11 @@ export default {
             "@": src
         }
     },
+    watchOptions: {
+        ignored: [
+            "node_modules",
+            path.join(dist, "**")
+        ]
+    },
     stats: "minimal"
 };

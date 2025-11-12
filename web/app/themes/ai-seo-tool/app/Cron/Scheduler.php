@@ -1,13 +1,15 @@
 <?php
 namespace BBSEO\Cron;
 
+use BBSEO\Analytics\GoogleAnalytics;
+use BBSEO\Analytics\Queue as AnalyticsQueue;
+use BBSEO\Analytics\SearchConsole;
 use BBSEO\Helpers\RunId;
 use BBSEO\Helpers\Storage;
 use BBSEO\Crawl\Queue;
 use BBSEO\Crawl\Worker;
 use BBSEO\Audit\Runner as AuditRunner;
 use BBSEO\Report\Summary;
-use BBSEO\Analytics\Dispatcher as AnalyticsDispatcher;
 
 class Scheduler
 {
@@ -97,12 +99,8 @@ class Scheduler
             if ($queueEmpty && empty($meta['completed_at'])) {
                 $audit = AuditRunner::run($project, $latestRun);
                 $summary = Summary::build($project, $latestRun);
-                Summary::appendTimeseries($project, $summary);
-                $analyticsResult = AnalyticsDispatcher::syncProject($project, $latestRun);
-                if (self::shouldRefreshAudit($analyticsResult)) {
-                    // Ensure analytics data is reflected inside audit/report artifacts.
-                    $audit = AuditRunner::run($project, $latestRun);
-                }
+                Summary::appendTimeseries($project, $latestRun);
+                $meta['analytics_refresh_triggered'] = false;
                 $meta['completed_at'] = gmdate('c');
                 $meta['summary'] = [
                     'pages' => $summary['pages'],
@@ -112,6 +110,23 @@ class Scheduler
                     'status' => $summary['status'],
                 ];
                 Storage::writeJson($metaPath, $meta);
+
+                $providers = [];
+                if (GoogleAnalytics::isConfigured($project)) {
+                    $providers[] = 'ga';
+                }
+                if (SearchConsole::isConfigured($project)) {
+                    $providers[] = 'gsc';
+                }
+                if (!empty($providers)) {
+                    AnalyticsQueue::enqueue($project, $latestRun, $providers);
+                }
+
+                // remove .done files for storage cleanup
+                $qdir = $runDir . '/queue';
+                foreach (glob($qdir . '/*.done') as $f) {
+                    @unlink($f);
+                }
             } elseif ($processed) {
                 $meta['last_tick_at'] = gmdate('c');
                 Storage::writeJson($metaPath, $meta);
@@ -159,7 +174,7 @@ class Scheduler
         return $projects;
     }
 
-    private static function shouldRefreshAudit(array $analyticsResult): bool
+    public static function shouldRefreshAudit(array $analyticsResult): bool
     {
         foreach (['ga', 'gsc'] as $key) {
             if (!empty($analyticsResult[$key]['synced'])) {
