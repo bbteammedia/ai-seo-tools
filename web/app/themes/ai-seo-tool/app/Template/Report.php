@@ -82,6 +82,7 @@ class Report
     private static function renderPdf(\WP_Post $reportPost, string $file): void
     {
         ob_start();
+        $GLOBALS['bbseo_render_report_pdf'] = true;
         include $file;
         $html = ob_get_clean() ?: '';
 
@@ -90,6 +91,7 @@ class Report
         $options->set('isHtml5ParserEnabled', true);
 
         $dompdf = new Dompdf($options);
+        $dompdf->setBasePath(trailingslashit(get_theme_file_path('')));
         $dompdf->loadHtml($html, 'UTF-8');
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();

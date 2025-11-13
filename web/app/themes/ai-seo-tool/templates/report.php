@@ -9,6 +9,9 @@ if (!$report instanceof \WP_Post) {
     echo '<h1>Report not found</h1>';
     return;
 }
+$isPdf = !empty($GLOBALS['bbseo_render_report_pdf']);
+$publicCssPath = get_theme_file_path('assets/dist/css/public.css');
+$publicCssContent = is_file($publicCssPath) ? file_get_contents($publicCssPath) : '';
 
 $type = get_post_meta($report->ID, ReportPostType::META_TYPE, true) ?: 'general';
 $typeLabel = [
@@ -17,10 +20,10 @@ $typeLabel = [
     'technical' => 'Technical SEO',
 ][$type] ?? ucfirst($type);
 
-$project = get_post_meta($report->ID, ReportPostType::META_PROJECT, true) ?: '';
-$pageUrl = get_post_meta($report->ID, ReportPostType::META_PAGE, true) ?: '';
-$runsMeta = get_post_meta($report->ID, ReportPostType::META_RUNS, true) ?: '[]';
-$runs = json_decode($runsMeta, true) ?: [];
+ $project = get_post_meta($report->ID, ReportPostType::META_PROJECT, true) ?: '';
+ $pageUrl = get_post_meta($report->ID, ReportPostType::META_PAGE, true) ?: '';
+ $runsMeta = get_post_meta($report->ID, ReportPostType::META_RUNS, true) ?: '[]';
+ $runs = json_decode($runsMeta, true) ?: [];
 
 $sectionsRaw = get_post_meta($report->ID, Sections::META_SECTIONS, true) ?: '[]';
 $sections = maybe_unserialize($sectionsRaw);
@@ -55,9 +58,9 @@ foreach ($sections as $sectionItem) {
     $sectionsByType[$sectionType] = $sectionItem;
 }
 
-$snapshotMeta = get_post_meta($report->ID, ReportPostType::META_SNAPSHOT, true) ?: '';
-$snapshot = json_decode($snapshotMeta, true);
-$snapshot = is_array($snapshot) ? $snapshot : [];
+ $snapshotMeta = get_post_meta($report->ID, ReportPostType::META_SNAPSHOT, true) ?: '';
+ $snapshot = json_decode($snapshotMeta, true);
+ $snapshot = is_array($snapshot) ? $snapshot : [];
 
 
 $generatedAt = get_the_modified_date('F j, Y', $report);
@@ -84,12 +87,12 @@ $overviewMetrics = [
     ['label' => 'Visibility Growth', 'value' => '+14%'],
 ];
 $dummyText = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed non risus.';
-$sectionStyles = [
-    'border border-slate-200 bg-white shadow-sm',
-    'border border-slate-300 bg-slate-900 text-white shadow-xl',
-    'border border-slate-100 bg-gradient-to-br from-slate-50 to-white shadow-lg',
-    'border border-slate-200 bg-white/80 shadow',
-];
+ $sectionStyles = [
+     'border border-slate-200 bg-white shadow-sm',
+     'border border-slate-300 bg-slate-900 text-white shadow-xl',
+     'border border-slate-100 bg-gradient-to-br from-slate-50 to-white shadow-lg',
+     'border border-slate-200 bg-white/80 shadow',
+ ];
 $bodyParagraphs = [
     'This section highlights the most critical findings, offering a narrative that blends context with actionable insight as we prepare the narrative for stakeholders and clients.',
     'The content reflects both technical signals and strategic priorities so it can be mapped back to recommended next steps that the team can run with right away.',
@@ -136,7 +139,13 @@ $metricsBySection = [
 <head>
     <meta charset="<?php bloginfo('charset'); ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <?php wp_head(); ?>
+    <?php if ($isPdf): ?>
+        <?php if ($publicCssContent): ?>
+            <style><?php echo $publicCssContent; ?></style>
+        <?php endif; ?>
+    <?php else: ?>
+        <?php wp_head(); ?>
+    <?php endif; ?>
 </head>
 <body class="bg-slate-50 text-slate-900 print:bg-white print:text-black">
 <?php wp_body_open(); ?>
@@ -275,6 +284,8 @@ $metricsBySection = [
             </footer>
         </div>
     </main>
-<?php wp_footer(); ?>
+<?php if (!$isPdf): ?>
+    <?php wp_footer(); ?>
+<?php endif; ?>
 </body>
 </html>
