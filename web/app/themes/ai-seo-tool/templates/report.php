@@ -13,6 +13,28 @@ $isPdf = !empty($GLOBALS['bbseo_render_report_pdf']);
 $publicCssPath = get_theme_file_path('assets/dist/css/public.css');
 $publicCssContent = is_file($publicCssPath) ? file_get_contents($publicCssPath) : '';
 
+$isPrivate = get_post_meta($report->ID, ReportPostType::META_PRIVATE, true) === '1';
+$passwordHash = get_post_meta($report->ID, ReportPostType::META_PASSWORD_HASH, true) ?: '';
+$passwordNonce = $_POST['bbseo_report_password_nonce'] ?? '';
+$passwordAttempt = $_POST['bbseo_report_password'] ?? '';
+$passwordAttempt = is_string($passwordAttempt) ? sanitize_text_field($passwordAttempt) : '';
+$cookieKey = 'bbseo_report_access_' . $report->ID;
+$cookieUnlocked = isset($_COOKIE[$cookieKey]) && $_COOKIE[$cookieKey] === '1';
+$passwordGranted = !$isPrivate;
+$passwordError = '';
+
+if ($isPrivate && !$passwordGranted) {
+    if ($cookieUnlocked && $passwordHash) {
+        $passwordGranted = true;
+    } elseif ($passwordAttempt !== '' && wp_verify_nonce($passwordNonce, 'bbseo_report_password') && $passwordHash !== '' && wp_check_password($passwordAttempt, $passwordHash)) {
+        $passwordGranted = true;
+        $cookiePath = defined('COOKIEPATH') ? COOKIEPATH : '/';
+        setcookie($cookieKey, '1', time() + DAY_IN_SECONDS, $cookiePath);
+    } elseif ($passwordAttempt !== '') {
+        $passwordError = 'Incorrect password. Please try again.';
+    }
+}
+
 $type = get_post_meta($report->ID, ReportPostType::META_TYPE, true) ?: 'general';
 $typeLabel = [
     'general' => 'Website General SEO Audit',
@@ -193,6 +215,29 @@ $metricsBySection = [
                     </div>
                 <?php endforeach; ?>
             </section>
+
+            <?php if ($isPrivate && !$passwordGranted): ?>
+                <section class="rounded-3xl border border-slate-200 bg-white/90 p-8 text-center shadow-md print:bg-white print:border-slate-200">
+                    <p class="text-sm uppercase tracking-[0.4em] text-slate-500">Private report</p>
+                    <h2 class="mt-4 text-2xl font-semibold text-slate-900">Enter password to continue</h2>
+                    <?php if ($passwordError): ?>
+                        <p class="mt-2 text-sm text-red-600"><?php echo esc_html($passwordError); ?></p>
+                    <?php endif; ?>
+                    <form method="post" class="mt-6 space-y-3 max-w-sm mx-auto">
+                        <?php wp_nonce_field('bbseo_report_password', 'bbseo_report_password_nonce'); ?>
+                        <input
+                            type="password"
+                            name="bbseo_report_password"
+                            class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
+                            placeholder="Report password"
+                            autocomplete="off"
+                        />
+                        <button type="submit" class="w-full rounded-xl bg-slate-900 px-4 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-white">Unlock report</button>
+                    </form>
+                    <p class="mt-4 text-xs text-slate-500">You must enter the password provided by the report owner to view the content.</p>
+                </section>
+                <?php return; ?>
+            <?php endif; ?>
 
             <section class="grid gap-6 lg:grid-cols-3">
                 <div class="rounded-3xl bg-white p-6 border border-slate-200 shadow-lg flex flex-col gap-4 print:bg-white print:shadow-none print:border-slate-200">

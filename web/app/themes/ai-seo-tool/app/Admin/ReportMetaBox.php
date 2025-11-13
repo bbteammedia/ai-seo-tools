@@ -33,6 +33,7 @@ class ReportMetaBox
         $project = get_post_meta($post->ID, Report::META_PROJECT, true) ?: '';
         $page = get_post_meta($post->ID, Report::META_PAGE, true) ?: '';
         $runs = json_decode(get_post_meta($post->ID, Report::META_RUNS, true) ?: '[]', true) ?: [];
+        $isPrivate = get_post_meta($post->ID, Report::META_PRIVATE, true) === '1';
 
         $projects = [];
         $projectBase = Storage::baseDir();
@@ -91,6 +92,20 @@ class ReportMetaBox
                 <button type="button" class="button button-secondary" id="bbseo-refresh-data">Refresh Data</button>
                 <p class="description" id="bbseo-refresh-status">Pulls metrics from storage based on the selected project, runs, and report type.</p>
             </div>
+            <div class="full">
+                <label><strong>Make Report Private</strong></label><br/>
+                <label class="description">
+                    <input type="checkbox" name="bbseo_private" value="1" <?php checked($isPrivate); ?>>
+                    Require a password to view the report
+                </label>
+                <input
+                    type="password"
+                    name="bbseo_report_password"
+                    class="widefat"
+                    placeholder="Enter password to protect this report"
+                />
+                <p class="description">Keep this empty to preserve the existing password when toggling privacy.</p>
+            </div>
             <input type="hidden" id="bbseo_project_runs_nonce" value="<?php echo esc_attr(wp_create_nonce('bbseo_project_runs')); ?>" />
         </div>
         <input type="hidden" name="bbseo_refresh_sections_nonce" value="<?php echo esc_attr(wp_create_nonce('bbseo_refresh_sections_' . $post->ID)); ?>" />
@@ -115,6 +130,23 @@ class ReportMetaBox
             ? array_values(array_filter(array_map('sanitize_text_field', $runsRaw)))
             : [];
         update_post_meta($postId, Report::META_RUNS, wp_json_encode($runs));
+
+        $isPrivate = !empty($_POST['bbseo_private']) ? '1' : '0';
+        update_post_meta($postId, Report::META_PRIVATE, $isPrivate);
+
+        $passwordInput = sanitize_text_field($_POST['bbseo_report_password'] ?? '');
+        $passwordHashKey = Report::META_PASSWORD_HASH;
+        $existingHash = get_post_meta($postId, $passwordHashKey, true) ?: '';
+
+        if ($isPrivate === '1') {
+            if ($passwordInput !== '') {
+                update_post_meta($postId, $passwordHashKey, wp_hash_password($passwordInput));
+            } elseif ($existingHash === '') {
+                update_post_meta($postId, $passwordHashKey, wp_hash_password(wp_generate_password()));
+            }
+        } else {
+            delete_post_meta($postId, $passwordHashKey);
+        }
 
     }
 

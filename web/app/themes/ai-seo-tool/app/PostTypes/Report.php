@@ -14,6 +14,8 @@ class Report
     public const META_META_RECO = '_bbseo_meta_recos';
     public const META_TECH = '_bbseo_tech_findings';
     public const META_SNAPSHOT = '_bbseo_snapshot';
+    public const META_PRIVATE = '_bbseo_private';
+    public const META_PASSWORD_HASH = '_bbseo_password_hash';
 
     public static function registerPostType(): void
     {
@@ -44,6 +46,8 @@ class Report
             self::META_META_RECO,
             self::META_TECH,
             self::META_SNAPSHOT,
+            self::META_PRIVATE,
+            self::META_PASSWORD_HASH,
         ];
 
         foreach ($metas as $metaKey) {
