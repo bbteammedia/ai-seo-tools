@@ -81,14 +81,27 @@ class ReportSectionsUI
         }
 
         ?>
-        <div class="bbseo-sections">
+        <div class="bbseo-sections mt-5 space-y-4">
             <?php if (!$hasData): ?>
-                <p class="no-data">Connect a project and run a crawl to populate the metric tables. Sections remain editable while data is loading.</p>
+                <p class="no-data italic text-sm text-slate-500">Connect a project and run a crawl to populate the metric tables. Sections remain editable while data is loading.</p>
             <?php endif; ?>
-            <div class="toolbar">
-                <button type="button" class="button button-secondary" id="bbseo-ai-all">Generate AI for All Sections</button>
+            <div class="toolbar flex justify-end">
+                <button
+                    type="button"
+                    class=" inline-flex items-center gap-2 rounded-full border border-transparent bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-lg transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                    id="bbseo-ai-all"
+                    title="Generate AI for All Sections"
+                    aria-label="Generate AI for All Sections"
+                >
+                    <span class="flex items-center justify-center rounded-full bg-white p-1 text-[10px] font-bold text-slate-900">
+                        <svg viewBox="0 0 16 16" class="h-4 w-4 stroke-current" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M6 2l4 4-4 4h6l-4 4"/>
+                        </svg>
+                    </span>
+                    <span class="screen-reader-text">Generate AI for All Sections</span>
+                </button>
             </div>
-            <div id="bbseo-sections-list">
+            <div id="bbseo-sections-list" class="space-y-4">
                 <?php foreach ($sections as $idx => $sec): ?>
                     <?php self::renderSectionMetaTemplate($sec['type'], $idx, $sec); ?>
                 <?php endforeach; ?>
@@ -453,47 +466,99 @@ class ReportSectionsUI
      */
     private static function renderMetricsTable(array $table): void
     {
-        $rows = $table['rows'] ?? [];
-        $headers = $table['headers'] ?? [];
+        $headers = is_array($table['headers'] ?? null) ? array_values($table['headers']) : [];
+        $rows = is_array($table['rows'] ?? null) ? $table['rows'] : [];
         $emptyMessage = trim((string) ($table['empty'] ?? ''));
         $note = trim((string) ($table['note'] ?? ''));
 
         if (!$headers && $rows) {
-            $headers = array_keys(reset($rows));
-        }
-
-        if (!$rows && $emptyMessage === '' && $note === '') {
-            return;
-        }
-
-        echo '<div class="metrics-table-wrap">';
-
-        if ($rows) {
-            echo '<table class="metrics-table"><thead><tr>';
-            foreach ($headers as $header) {
-                echo '<th>' . esc_html((string) $header) . '</th>';
+            $firstRow = reset($rows);
+            if (is_array($firstRow)) {
+                $headers = array_values(array_keys($firstRow));
             }
-            echo '</tr></thead><tbody>';
-            foreach ($rows as $row) {
-                echo '<tr>';
-                foreach ($headers as $header) {
-                    $cell = $row[$header] ?? '';
-                    echo '<td>' . esc_html((string) $cell) . '</td>';
-                }
-                echo '</tr>';
+        }
+
+        if (!$headers) {
+            $headers = ['Metric', 'Value'];
+        }
+
+        $rowsForDisplay = [];
+        foreach ($rows as $row) {
+            if (is_array($row)) {
+                $rowsForDisplay[] = $row;
             }
-            echo '</tbody></table>';
         }
 
-        if (!$rows && $emptyMessage !== '') {
-            echo '<p class="metrics-empty">' . esc_html($emptyMessage) . '</p>';
-        }
-
-        if ($note !== '') {
-            echo '<p class="metrics-note">' . esc_html($note) . '</p>';
-        }
-
-        echo '</div>';
+        ?>
+        <div class="metrics-editor border border-dashed border-slate-300 rounded-2xl p-3 bg-slate-50 flex flex-col gap-3">
+            <div class="metrics-editor__headers flex flex-col gap-2">
+                <div class="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    <span class="metrics-editor__label">Columns</span>
+                    <button
+                        type="button"
+                        class="metrics-editor__add-header inline-flex items-center justify-center rounded-full border border-slate-200 bg-white p-2 text-[11px] font-medium text-slate-700 shadow-sm no-underline focus:outline-none focus:ring-2 focus:ring-slate-200"
+                        title="Add column"
+                        aria-label="Add column"
+                    >
+                        <span class="dashicons dashicons-plus text-slate-700 text-base" aria-hidden="true"></span>
+                        <span class="screen-reader-text">Add column</span>
+                    </button>
+                </div>
+                <div class="metrics-editor__header-list flex flex-wrap gap-2">
+                    <?php foreach ($headers as $header): ?>
+                        <div class="metrics-editor__header flex items-center gap-1 border border-slate-200 rounded-full px-2 py-1 bg-white shadow-sm">
+                            <input type="text" class="metrics-editor__header-input bg-transparent text-[12px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300" value="<?php echo esc_attr($header); ?>" placeholder="Column label">
+                            <button type="button" class="metrics-editor__remove-header inline-flex items-center justify-center text-slate-400 hover:text-slate-600 focus:outline-non no-underline" aria-label="Remove column">
+                                <span class="dashicons dashicons-trash" aria-hidden="true"></span>
+                                <span class="sr-only">Remove column</span>
+                            </button>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <div class="metrics-editor__rows flex flex-col gap-2">
+                <div class="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    <span class="metrics-editor__label">Rows</span>
+                    <button
+                        type="button"
+                        class="metrics-editor__add-row inline-flex items-center justify-center rounded-full border border-slate-200 bg-white p-2 text-[11px] font-medium text-slate-700 shadow-sm no-underline focus:outline-none focus:ring-2 focus:ring-slate-200"
+                        title="Add row"
+                        aria-label="Add row"
+                    >
+                        <span class="dashicons dashicons-plus text-slate-700 text-base" aria-hidden="true"></span>
+                        <span class="screen-reader-text">Add row</span>
+                    </button>
+                </div>
+                <p class="metrics-editor__empty-state text-xs text-slate-500 italic" data-metrics-empty-state <?php if (!empty($rowsForDisplay)): ?>hidden<?php endif; ?>>
+                    No rows yet. Add a row to record metrics.
+                </p>
+                <?php foreach ($rowsForDisplay as $row): ?>
+                    <div class="metrics-editor__row flex flex-wrap items-start gap-2 border border-slate-200 rounded-2xl bg-white px-3 py-2 shadow-sm shadow-slate-50">
+                        <?php foreach ($headers as $header): ?>
+                            <div class="metrics-editor__cell flex-1 min-w-[150px]">
+                                <input type="text" class="metrics-editor__cell-input block w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:outline-none" value="<?php echo esc_attr($row[$header] ?? ''); ?>" placeholder="<?php echo esc_attr($header ?: 'Value'); ?>">
+                            </div>
+                        <?php endforeach; ?>
+                        <button type="button" class="metrics-editor__remove-row inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 focus:outline-none">
+                            <span class="dashicons dashicons-trash" aria-hidden="true"></span>
+                            <span class="screen-reader-text">Remove row</span>
+                        </button>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+            
+            <div class="metrics-editor__notes flex flex-col gap-3 text-sm text-slate-600">
+                <label class="flex flex-col gap-1 text-[13px] font-medium text-slate-600">
+                    <span class="font-semibold text-xs text-slate-500 uppercase tracking-[0.1em]">Empty state message</span>
+                    <input type="text" class="metrics-empty-input border border-slate-200 rounded-md px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-slate-200 focus:outline-none" value="<?php echo esc_attr($emptyMessage); ?>" placeholder="Shown when rows are empty">
+                </label>
+                <label class="flex flex-col gap-1 text-[13px] font-medium text-slate-600">
+                    <span class="font-semibold text-xs text-slate-500 uppercase tracking-[0.1em]">Note</span>
+                    <textarea class="metrics-note-input border border-slate-200 rounded-md px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-slate-200 focus:outline-none" rows="2" placeholder="Optional context for this table"><?php echo esc_textarea($note); ?></textarea>
+                </label>
+            </div>
+        </div>
+        <?php
     }
 
     public static function save(int $postId, \WP_Post $post, bool $update): void

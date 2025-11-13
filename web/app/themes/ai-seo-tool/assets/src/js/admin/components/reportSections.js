@@ -44,6 +44,17 @@ class SectionsController {
 		return el && typeof el.value !== "undefined" ? el.value : fallback;
 	}
 
+	getSelectedRunsValue(form) {
+		const opts = form ? form.querySelectorAll('[name="bbseo_runs[]"] option:checked') : [];
+		var runs = [];
+		Array.prototype.forEach.call(opts, function (opt) {
+			if (opt.value) {
+				runs.push(opt.value);
+			}
+		});
+		return JSON.stringify(runs);
+	}
+
 	wpAjaxPost(data) {
 		var url =
 			typeof ajaxurl !== "undefined" ? ajaxurl : "/wp-admin/admin-ajax.php";
@@ -95,9 +106,9 @@ class SectionsController {
 		var type = this.getFormValue(form, '[name="bbseo_report_type"]', "general");
 		var project = this.getFormValue(form, '[name="bbseo_project_slug"]', "");
 		var page = this.getFormValue(form, '[name="bbseo_page"]', "");
-		var runs = this.getFormValue(form, '[name="bbseo_runs"]', "[]");
+		var runs = this.getSelectedRunsValue(form);
 
-		sectionEl.classList.add("loading");
+		sectionEl.classList.add("opacity-60", "pointer-events-none");
 
 		var payload = {
 			action: "bbseo_sections_generate",
@@ -125,7 +136,7 @@ class SectionsController {
 				}
 			})
 			.finally(function () {
-				sectionEl.classList.remove("loading");
+				sectionEl.classList.remove("opacity-60", "pointer-events-none");
 			});
 	}
 

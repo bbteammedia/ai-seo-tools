@@ -46,6 +46,19 @@ export default {
                 }
             },
             {
+                test: /\.css$/i,
+                use: [
+                    MiniCssExtractPlugin.loader,
+                    {
+                        loader: "css-loader",
+                        options: {
+                            importLoaders: 1,
+                            url: true
+                        }
+                    }
+                ]
+            },
+            {
                 test: /\.(scss|sass)$/i,
                 use: [
                     MiniCssExtractPlugin.loader,

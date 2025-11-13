@@ -1,14 +1,23 @@
+import Choices from "choices.js";
+import "choices.js/public/assets/styles/choices.min.css";
+
 class Report {
 	constructor() {
 		this.state = {
 			nonce: this.getHiddenValue("bbseo_refresh_sections_nonce"),
 			postId: this.getHiddenValue("bbseo_post_id"),
+			runListNonce:
+				document.getElementById("bbseo_project_runs_nonce")?.value || "",
 		};
 
 		this.refreshBtn = document.getElementById("bbseo-refresh-data");
 		this.statusEl = document.getElementById("bbseo-refresh-status");
 		this.typeEl = document.getElementById("bbseo_report_type");
 		this.perPageRow = document.getElementById("bbseo_per_page_row");
+		this.projectEl = document.getElementById("bbseo_project_slug");
+		this.runsSelect = document.querySelector('[name="bbseo_runs[]"]');
+		this.choices = null;
+		this.initialSelectedRuns = [];
 
 		this.init();
 	}
@@ -44,6 +53,84 @@ class Report {
 			this.typeEl.value === "per_page" ? "" : "none";
 	}
 
+	populateRuns(runs = [], selected = []) {
+		if (!this.runsSelect) {
+			return;
+		}
+
+		if (!this.choices) {
+			this.initRunsChoices();
+		}
+
+		if (!this.choices) {
+			return;
+		}
+
+		const placeholderText = this.projectEl?.value
+			? "No runs found for this project"
+			: "Select a project to list runs";
+
+		const choiceData =
+			runs.length > 0
+				? runs.map((run) => ({
+						value: run.run,
+						label: run.label || run.run,
+				  }))
+				: [
+						{
+							value: "",
+							label: placeholderText,
+							disabled: true,
+							selected: true,
+							placeholder: true,
+						},
+				  ];
+
+		this.choices.setChoices(choiceData, "value", "label", true);
+
+		if (runs.length) {
+			const values = Array.isArray(selected) ? selected : [];
+			values.forEach((value) => {
+				if (value) {
+					this.choices.setChoiceByValue(value);
+				}
+			});
+		}
+	}
+
+	async loadRuns() {
+		if (!this.projectEl || !this.runsSelect) {
+			return;
+		}
+
+		const project = this.projectEl.value;
+		if (!project) {
+			this.populateRuns([], []);
+			return;
+		}
+
+		this.runsSelect.disabled = true;
+
+		try {
+			const currentSelection = this.getCurrentRunSelection();
+			const payload = {
+				action: "bbseo_project_runs",
+				project,
+				_wpnonce: this.state.runListNonce,
+			};
+			const response = await this.wpAjaxPost(payload);
+			if (response?.json?.success) {
+				this.populateRuns(response.json.data || [], currentSelection);
+			} else {
+				this.populateRuns([], currentSelection);
+			}
+		} catch (error) {
+			this.populateRuns([], []);
+		} finally {
+			this.runsSelect.disabled = false;
+		}
+	}
+
 	async wpAjaxPost(data) {
 		const url =
 			typeof ajaxurl !== "undefined" ? ajaxurl : "/wp-admin/admin-ajax.php";
@@ -76,6 +163,15 @@ class Report {
 
 	// --- Core -----------------------------------------------------------------
 
+	getSelectedRunsValue(form) {
+		if (!form) return "[]";
+		const opts = form.querySelectorAll('[name="bbseo_runs[]"] option:checked');
+		const values = Array.from(opts)
+			.map((opt) => opt.value)
+			.filter((val) => val);
+		return JSON.stringify(values);
+	}
+
 	async handleRefresh(e) {
 		e.preventDefault();
 
@@ -92,8 +188,8 @@ class Report {
 			form.querySelector('[name="bbseo_report_type"]')?.value || "general";
 		const project =
 			form.querySelector('[name="bbseo_project_slug"]')?.value || "";
-		const page = form.querySelector('[name="bbseo_page"]')?.value || "";
-		const runs = form.querySelector('[name="bbseo_runs"]')?.value || "[]";
+			const page = form.querySelector('[name="bbseo_page"]')?.value || "";
+			const runs = this.getSelectedRunsValue(form);
 
 		if (!project) {
 			this.setStatus("Select a project before refreshing data.", true);
@@ -155,6 +251,10 @@ class Report {
 			this.togglePage();
 		}
 
+		if (this.projectEl) {
+			this.projectEl.addEventListener("change", this.loadRuns.bind(this));
+		}
+
 		if (this.refreshBtn) {
 			this.refreshBtn.addEventListener("click", this.handleRefresh.bind(this));
 		}
@@ -162,6 +262,57 @@ class Report {
 
 	init() {
 		this.bindEvents();
+		this.initRunsChoices();
+		this.loadRuns();
+	}
+
+	initRunsChoices() {
+		if (!this.runsSelect) {
+			return;
+		}
+
+		this.initialSelectedRuns = this.parseInitialRuns();
+		if (this.choices) {
+			this.choices.destroy();
+		}
+
+		this.choices = new Choices(this.runsSelect, {
+			removeItemButton: true,
+			searchEnabled: true,
+			shouldSort: false,
+			placeholder: true,
+			placeholderValue: "Search runs…",
+			duplicateItemsAllowed: false,
+			searchResultLimit: 10,
+			itemSelectText: "",
+		});
+	}
+
+	getCurrentRunSelection() {
+		if (this.choices) {
+			const values = this.choices.getValue(true);
+			if (Array.isArray(values)) {
+				return values.filter(Boolean);
+			}
+			return values ? [values] : [];
+		}
+		return this.initialSelectedRuns;
+	}
+
+	parseInitialRuns() {
+		if (!this.runsSelect) {
+			return [];
+		}
+		const attr = this.runsSelect.dataset.initialRuns;
+		if (!attr) {
+			return [];
+		}
+		try {
+			const parsed = JSON.parse(attr);
+			return Array.isArray(parsed) ? parsed : [];
+		} catch {
+			return [];
+		}
 	}
 }
 

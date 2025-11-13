@@ -14,31 +14,48 @@
         $metricsJson = '[]';
     }
 ?>
-<div class="section" data-id="<?php echo esc_attr($section['id']); ?>" data-editor="<?php echo esc_attr($editorId); ?>">
-    <div class="head">
-        <div class="type">
+<div class="section border border-slate-200 rounded-2xl bg-white p-4 shadow-sm transition-all duration-200" data-id="<?php echo esc_attr($section['id']); ?>" data-editor="<?php echo esc_attr($editorId); ?>">
+    <div class="head flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div class="type flex items-center gap-2 text-lg font-semibold text-slate-900">
             <?php echo esc_html($label); ?>
         </div>
-        <div class="controls">
-            <label class="order">
-                <span>Order</span>
-                <input type="number" min="0" max="15" step="1" name="bbseo_sections[<?php echo esc_attr($index); ?>][order]" value="<?php echo esc_attr($orderValue); ?>">
+        <div class="controls flex flex-wrap items-center gap-3 text-sm text-slate-600">
+            <label class="order flex items-center gap-2">
+                <span class="text-[10px] uppercase tracking-[0.3em] text-slate-500">Order</span>
+                <input
+                    type="number"
+                    min="0"
+                    max="15"
+                    step="1"
+                    name="bbseo_sections[<?php echo esc_attr($index); ?>][order]"
+                    value="<?php echo esc_attr($orderValue); ?>"
+                    class="w-16 rounded-lg border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:outline-none"
+                >
             </label>
-            <label class="visibility">
+            <label class="visibility flex items-center gap-2 text-xs font-medium text-slate-600">
                 <input type="hidden" name="bbseo_sections[<?php echo esc_attr($index); ?>][visible]" value="0">
-                <input type="checkbox" name="bbseo_sections[<?php echo esc_attr($index); ?>][visible]" value="1" <?php checked($visible); ?>>
+                <input type="checkbox" name="bbseo_sections[<?php echo esc_attr($index); ?>][visible]" value="1" <?php checked($visible); ?> class="h-4 w-4 rounded text-slate-900">
                 Show section
             </label>
-            <button type="button" class="button bbseo-ai-one" data-id="<?php echo esc_attr($section['id']); ?>">AI</button>
+            <button
+                type="button"
+                class="bbseo-ai-one inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.3em] text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                data-id="<?php echo esc_attr($section['id']); ?>"
+                title="Generate AI"
+                aria-label="Generate AI"
+            >
+                <span class="dashicons dashicons-lightbulb"></span>
+                <span class="screen-reader-text">Generate AI</span>
+            </button>
         </div>
     </div>
     <input type="hidden" name="bbseo_sections[<?php echo esc_attr($index); ?>][metrics_json]" value="<?php echo esc_attr($metricsJson); ?>">
     <?php if ($hasMetricsContent): ?>
-        <div class="metrics">
+        <div class="metrics mt-3" data-section-index="<?php echo esc_attr($index); ?>">
             <?php self::renderMetricsTable($metrics); ?>
         </div>
     <?php endif; ?>
-    <div class="editor">
+    <div class="editor mt-3">
         <?php
         wp_editor(
             $section['body'] ?? '',
@@ -52,10 +69,10 @@
         );
         ?>
     </div>
-    <div class="reco">
-        <label><strong>Additional Recommendations (one per line)</strong></label>
-        <textarea name="bbseo_sections[<?php echo esc_attr($index); ?>][reco_raw]" rows="6"><?php echo esc_textarea(implode("\n", $recoList)); ?></textarea>
-        <small>Additional Recommendations for AI context.</small>
+    <div class="reco mt-3 flex flex-col gap-2 text-sm text-slate-600">
+        <label class="text-sm font-medium text-slate-700"><strong>Additional Recommendations (one per line)</strong></label>
+        <textarea name="bbseo_sections[<?php echo esc_attr($index); ?>][reco_raw]" rows="6" class="w-full min-h-[90px] rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:outline-none"><?php echo esc_textarea(implode("\n", $recoList)); ?></textarea>
+        <small class="text-xs italic text-slate-500">Additional Recommendations for AI context.</small>
     </div>
     <input type="hidden" name="bbseo_sections[<?php echo esc_attr($index); ?>][title]" value="<?php echo esc_attr($section['title']); ?>">
     <input type="hidden" name="bbseo_sections[<?php echo esc_attr($index); ?>][id]" value="<?php echo esc_attr($section['id']); ?>">

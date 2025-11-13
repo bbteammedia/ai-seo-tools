@@ -10,6 +10,7 @@ class ReportMetaBox
     {
         add_action('add_meta_boxes', [self::class, 'add']);
         add_action('save_post_' . Report::POST_TYPE, [self::class, 'save'], 10, 3);
+        add_action('wp_ajax_bbseo_project_runs', [self::class, 'ajaxProjectRuns']);
     }
 
     public static function add(): void
@@ -54,11 +55,11 @@ class ReportMetaBox
                 <label><strong>Project</strong></label><br/>
                 <select name="bbseo_project_slug" id="bbseo_project_slug">
                     <option value="">- select -</option>
-                    <?php foreach ($projects as $p): ?>
-                        <option value="<?php echo esc_attr($p); ?>" <?php selected($project, $p); ?>><?php echo esc_html($p); ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
+            <?php foreach ($projects as $p): ?>
+                <option value="<?php echo esc_attr($p); ?>" <?php selected($project, $p); ?>><?php echo esc_html($p); ?></option>
+            <?php endforeach; ?>
+        </select>
+    </div>
 
             <div class="full" id="bbseo_per_page_row" style="<?php echo $type === 'per_page' ? '' : 'display:none'; ?>">
                 <label><strong>Page URL</strong></label><br/>
@@ -68,11 +69,29 @@ class ReportMetaBox
 
             <div class="full">
                 <label><strong>Runs (for compare)</strong></label>
-                <input type="text" class="widefat" name="bbseo_runs" value="<?php echo esc_attr(wp_json_encode($runs)); ?>" placeholder='["RUN_ID_A","RUN_ID_B"]' />
-                <p class="description">Leave empty to use the latest run. For General/Technical you can add multiple run IDs to compare.</p>
+                <select name="bbseo_runs[]" id="bbseo_runs" class="widefat" multiple size="5">
+                    <?php if (!$project): ?>
+                        <option disabled value="">Select a project first…</option>
+                    <?php else: ?>
+                        <?php $projectRuns = self::projectRuns($project); ?>
+                        <?php if (empty($projectRuns)): ?>
+                            <option disabled value="">No runs found for this project</option>
+                        <?php endif; ?>
+                        <?php foreach ($projectRuns as $runInfo): ?>
+                            <option
+                                value="<?php echo esc_attr($runInfo['run']); ?>"
+                                <?php echo in_array($runInfo['run'], $runs, true) ? 'selected' : ''; ?>
+                            >
+                                <?php echo esc_html($runInfo['label']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </select>
+                <p class="description">Leave empty to use the latest run; select one or more entries to compare. Hold Ctrl/Cmd to multiselect.</p>
                 <button type="button" class="button button-secondary" id="bbseo-refresh-data">Refresh Data</button>
                 <p class="description" id="bbseo-refresh-status">Pulls metrics from storage based on the selected project, runs, and report type.</p>
             </div>
+            <input type="hidden" id="bbseo_project_runs_nonce" value="<?php echo esc_attr(wp_create_nonce('bbseo_project_runs')); ?>" />
         </div>
         <input type="hidden" name="bbseo_refresh_sections_nonce" value="<?php echo esc_attr(wp_create_nonce('bbseo_refresh_sections_' . $post->ID)); ?>" />
         <input type="hidden" name="bbseo_post_id" value="<?php echo (int) $post->ID; ?>" />
@@ -88,9 +107,68 @@ class ReportMetaBox
         update_post_meta($postId, Report::META_PROJECT, sanitize_text_field($_POST['bbseo_project_slug'] ?? ''));
         update_post_meta($postId, Report::META_PAGE, esc_url_raw($_POST['bbseo_page'] ?? ''));
 
-        $runs = json_decode(stripslashes($_POST['bbseo_runs'] ?? '[]'), true);
-        $runs = is_array($runs) ? array_values(array_map('sanitize_text_field', $runs)) : [];
+        $runsRaw = $_POST['bbseo_runs'] ?? [];
+        if (!is_array($runsRaw)) {
+            $runsRaw = json_decode(stripslashes($runsRaw), true);
+        }
+        $runs = is_array($runsRaw)
+            ? array_values(array_filter(array_map('sanitize_text_field', $runsRaw)))
+            : [];
         update_post_meta($postId, Report::META_RUNS, wp_json_encode($runs));
 
+    }
+
+    public static function ajaxProjectRuns(): void
+    {
+        if (!current_user_can('edit_posts')) {
+            wp_send_json_error(['msg' => 'permission_denied']);
+        }
+
+        check_ajax_referer('bbseo_project_runs', '_wpnonce');
+
+        $project = sanitize_text_field($_POST['project'] ?? '');
+        if ($project === '') {
+            wp_send_json_error(['msg' => 'Select a project before loading runs.']);
+        }
+
+        $runs = self::projectRuns($project);
+        wp_send_json_success($runs);
+    }
+
+    /**
+     * @return array<int,array<string,string>>
+     */
+    private static function projectRuns(string $project): array
+    {
+        $slug = sanitize_title($project);
+        if ($slug === '') {
+            return [];
+        }
+
+        $dir = Storage::runsDir($slug);
+        if (!is_dir($dir)) {
+            return [];
+        }
+
+        $list = [];
+        foreach (glob($dir . '/*', GLOB_ONLYDIR) as $runPath) {
+            $runId = basename($runPath);
+            $meta = self::readJson($runPath . '/meta.json');
+            $started = $meta['started_at'] ?? gmdate('c', filemtime($runPath));
+            $list[] = [
+                'run' => $runId,
+                'started' => (string) $started,
+                'label' => sprintf('%s · %s', $runId, date('Y-m-d H:i', strtotime($started))),
+            ];
+        }
+
+        usort($list, static fn ($a, $b) => strcmp($b['started'] ?? '', $a['started'] ?? ''));
+
+        return $list;
+    }
+
+    private static function readJson(string $path)
+    {
+        return is_file($path) ? json_decode(file_get_contents($path), true) : null;
     }
 }
