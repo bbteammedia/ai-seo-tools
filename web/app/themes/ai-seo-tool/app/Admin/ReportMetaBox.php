@@ -69,7 +69,7 @@ class ReportMetaBox
 
             <div class="full">
                 <label><strong>Runs (for compare)</strong></label>
-                <select name="bbseo_runs[]" id="bbseo_runs" class="widefat" multiple size="5">
+                <select name="bbseo_runs[]" id="bbseo_runs" class="widefat" multiple size="5" data-initial-runs="<?php echo esc_attr(wp_json_encode($runs)); ?>">
                     <?php if (!$project): ?>
                         <option disabled value="">Select a project first…</option>
                     <?php else: ?>

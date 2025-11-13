@@ -9,3 +9,27 @@
 .bbseo-grid textarea {
 	min-height: 120px;
 }
+
+.bbseo-hide-system-menus #menu-dashboard,
+.bbseo-hide-system-menus #menu-posts,
+.bbseo-hide-system-menus #menu-media,
+.bbseo-hide-system-menus #menu-comments,
+.bbseo-hide-system-menus #menu-appearance,
+.bbseo-hide-system-menus #menu-plugins,
+.bbseo-hide-system-menus #menu-users,
+.bbseo-hide-system-menus #menu-tools,
+.bbseo-hide-system-menus #menu-settings {
+	display: none !important;
+}
+.bbseo-admin-menu-toggle .ab-item {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	color: #fff;
+	text-transform: uppercase;
+	font-size: 11px;
+	font-weight: 600;
+}
+.bbseo-admin-menu-toggle .ab-item .dashicons {
+	font-size: 16px;
+}

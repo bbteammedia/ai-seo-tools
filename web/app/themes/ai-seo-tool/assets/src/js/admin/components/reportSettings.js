@@ -164,6 +164,16 @@ class Report {
 	// --- Core -----------------------------------------------------------------
 
 	getSelectedRunsValue(form) {
+		if (this.choices) {
+			const values = this.choices.getValue(true);
+			if (!values) {
+				return "[]";
+			}
+			if (Array.isArray(values)) {
+				return JSON.stringify(values.filter((val) => val));
+			}
+			return values ? JSON.stringify([values]) : "[]";
+		}
 		if (!form) return "[]";
 		const opts = form.querySelectorAll('[name="bbseo_runs[]"] option:checked');
 		const values = Array.from(opts)
