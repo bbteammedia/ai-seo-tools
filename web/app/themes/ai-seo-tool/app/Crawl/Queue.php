@@ -7,6 +7,7 @@ class Queue
 {
     public static function init(string $project, array $urls, string $runId): array
     {
+        $excludePatterns = self::excludePatterns($project);
         $dirs = Storage::ensureRun($project, $runId);
         $qdir = $dirs['queue'];
         $urls = array_values(array_unique(array_filter(array_map('trim', $urls))));
@@ -30,7 +31,7 @@ class Queue
         ];
         Storage::writeJson($metaPath, $meta);
 
-        $added = self::enqueue($project, $urls, $runId);
+        $added = self::enqueue($project, $urls, $runId, $excludePatterns);
         return ['queued' => $added, 'run_id' => $runId];
     }
 
@@ -41,7 +42,7 @@ class Queue
         return $todos ? $todos[0] : null;
     }
 
-    public static function enqueue(string $project, array $urls, string $runId): int
+    public static function enqueue(string $project, array $urls, string $runId, array $excludePatterns = []): int
     {
         $dirs = Storage::ensureRun($project, $runId);
         $qdir = $dirs['queue'];
@@ -53,6 +54,9 @@ class Queue
         foreach ($urls as $url) {
             $url = trim((string) $url);
             if ($url === '') {
+                continue;
+            }
+            if (self::isExcluded($url, $excludePatterns)) {
                 continue;
             }
             $hash = md5($url);
@@ -69,5 +73,49 @@ class Queue
             $added++;
         }
         return $added;
+    }
+
+    /**
+     * @return array<int,string>
+     */
+    public static function excludePatterns(string $project): array
+    {
+        $configPath = Storage::projectDir($project) . '/config.json';
+        if (!is_file($configPath)) {
+            return [];
+        }
+        $config = json_decode(file_get_contents($configPath), true);
+        if (!is_array($config)) {
+            return [];
+        }
+        $patterns = is_array($config['exclude_urls'] ?? null) ? $config['exclude_urls'] : [];
+        return array_values(array_filter(array_map('trim', $patterns)));
+    }
+
+    /**
+     * @param string $url
+     * @param array<int,string> $patterns
+     */
+    private static function isExcluded(string $url, array $patterns): bool
+    {
+        if (!$patterns) {
+            return false;
+        }
+        $urlLower = strtolower($url);
+        foreach ($patterns as $pattern) {
+            $pattern = strtolower(trim($pattern));
+            if ($pattern === '') {
+                continue;
+            }
+            if (strpos($pattern, '*') !== false) {
+                if (fnmatch($pattern, $url, FNM_CASEFOLD | FNM_PATHNAME)) {
+                    return true;
+                }
+            }
+            if ($pattern === $urlLower || stripos($urlLower, $pattern) !== false) {
+                return true;
+            }
+        }
+        return false;
     }
 }

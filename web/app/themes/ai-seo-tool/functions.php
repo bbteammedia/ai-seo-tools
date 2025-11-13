@@ -54,6 +54,7 @@ add_action('after_setup_theme', function () {
     if (!is_dir($dir)) {
         wp_mkdir_p($dir);
     }
+    add_theme_support('post-thumbnails', [\BBSEO\PostTypes\Project::POST_TYPE]);
 });
 
 /**

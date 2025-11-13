@@ -91,7 +91,7 @@ class Dashboard
                             </td>
                             <td>
                                 <?php if ($summary['run_id']): ?>
-                                    <?php printf(__('Todo: %d, Done: %d, Pages: %d, Images: %d, Errors: %d', 'ai-seo-tool'), $summary['queue_remaining'], $summary['queue_done'], $summary['pages'], $summary['images'], $summary['errors']); ?>
+                                    <?php printf(__('<strong>Todo: %d</strong><br /><strong>Done: %d</strong><br />Pages: %d <br />Images: %d <br />Others: %d <br />Errors: %d', 'ai-seo-tool'), $summary['queue_remaining'], $summary['queue_done'], $summary['pages'], $summary['images'], $summary['others'], $summary['errors']); ?>
                                 <?php else: ?>
                                     -
                                 <?php endif; ?>
@@ -193,6 +193,7 @@ class Dashboard
                 'queue_done' => 0,
                 'pages' => 0,
                 'images' => 0,
+                'others' => 0,
                 'errors' => 0,
             ];
         }
@@ -201,11 +202,13 @@ class Dashboard
         $pagesDir = $runDir . '/pages';
         $imagesDir = $runDir . '/images';
         $errorsDir = $runDir . '/errors';
+        $othersDir = $runDir . '/others';
         $todos = glob($queueDir . '/*.todo');
         $done = glob($queueDir . '/*.done');
         $pages = glob($pagesDir . '/*.json');
         $images = glob($imagesDir . '/*.json');
         $errors = glob($errorsDir . '/*.json');
+        $others = glob($othersDir . '/*.json');
         $status = __('Processing', 'ai-seo-tool');
         if (empty($todos)) {
             $status = __('Completed', 'ai-seo-tool');
@@ -218,6 +221,7 @@ class Dashboard
             'queue_done' => count($done),
             'pages' => count($pages),
             'images' => count($images),
+            'others' => count($others),
             'errors' => count($errors),
         ];
     }

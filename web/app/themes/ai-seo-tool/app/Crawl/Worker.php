@@ -127,7 +127,8 @@ class Worker
         }
 
         if (!empty($discovered)) {
-            Queue::enqueue($project, $discovered, $runId);
+            $excludePatterns = Queue::excludePatterns($project);
+            Queue::enqueue($project, $discovered, $runId, $excludePatterns);
         }
 
         self::touchMeta($dirs['base'], ['last_processed_at' => gmdate('c')]);

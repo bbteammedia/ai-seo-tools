@@ -10,6 +10,7 @@ class Project
     public const META_BASE_URL = '_bbseo_project_base_url';
     public const META_SCHEDULE = '_bbseo_project_schedule';
     public const META_LAST_RUN = '_bbseo_project_last_run';
+    public const META_EXCLUDE_URLS = '_bbseo_project_exclude_urls';
     public const POST_TYPE = 'bbseo_project';
 
     public static function register(): void
@@ -31,7 +32,7 @@ class Project
             'show_in_rest' => true,
             'has_archive' => false,
             'menu_icon' => 'dashicons-chart-line',
-            'supports' => ['title', 'editor'],
+            'supports' => ['title', 'editor', 'thumbnail'],
             'rewrite' => ['slug' => 'seo-project'],
         ]);
 
@@ -65,6 +66,16 @@ class Project
             },
         ]);
 
+        register_post_meta(self::POST_TYPE, self::META_EXCLUDE_URLS, [
+            'type' => 'string',
+            'show_in_rest' => true,
+            'single' => true,
+            'sanitize_callback' => [self::class, 'sanitizeExcludeUrls'],
+            'auth_callback' => function () {
+                return current_user_can('edit_posts');
+            },
+        ]);
+
         add_action('add_meta_boxes', [self::class, 'addMetaBoxes']);
         add_action('save_post_' . self::POST_TYPE, [self::class, 'saveMeta'], 10, 2);
     }
@@ -87,6 +98,7 @@ class Project
         $baseUrl = get_post_meta($post->ID, self::META_BASE_URL, true);
         $schedule = get_post_meta($post->ID, self::META_SCHEDULE, true) ?: 'manual';
         $lastRun = (int) get_post_meta($post->ID, self::META_LAST_RUN, true);
+        $excludeUrls = get_post_meta($post->ID, self::META_EXCLUDE_URLS, true);
         $slug = $post->post_name ?: '';
         $config = [];
         if ($slug) {
@@ -160,6 +172,11 @@ class Project
             <label for="bbseo_project_base_url"><strong><?php esc_html_e('Primary Site URL', 'ai-seo-tool'); ?></strong></label>
             <input type="url" name="bbseo_project_base_url" id="bbseo_project_base_url" class="widefat" value="<?php echo esc_attr($baseUrl); ?>" placeholder="https://example.com" />
             <small class="description"><?php esc_html_e('Used as the starting point for crawls and reports.', 'ai-seo-tool'); ?></small>
+        </p>
+        <p>
+            <label for="bbseo_project_exclude_urls"><strong><?php esc_html_e('Exclude Custom URLs', 'ai-seo-tool'); ?></strong></label>
+            <textarea name="bbseo_project_exclude_urls" id="bbseo_project_exclude_urls" rows="3" class="widefat" placeholder="Enter one URL per line to skip during crawls"><?php echo esc_textarea($excludeUrls); ?></textarea>
+            <small class="description"><?php esc_html_e('Each line accepts a full URL or pattern that should be excluded from the crawl.', 'ai-seo-tool'); ?></small>
         </p>
         <p>
             <label for="bbseo_project_schedule"><strong><?php esc_html_e('Crawl Schedule', 'ai-seo-tool'); ?></strong></label>
@@ -360,6 +377,13 @@ class Project
 
         $schedule = isset($_POST['bbseo_project_schedule']) ? self::sanitizeSchedule($_POST['bbseo_project_schedule']) : 'manual';
         update_post_meta($postId, self::META_SCHEDULE, $schedule);
+        $excludeRaw = $_POST['bbseo_project_exclude_urls'] ?? '';
+        $excludeSanitized = self::sanitizeExcludeUrls($excludeRaw);
+        if ($excludeSanitized !== '') {
+            update_post_meta($postId, self::META_EXCLUDE_URLS, $excludeSanitized);
+        } else {
+            delete_post_meta($postId, self::META_EXCLUDE_URLS);
+        }
 
         // After saving META_BASE_URL and META_SCHEDULE:
         $slug = $post->post_name;
@@ -379,6 +403,11 @@ class Project
         $seed = is_array($config['seed_urls'] ?? null) ? $config['seed_urls'] : [];
         if ($baseUrl) { $seed[] = $baseUrl; }
         $config['seed_urls'] = array_values(array_unique(array_filter($seed)));
+        if ($excludeSanitized !== '') {
+            $config['exclude_urls'] = array_values(array_filter(array_map('trim', preg_split('/\r?\n/', $excludeSanitized))));
+        } else {
+            $config['exclude_urls'] = [];
+        }
 
         $gaPropertyId = isset($_POST['bbseo_ga_property_id']) ? sanitize_text_field($_POST['bbseo_ga_property_id']) : '';
         $gaRange = isset($_POST['bbseo_ga_range']) ? sanitize_text_field($_POST['bbseo_ga_range']) : 'last_30_days';
@@ -487,5 +516,24 @@ class Project
     {
         $value = is_string($value) ? strtolower($value) : 'manual';
         return in_array($value, ['manual', 'weekly', 'monthly'], true) ? $value : 'manual';
+    }
+
+    public static function sanitizeExcludeUrls($value): string
+    {
+        if (!is_string($value)) {
+            return '';
+        }
+        $lines = preg_split('/\r?\n/', $value);
+        if (!is_array($lines)) {
+            return '';
+        }
+        $filtered = array_values(array_filter(array_map('trim', $lines)));
+        $clean = [];
+        foreach ($filtered as $line) {
+            if ($line !== '') {
+                $clean[] = esc_url_raw($line);
+            }
+        }
+        return implode("\n", array_filter($clean));
     }
 }
