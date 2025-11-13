@@ -443,6 +443,8 @@ class Worker
         $crawler->filter('link[rel="stylesheet"][href]')->each(function (DomCrawler $node) use (&$uniqueInternal, $url) {
             $href = $node->attr('href') ?? '';
             $hrefAbs = self::absolutizeUrl($href, $url);
+            // remove query strings for uniqueness
+            $hrefAbs = preg_replace('~\?.*$~', '', $hrefAbs);
             if ($hrefAbs && !in_array($hrefAbs, $uniqueInternal, true)) {
                 $uniqueInternal[] = $hrefAbs;
             }
@@ -450,6 +452,8 @@ class Worker
         $crawler->filter('script[src]')->each(function (DomCrawler $node) use (&$uniqueInternal, $url) {
             $src = $node->attr('src') ?? '';
             $srcAbs = self::absolutizeUrl($src, $url);
+            // remove query strings for uniqueness
+            $srcAbs = preg_replace('~\?.*$~', '', $srcAbs);
             if ($srcAbs && !in_array($srcAbs, $uniqueInternal, true)) {
                 $uniqueInternal[] = $srcAbs;
             }

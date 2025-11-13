@@ -34,9 +34,6 @@ class Summary
             } else {
                 $statusBuckets['other']++;
             }
-
-            // If you store issues on page level later, sum them here.
-            // $issuesTotal += count($data['issues'] ?? []);
         }
 
         $audit = json_decode(@file_get_contents($dir . '/audit.json'), true) ?: [];

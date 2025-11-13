@@ -56,6 +56,7 @@ class Storage
             $base . '/pages',
             $base . '/images',
             $base . '/errors',
+            $base . '/others',
         ];
         foreach ($dirs as $d) {
             if (!is_dir($d)) {
@@ -68,6 +69,7 @@ class Storage
             'pages' => $base . '/pages',
             'images' => $base . '/images',
             'errors' => $base . '/errors',
+            'others' => $base . '/others',
         ];
     }
 
