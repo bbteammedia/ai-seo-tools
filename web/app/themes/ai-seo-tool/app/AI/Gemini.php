@@ -526,8 +526,9 @@ TXT;
                 'reco_list' => [],
             ];
         }
+        $project = (string)($data['project'] ?? 'unknown');
         return [
-            'body'      => sprintf("No AI output available. Fallback generated for '%s' (%s report) in project '%s'.", $key, $type ?: 'general', $project ?: 'unknown'),
+            'body'      => sprintf("No AI output available. Fallback generated for '%s' (%s report) in project '%s'.", $key, $type ?: 'general', $project),
             'reco_list' => [],
         ];
     }

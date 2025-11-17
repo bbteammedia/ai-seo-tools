@@ -82,7 +82,12 @@ class ReportMetrics
             ];
         }
 
-        usort($runs, static fn ($a, $b) => self::compareRunDates($a, $b));
+        usort($runs, static function ($a, $b): int {
+            if (!is_array($a) || !is_array($b)) {
+                return 0;
+            }
+            return self::compareRunDates($a, $b);
+        });
         return array_values($runs);
     }
 
