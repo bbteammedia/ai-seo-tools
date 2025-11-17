@@ -170,6 +170,17 @@ class Gemini
         return self::fallbackSection($type, $data, $sectionId);
     }
 
+    public static function structuredContent(string $prompt, array $schema, array $config = []): ?array
+    {
+        $config['responseSchema'] = $schema;
+        $response = self::callGemini($prompt, $config);
+        if (!$response) {
+            return null;
+        }
+        $decoded = json_decode($response, true);
+        return is_array($decoded) ? $decoded : null;
+    }
+
     private static function callGemini(string $prompt, array $generationConfig = []): ?string
     {
         $apiKey = getenv('GEMINI_API_KEY') ?: '';

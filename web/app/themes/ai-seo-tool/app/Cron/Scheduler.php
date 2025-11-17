@@ -99,7 +99,7 @@ class Scheduler
             if ($queueEmpty && empty($meta['completed_at'])) {
                 $audit = AuditRunner::run($project, $latestRun);
                 $summary = Summary::build($project, $latestRun);
-                Summary::appendTimeseries($project, $latestRun);
+                Summary::appendTimeseries($project, $summary);
                 $meta['analytics_refresh_triggered'] = false;
                 $meta['completed_at'] = gmdate('c');
                 $meta['summary'] = [

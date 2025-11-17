@@ -1,4 +1,5 @@
 <?php
+
 // Ensure theme classes autoload via project-level Composer
 $projectAutoload = dirname(__DIR__, 4) . '/vendor/autoload.php';
 if (file_exists($projectAutoload)) {
@@ -32,6 +33,7 @@ add_action('admin_menu', [\BBSEO\Admin\Dashboard::class, 'register']);
 add_action('admin_init', [\BBSEO\Admin\Dashboard::class, 'registerActions']);
 if (is_admin()) {
     \BBSEO\Admin\Analytics::bootstrap();
+    \BBSEO\Admin\ArticleGeneratorPage::bootstrap();
 }
 
 add_action('init', [\BBSEO\Admin\ReportMetaBox::class, 'boot']);
@@ -52,6 +54,7 @@ add_action('init', [\BBSEO\Cron\AnalyticsSync::class, 'init']);
 add_action('switch_theme', [\BBSEO\Cron\AnalyticsSync::class, 'deactivate']);
 add_action('init', [\BBSEO\Cron\AnalyticsQueueRunner::class, 'init']);
 add_action('switch_theme', [\BBSEO\Cron\AnalyticsQueueRunner::class, 'deactivate']);
+\BBSEO\AI\ArticleGenerator::bootstrap();
 
 
 // Ensure storage base dir exists on theme load
@@ -61,7 +64,8 @@ add_action('after_setup_theme', function () {
         wp_mkdir_p($dir);
     }
     \BBSEO\Chatbot\SessionStore::ensureBaseDir();
-    add_theme_support('post-thumbnails', [\BBSEO\PostTypes\Project::POST_TYPE]);
+    add_theme_support('title-tag');
+    add_theme_support('post-thumbnails', ['post', \BBSEO\PostTypes\Project::POST_TYPE]);
 });
 
 /**
@@ -70,15 +74,16 @@ add_action('after_setup_theme', function () {
  * @param string $key The asset key to look up.
  * @return string|null The asset path or null if not found.
  */
-function aiseotool_manifest_get( $key ) {
+function aiseotool_manifest_get($key)
+{
     $base_dir = get_stylesheet_directory() . '/assets/dist';
     $manifest = $base_dir . '/manifest.json';
     static $map = null;
 
-    if ( is_null( $map ) ) {
-        if ( file_exists( $manifest ) ) {
-            $json = file_get_contents( $manifest );
-            $map  = json_decode( $json, true );
+    if (is_null($map)) {
+        if (file_exists($manifest)) {
+            $json = file_get_contents($manifest);
+            $map  = json_decode($json, true);
         } else {
             $map = [];
         }
@@ -87,27 +92,31 @@ function aiseotool_manifest_get( $key ) {
 }
 
 add_action('wp_enqueue_scripts', function () {
-    if ( ! is_admin() && ! is_user_logged_in() ) {
+    if (! is_admin() && ! is_user_logged_in()) {
         // example condition, change as you like (e.g., is_front_page() || is_page_template(...))
     }
     $theme_uri = get_stylesheet_directory_uri();
     $css = aiseotool_manifest_get('public.css') ?: 'css/public.css';
-    $js  = aiseotool_manifest_get('public.js')  ?: 'js/public.js';
+    $js  = aiseotool_manifest_get('public.js') ?: 'js/public.js';
     $ven = aiseotool_manifest_get('vendor.js');
-    if ( $ven ) wp_enqueue_script('ai-seo-tool-vendor', $theme_uri . '/assets/dist/' . $ven, [], null, true);
+    if ($ven) {
+        wp_enqueue_script('ai-seo-tool-vendor', $theme_uri . '/assets/dist/' . $ven, [], null, true);
+    }
     wp_enqueue_style('ai-seo-tool-public', $theme_uri . '/assets/dist/' . $css, [], null);
     wp_enqueue_script('ai-seo-tool-public', $theme_uri . '/assets/dist/' . $js, ['ai-seo-tool-vendor'], null, true);
 }, 20);
 
 add_action('admin_enqueue_scripts', function ($hook) {
-    if ( 'wp-login.php' === $GLOBALS['pagenow'] ) { return; } // just in case
+    if ('wp-login.php' === $GLOBALS['pagenow']) {
+        return;
+    } // just in case
     $theme_uri = get_stylesheet_directory_uri();
     $css = aiseotool_manifest_get('admin.css') ?: 'css/admin.css';
-    $js  = aiseotool_manifest_get('admin.js')  ?: 'js/admin.js';
+    $js  = aiseotool_manifest_get('admin.js') ?: 'js/admin.js';
     $ven = aiseotool_manifest_get('vendor.js');
     $deps = [];
 
-    if ( $ven ) {
+    if ($ven) {
         wp_enqueue_script('ai-seo-tool-vendor', $theme_uri . '/assets/dist/' . $ven, [], null, true);
         $deps[] = 'ai-seo-tool-vendor';
     }
