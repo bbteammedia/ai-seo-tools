@@ -12,6 +12,7 @@ if (file_exists($projectAutoload)) {
 
 // Register REST routes
 add_action('rest_api_init', [\BBSEO\Rest\Routes::class, 'register']);
+add_action('rest_api_init', [\BBSEO\Chatbot\Routes::class, 'register']);
 
 // Register custom post types
 add_action('init', [\BBSEO\PostTypes\Project::class, 'register']);
@@ -19,9 +20,11 @@ add_action('init', [\BBSEO\PostTypes\Report::class, 'register']);
 
 // Register front-end routes/templates
 \BBSEO\Template\Report::register();
+\BBSEO\Template\ChatbotExample::register();
 
 add_action('after_switch_theme', function () {
     \BBSEO\Template\Report::register();
+    \BBSEO\Template\ChatbotExample::register();
     flush_rewrite_rules();
 });
 // Register admin dashboard
@@ -34,6 +37,9 @@ if (is_admin()) {
 add_action('init', [\BBSEO\Admin\ReportMetaBox::class, 'boot']);
 add_action('init', [\BBSEO\Admin\ReportSectionsUI::class, 'boot']);
 add_action('admin_init', [\BBSEO\Admin\ReportAdminList::class, 'boot']);
+add_action('admin_menu', [\BBSEO\Admin\ChatbotSettings::class, 'registerPage']);
+add_action('admin_menu', [\BBSEO\Admin\ChatbotHistoryPage::class, 'register']);
+add_action('admin_post_bbseo_save_chatbot_context', [\BBSEO\Admin\ChatbotSettings::class, 'handleSave']);
 
 // Register run history page
 add_action('admin_menu', [\BBSEO\Admin\RunHistoryPage::class, 'register_menu']);
@@ -54,6 +60,7 @@ add_action('after_setup_theme', function () {
     if (!is_dir($dir)) {
         wp_mkdir_p($dir);
     }
+    \BBSEO\Chatbot\SessionStore::ensureBaseDir();
     add_theme_support('post-thumbnails', [\BBSEO\PostTypes\Project::POST_TYPE]);
 });
 

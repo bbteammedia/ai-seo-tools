@@ -101,6 +101,22 @@ curl "https://example.com/wp-json/ai-seo-tool/v1/crawl-step" \
 - **Reports CPT**: choose project + run(s), reorder/rename AI sections, toggle visibility, and store legacy summaries.
 - **Section prompts**: editing files under `templates/prompt/*.json` adjusts the structure, temperature, and schema for Gemini responses per section.
 
+## Chatbot demo
+- Front-end lives at `/chatbot-example`. Guests enter their name + email, see every session tied to that email, resume an old transcript, or start fresh.
+- Sessions are stored as JSON under `web/app/themes/ai-seo-tool/storage/chatbot/<hash>/sessions/*.json` with timestamps, the visitor’s name, and Gemini responses.
+- REST endpoints under `/wp-json/chatbot/v1/*` power the flow:
+  - `POST /identify` upserts a profile and returns existing sessions.
+  - `GET /sessions?email=` returns a lightweight history list.
+  - `POST /session` starts a new conversation and returns its ID.
+  - `GET /session?email=&session_id=` fetches the full transcript.
+  - `POST /message` appends a user message, calls Gemini, and persists the AI reply.
+- The bot can optionally detect when a handoff is needed. Enable “Handoff email automation” in settings, provide team recipients, and the assistant will ask permission + expose a “Send summary” action. Once approved, WordPress emails the transcript summary to the addresses you set.
+- Guests can also just type “send this to your team” (or similar) and the chatbot immediately emails the summary without requiring the button click, so both voice and UI flows are covered.
+- Configure the AI instructions inside **Blackbird SEO → Chatbot Context** in wp-admin. This text is injected into every prompt so you can describe the company, tone, escalation rules, or data sources.
+- Set `GEMINI_API_KEY` in `.env` for real replies. Without it the chatbot politely reports that Gemini access is unavailable.
+- Token controls live in the same settings screen: limit max context characters, cap the history window, and toggle running summaries so you can stuff large company knowledge while keeping prompts within budget.
+- Inspect stored conversations inside **Blackbird SEO → Chatbot History** where you can filter by email, view summaries, and read transcripts directly in wp-admin.
+
 ## Analytics ingestion
 1. Configure OAuth Client ID/Secret via `.env`.
 2. In the project meta box provide the GA4 property ID and Search Console property.
